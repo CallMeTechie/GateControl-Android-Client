@@ -12,6 +12,11 @@
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <!-- Updates: the checked APK goes to Android's installer ("Unbekannte Apps installieren", once) -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+    <!-- Push: the SSE stream to the own server in a foreground service (no Google or Amazon services) -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+    <!-- Android TV 13+: posting the system notifications (Fire OS 7 needs no runtime permission) -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <application
         android:name=".TvApp"
@@ -42,6 +47,15 @@
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
             </intent-filter>
         </receiver>
+
+        <service
+            android:name=".push.TvPushService"
+            android:foregroundServiceType="specialUse"
+            android:exported="false">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Keeps a persistent connection to the user's own GateControl server to receive notifications without Google services (no FCM)." />
+        </service>
 
         <!-- Updates: only the downloaded and checked APK (cacheDir/update/update.apk), for the installer -->
         <provider

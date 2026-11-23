@@ -1,4 +1,4 @@
-package com.gatecontrol.android.service
+package com.gatecontrol.android.tunnel
 
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.first

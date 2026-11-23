@@ -17,18 +17,10 @@ import com.gatecontrol.android.ui.components.GcIcons
  */
 object QuickActionIcons {
 
-    private const val MAX_LENGTH = 4_000
     private const val CACHE_SIZE = 64
 
-    /** Path commands, numbers and separators only. */
-    private val PATH_RE = Regex("^[MmLlHhVvCcSsQqTtAaZz0-9eE.,+\\-\\s]+$")
-
     /** A path the app may try to draw, trimmed; null when empty, too long or with foreign characters. */
-    fun sanitize(d: String?): String? {
-        val s = d?.trim()?.takeIf { it.isNotEmpty() && it.length <= MAX_LENGTH } ?: return null
-        if (!PATH_RE.matches(s) || (s[0] != 'M' && s[0] != 'm')) return null
-        return s
-    }
+    fun sanitize(d: String?): String? = QuickActionPaths.sanitize(d)
 
     /** Parsed path nodes, null when [d] is unusable (no throw). */
     fun nodes(d: String?): List<PathNode>? {

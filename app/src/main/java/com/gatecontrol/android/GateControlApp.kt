@@ -218,6 +218,8 @@ class GateControlApp : Application() {
 
     private fun installCrashLogger(context: Context) {
         CrashReports.init(context)
+        // The shared modules' background scopes (core/quickactions, core/door …) report into the same crash files.
+        com.gatecontrol.android.common.BackgroundErrors.sink = { CrashReports.write("background", it) }
         val defaultHandler = Thread.getDefaultUncaughtExceptionHandler()
         Thread.setDefaultUncaughtExceptionHandler { thread, throwable ->
             CrashReports.write("uncaught_${thread.name}", throwable)

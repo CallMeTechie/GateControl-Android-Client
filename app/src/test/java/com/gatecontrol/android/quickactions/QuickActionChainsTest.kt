@@ -112,7 +112,7 @@ class QuickActionChainsTest {
         coEvery { getQuickActions(any()) } returns Response.success(QuickActionsResponse(ok = true, actions = emptyList()))
     }
     private val provider = mockk<ApiClientProvider> { every { getClient(any()) } returns api }
-    private fun repo() = QuickActionRepository(mockk<Context>(relaxed = true), setup, provider, settings)
+    private fun repo() = QuickActionRepository(setup, provider, settings, QuickActionSurfacesHook.NONE)
     private fun chain() = items().first()
 
     @Test

@@ -659,7 +659,7 @@ internal fun TileBadge(badge: QuickActionBadgeView, modifier: Modifier = Modifie
     ) {
         Icon(glyph, contentDescription = null, tint = tint, modifier = Modifier.size(10.dp))
         if (badge.text != null) {
-            Text(badge.text, style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp, fontWeight = FontWeight.SemiBold), color = tint, maxLines = 1)
+            Text(badge.text.orEmpty(), style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp, fontWeight = FontWeight.SemiBold), color = tint, maxLines = 1)
         }
     }
 }

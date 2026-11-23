@@ -15,6 +15,7 @@ import com.gatecontrol.android.tunnel.TunnelState
 import com.gatecontrol.android.tv.pair.PairState
 import com.gatecontrol.android.tv.pair.PairingViewModel
 import com.gatecontrol.android.tv.pair.TvPairingApi
+import com.gatecontrol.android.tv.tunnel.TvSupervisor
 import com.gatecontrol.android.tv.ui.components.TvPillTone
 import com.gatecontrol.android.tv.ui.home.TvHome
 import com.gatecontrol.android.tv.ui.home.TvTopStatus
@@ -41,6 +42,7 @@ class TvActivity : ComponentActivity() {
     private val updates: TvUpdateViewModel by viewModels()
 
     @Inject lateinit var pairingApi: TvPairingApi
+    @Inject lateinit var supervisor: TvSupervisor
 
     private val vpnConsent = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         main.onConsent(result.resultCode == RESULT_OK)
@@ -82,6 +84,8 @@ class TvActivity : ComponentActivity() {
         super.onResume()
         // back from the system page "Unbekannte Apps installieren": the installer follows if it is allowed now
         updates.onResume(this)
+        // the push service, if Fire OS refused to start it from the background
+        supervisor.onForeground()
     }
 
     @Composable

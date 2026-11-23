@@ -108,6 +108,8 @@ dependencies {
     implementation(project(":core:data"))
     implementation(project(":core:network"))
     implementation(project(":core:notify"))
+    implementation(project(":core:door"))
+    implementation(project(":core:quickactions"))
     implementation(project(":core:tunnel"))
 
     implementation(libs.core.ktx)

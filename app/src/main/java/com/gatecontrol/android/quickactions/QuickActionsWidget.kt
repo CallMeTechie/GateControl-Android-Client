@@ -175,7 +175,7 @@ class QuickActionsWidget : GlanceAppWidget() {
                             Spacer(GlanceModifier.width(2.dp))
                         }
                         if (badge.text != null) {
-                            Text(badge.text, style = TextStyle(color = tone, fontSize = 11.sp, fontWeight = FontWeight.Bold), maxLines = 1)
+                            Text(badge.text.orEmpty(), style = TextStyle(color = tone, fontSize = 11.sp, fontWeight = FontWeight.Bold), maxLines = 1)
                             Spacer(GlanceModifier.width(4.dp))
                         }
                         Text(line, style = lineStyle, maxLines = 1)

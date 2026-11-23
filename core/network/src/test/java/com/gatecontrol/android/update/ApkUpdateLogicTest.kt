@@ -15,7 +15,7 @@ class ApkUpdateLogicTest {
     @Test
     fun `only https addresses without user info`() {
         assertTrue(ApkUpdateLogic.allowedUrl("https://github.com/CallMeTechie/GateControl-Android-Client/releases/download/v1.90.0/app.apk"))
-        assertTrue(ApkUpdateLogic.allowedUrl(" https://gc.example.de/api/v1/client/update/download?client=android "))
+        assertTrue(ApkUpdateLogic.allowedUrl(" https://gc.example.com/api/v1/client/update/download?client=android "))
         assertFalse(ApkUpdateLogic.allowedUrl("http://github.com/app.apk"))
         assertFalse(ApkUpdateLogic.allowedUrl("https://user:pw@github.com/app.apk"))
         assertFalse(ApkUpdateLogic.allowedUrl("file:///sdcard/app.apk"))
@@ -25,11 +25,11 @@ class ApkUpdateLogicTest {
 
     @Test
     fun `the own server gets the app's client, GitHub a plain one`() {
-        assertTrue(ApkUpdateLogic.sameHost("https://gc.example.de/api/v1/client/update/download?client=android", "https://gc.example.de"))
-        assertTrue(ApkUpdateLogic.sameHost("https://GC.example.de/x", "https://gc.example.de/"))
-        assertFalse(ApkUpdateLogic.sameHost("https://github.com/x.apk", "https://gc.example.de"))
-        assertFalse(ApkUpdateLogic.sameHost("https://gc.example.de:8443/x", "https://gc.example.de"))
-        assertFalse(ApkUpdateLogic.sameHost("https://gc.example.de.evil.com/x", "https://gc.example.de"))
+        assertTrue(ApkUpdateLogic.sameHost("https://gc.example.com/api/v1/client/update/download?client=android", "https://gc.example.com"))
+        assertTrue(ApkUpdateLogic.sameHost("https://GC.example.com/x", "https://gc.example.com/"))
+        assertFalse(ApkUpdateLogic.sameHost("https://github.com/x.apk", "https://gc.example.com"))
+        assertFalse(ApkUpdateLogic.sameHost("https://gc.example.com:8443/x", "https://gc.example.com"))
+        assertFalse(ApkUpdateLogic.sameHost("https://gc.example.com.attacker.example/x", "https://gc.example.com"))
     }
 
     @Test

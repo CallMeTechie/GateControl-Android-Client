@@ -1,6 +1,6 @@
 package com.gatecontrol.android.quickactions
 
-import android.content.Context
+import com.gatecontrol.android.common.BackgroundErrors
 import com.gatecontrol.android.data.SettingsRepository
 import com.gatecontrol.android.data.SetupRepository
 import com.gatecontrol.android.layout.StartLayout
@@ -8,10 +8,8 @@ import com.gatecontrol.android.network.ApiClientProvider
 import com.gatecontrol.android.network.QuickAction
 import com.gatecontrol.android.network.QuickActionRunRequest
 import com.gatecontrol.android.network.QuickActionRunResponse
-import com.gatecontrol.android.support.CrashReports
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
-import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -113,7 +111,7 @@ data class QuickActionLookItem(
 
         private fun state(raw: com.gatecontrol.android.network.QuickActionLookState?): QuickActionLookStateItem? {
             raw ?: return null
-            val icon = QuickActionIcons.sanitize(raw.icon)
+            val icon = QuickActionPaths.sanitize(raw.icon)
             val tone = raw.tone?.takeIf { it in TONES }
             return if (icon == null && tone == null) null else QuickActionLookStateItem(icon, tone)
         }
@@ -180,12 +178,12 @@ data class QuickActionResult(val ok: Boolean, val message: String?, val reason: 
  */
 @Singleton
 class QuickActionRepository @Inject constructor(
-    @ApplicationContext private val context: Context,
     private val setupRepository: SetupRepository,
     private val apiClientProvider: ApiClientProvider,
     private val settingsRepository: SettingsRepository,
+    private val surfaces: QuickActionSurfacesHook,
 ) {
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO + CrashReports.coroutineHandler)
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO + BackgroundErrors.coroutineHandler)
 
     private val _actions = MutableStateFlow<List<QuickActionItem>>(emptyList())
     val actions: StateFlow<List<QuickActionItem>> = _actions.asStateFlow()
@@ -460,7 +458,7 @@ class QuickActionRepository @Inject constructor(
     }
 
     private fun afterPinsChanged() {
-        scope.launch { QuickActionSurfaces.refresh(context, currentPins()) }
+        scope.launch { surfaces.pinsChanged(currentPins()) }
     }
 
     companion object {
@@ -498,7 +496,7 @@ class QuickActionRepository @Inject constructor(
                 toggle = toggle,
                 state = if (toggle) a.state?.takeIf { it == "on" || it == "off" } else null,
                 confirm = a.confirm == true,
-                icon = QuickActionIcons.sanitize(a.icon),
+                icon = QuickActionPaths.sanitize(a.icon),
                 widget = QuickActionWidgetItem.from(a.widget),
                 deviceId = device?.id,
                 deviceTitle = device?.title,
@@ -521,7 +519,7 @@ class QuickActionRepository @Inject constructor(
                 id = id,
                 title = title,
                 subtitle = raw.subtitle?.let(::clean)?.take(60)?.takeIf { it.isNotBlank() },
-                icon = QuickActionIcons.sanitize(raw.icon),
+                icon = QuickActionPaths.sanitize(raw.icon),
             )
         }
 
@@ -552,10 +550,10 @@ class QuickActionRepository @Inject constructor(
             return pins.mapNotNull { pin -> byKey[pin.key] ?: pin.takeIf { it.plugin !in listing } }
         }
 
-        internal fun clean(s: String): String = s.filter { !it.isISOControl() }.trim()
+        fun clean(s: String): String = s.filter { !it.isISOControl() }.trim()
 
         @Suppress("SENSELESS_COMPARISON")
-        internal fun decodePins(raw: String?): List<QuickActionItem> = try {
+        fun decodePins(raw: String?): List<QuickActionItem> = try {
             if (raw.isNullOrBlank()) emptyList()
             // Gson bypasses Kotlin null-safety: drop entries an older format left incomplete.
             else gson.fromJson<List<QuickActionItem>>(raw, pinType).orEmpty()
@@ -565,6 +563,6 @@ class QuickActionRepository @Inject constructor(
             emptyList()
         }
 
-        internal fun encodePins(pins: List<QuickActionItem>): String = gson.toJson(pins)
+        fun encodePins(pins: List<QuickActionItem>): String = gson.toJson(pins)
     }
 }

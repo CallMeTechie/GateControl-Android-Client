@@ -33,7 +33,13 @@ android-client/
 │   ├── network/             # API-Kommunikation
 │   │   └── ApiClient, ApiModels, AuthInterceptor, ApiClientProvider, UpdateChecker
 │   ├── tunnel/              # WireGuard-Tunnelverwaltung
-│   │   └── TunnelManager, TunnelMonitor, TunnelConfig, TunnelState, TunnelStats
+│   │   └── TunnelManager, TunnelMonitor, TunnelConfig, TunnelState, TunnelStats, HeartbeatScheduler
+│   ├── notify/              # Mitteilungen (SSE-Stream, Inbox, Push-Routen)
+│   │   └── PushClient, PushRepository, PushEventParser, push/routes/NotifyRoutes
+│   ├── door/                # Tür & Kamera: App-API, Modelle, Klingel-Push, Logik (Handy und TV)
+│   │   └── DoorApi, DoorRepository, DoorJson, DoorLogic, DoorPush, HomeCameraJson, HomeCameraLogic
+│   ├── quickactions/        # Schnellaktionen und Startlayout (Handy und TV)
+│   │   └── QuickActionRepository, QuickActionWidgetItem, QuickActionDevices, layout/StartLayout, TabLayoutRepository
 │   └── rdp/                 # Remote-Desktop-Modul
 │       └── RdpManager, RdpCredentialHandler, RdpExternalClient, WolClient, RdpMonitor
 └── .github/workflows/       # CI/CD-Pipelines
@@ -52,7 +58,12 @@ app
 ├── core:data       → core:common
 ├── core:network    → core:common
 ├── core:tunnel     → core:common, core:network
+├── core:notify     → core:common, core:data, core:network
+├── core:door       → core:common, core:data, core:network, core:notify
+├── core:quickactions → core:common, core:data, core:network, core:door
 └── core:rdp        → core:common, core:network
+
+tv (GateControl TV) → alle core-Module außer core:rdp
 ```
 
 Jedes Modul stellt seine Abhängigkeiten über ein Hilt-`@Module` mit `@InstallIn(SingletonComponent::class)` bereit.

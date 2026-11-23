@@ -125,7 +125,7 @@ class DoorHomeViewModel @Inject constructor(
         repository.overview.value?.cameras?.forEach { cam ->
             val shown = _snapshots.value[cam.id]
             val newer = cam.lastImageAt != null && shown != null && !shown.loading && shown.error == null &&
-                shown.at != null && cam.lastImageAt > shown.at
+                shown.at != null && cam.lastImageAt.orEmpty() > shown.at
             if ((shown == null && cam.lastImageAt != null) || newer) loadSnapshot(cam.id, refresh = false)
         }
     }

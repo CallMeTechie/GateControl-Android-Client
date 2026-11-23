@@ -238,7 +238,7 @@ class QuickActionHeatingTest {
         coEvery { api.runQuickAction("gatecontrol-smarthome", "heat:4", "de", QuickActionRunRequest("app", "sp", 21.5)) } returns
             Response.error(409, """{"ok":false,"error":"control_disabled"}""".toResponseBody(null))
         coEvery { api.getQuickActions(any()) } returns Response.success(QuickActionsResponse(ok = true, actions = emptyList()))
-        val result = QuickActionRepository(mockk<Context>(relaxed = true), setup, provider, settings).control(room(), "sp", 21.5)
+        val result = QuickActionRepository(setup, provider, settings, QuickActionSurfacesHook.NONE).control(room(), "sp", 21.5)
         assertFalse(result.ok)
         assertNull(result.message)
         assertEquals(QuickActionResult.CONTROL_DISABLED, result.reason)

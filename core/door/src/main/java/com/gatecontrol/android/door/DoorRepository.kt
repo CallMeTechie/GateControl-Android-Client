@@ -2,8 +2,8 @@ package com.gatecontrol.android.door
 
 import android.content.Context
 import android.util.AtomicFile
+import com.gatecontrol.android.common.LoginOwner
 import com.gatecontrol.android.data.SetupRepository
-import com.gatecontrol.android.familie.PluginDirectory
 import com.gatecontrol.android.notify.model.PushMessage
 import com.google.gson.JsonObject
 import com.google.gson.JsonParser
@@ -44,7 +44,7 @@ class DoorRepository @Inject constructor(
 
     private val file: AtomicFile get() = AtomicFile(File(File(context.filesDir, "door").apply { mkdirs() }, CACHE_FILE))
 
-    private fun ownerKey(): String = PluginDirectory.ownerKey(setupRepository.getServerUrl(), setupRepository.getApiToken())
+    private fun ownerKey(): String = LoginOwner.key(setupRepository.getServerUrl(), setupRepository.getApiToken())
 
     /** The stored `me` of this login, shown until the server answers. */
     suspend fun loadCached(): DoorOverview? {

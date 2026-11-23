@@ -108,4 +108,22 @@
     <string name="tv_unpair">Kopplung aufheben</string>
     <string name="tv_unpair_desc">VPN aus, Anmeldung von diesem Fernseher entfernt</string>
     <string name="tv_unpair_confirm">Zum Aufheben noch einmal OK drücken. Entferne das Gerät auch im Portal.</string>
+
+    <!-- Push: notification channels and the push service's ongoing card -->
+    <string name="tv_channel_critical">Kritisch</string>
+    <string name="tv_channel_info">Hinweise</string>
+    <string name="tv_channel_silent">Lautlos</string>
+    <string name="tv_channel_connection">Verbindung</string>
+    <string name="tv_channel_security">Sicherheit</string>
+    <string name="tv_channel_devices">Geräte</string>
+    <string name="tv_channel_services">Dienste</string>
+    <string name="tv_channel_system">System</string>
+    <string name="tv_channel_admin">Hinweise der Verwaltung</string>
+    <string name="tv_channel_other">Mitteilungen</string>
+    <string name="tv_ongoing_vpn_on">VPN an</string>
+    <string name="tv_ongoing_vpn_off">VPN aus</string>
+    <string name="tv_ongoing_ready">Mitteilungen bereit</string>
+    <string name="tv_ongoing_connecting">Mitteilungen verbinden …</string>
+    <string name="tv_ongoing_waiting">Mitteilungen warten auf den Server</string>
+    <string name="tv_ongoing_blocked">Mitteilungen nicht verfügbar</string>
 </resources>

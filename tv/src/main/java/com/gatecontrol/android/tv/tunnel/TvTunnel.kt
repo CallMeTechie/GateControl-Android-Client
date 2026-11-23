@@ -74,6 +74,17 @@ class TvTunnel @Inject constructor(
         apiClientProvider.clearDnsCache()
     }
 
+    /**
+     * The server says the WireGuard config changed (push or `hello.state`): the newer one is stored and used from the
+     * next connect. True when there was a new one.
+     */
+    suspend fun syncConfig(): Boolean {
+        val server = setupRepository.getServerUrl()
+        val current = setupRepository.getWireGuardConfig()
+        if (server.isEmpty() || current.isEmpty()) return false
+        return refreshConfig(server, current) != current
+    }
+
     private fun applyVpnSubnet(config: String) {
         val address = runCatching { TunnelConfig.parse(config).address }.getOrNull() ?: return
         apiClientProvider.vpnSubnet = VpnSubnet.fromAddress(address) ?: VpnSubnet.DEFAULT
