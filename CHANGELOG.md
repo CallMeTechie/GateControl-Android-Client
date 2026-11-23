@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.142.0] - 2026-11-23
+
+### Features
+- GateControl TV – Fotorahmen zeigt nur freigegebene Fotos (Drive GET frame) (#273)
+
+---
+
 ## [1.141.0] - 2026-11-23
 
 ### Features
