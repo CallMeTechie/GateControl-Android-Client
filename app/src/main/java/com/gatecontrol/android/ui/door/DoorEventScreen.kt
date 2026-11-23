@@ -44,12 +44,14 @@ import com.gatecontrol.android.ui.theme.GateControlTheme
 /**
  * One ring or motion event (push "Ansehen", history): the picture, when
  * and where, and — for people with the `open` right — "Tür öffnen" /
- * "Summer" behind a confirmation and the device unlock.
+ * "Summer" behind a confirmation and the device unlock. With a home camera
+ * assigned to the doorbell (Door 1.9) "Livebild ansehen" opens it ([onCamera]).
  */
 @Composable
 fun DoorEventScreen(
     eventId: Long,
     onBack: () -> Unit,
+    onCamera: ((String) -> Unit)? = null,
     viewModel: DoorEventViewModel = hiltViewModel(key = "door-event-$eventId"),
 ) {
     LaunchedEffect(eventId) { viewModel.show(eventId) }
@@ -94,6 +96,10 @@ fun DoorEventScreen(
                         val where = listOfNotNull(item.cameraName, item.lockName).distinct().joinToString(" · ")
                         if (where.isNotEmpty()) Text(where, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onBackground)
                         Text(relativeStamp(item.at), style = MaterialTheme.typography.bodyMedium, color = extra.muted)
+                        val homeCamera = ui.detail?.homeCameraId
+                        if (homeCamera != null && onCamera != null) {
+                            GcOutlineButton(text = stringResource(R.string.door_event_live), onClick = { onCamera(homeCamera) })
+                        }
 
                         val lock = ui.lock
                         if (lock != null) {

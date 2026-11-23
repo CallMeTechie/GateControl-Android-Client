@@ -111,7 +111,7 @@ fun TvNoticeOptions(
     val chosen = cameras.firstOrNull { it.id == bell.cameraId }
     TvOptionRow(
         title = stringResource(R.string.tv_bell_camera),
-        description = chosen?.name ?: stringResource(R.string.tv_bell_camera_none),
+        description = stringResource(R.string.tv_bell_camera_fallback, chosen?.name ?: stringResource(R.string.tv_bell_camera_none)),
         end = TvRowEnd.Arrow,
         onClick = {
             val ids = listOf<String?>(null) + cameras.map { it.id }

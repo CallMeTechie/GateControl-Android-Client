@@ -13,7 +13,10 @@ data class DoorPushInfo(
     val eventId: Long?,
     val cameraId: Long?,
     val lockId: Long?,
-    /** `home_camera_event` (topic "Personen an der Kamera"): the home camera (`c` + 15 hex). */
+    /**
+     * The home camera (`c` + 15 hex): of `home_camera_event` (topic "Personen an der Kamera") the one that saw people;
+     * of `ding` / `motion` (Door 1.9) the one the administrator assigned to the ringing doorbell (its live picture).
+     */
     val homeCameraId: String? = null,
 ) {
     val isRing: Boolean get() = type == DING || type == MOTION
@@ -82,7 +85,11 @@ object DoorPush {
         val data = message.dataJson ?: return null
         val door = runCatching { JsonParser.parseString(data).asJsonObject.obj("door") }.getOrNull() ?: return null
         val type = door.str("type")?.takeIf { TYPE_RE.matches(it) } ?: return null
-        val homeCamera = if (type == DoorPushInfo.HOME_CAMERA_EVENT) door.str("cameraId")?.takeIf { HomeCameraJson.CAMERA_ID_RE.matches(it) } else null
+        val homeCamera = when (type) {
+            DoorPushInfo.HOME_CAMERA_EVENT -> door.str("cameraId")?.takeIf { HomeCameraJson.CAMERA_ID_RE.matches(it) }
+            DoorPushInfo.DING, DoorPushInfo.MOTION -> DoorJson.linkedHomeCamera(door)
+            else -> null
+        }
         return DoorPushInfo(type, door.id("eventId"), door.id("cameraId"), door.id("lockId"), homeCamera)
     }
 
