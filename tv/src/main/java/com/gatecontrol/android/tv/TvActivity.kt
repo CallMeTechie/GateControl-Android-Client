@@ -23,6 +23,25 @@ import com.gatecontrol.android.tv.drive.TvDriveViewModel
 import com.gatecontrol.android.tv.ui.drive.TvDrivePage
 import com.gatecontrol.android.tv.ui.drive.TvMediaActivity
 import android.content.Intent
+import com.gatecontrol.android.tv.drive.TvMediaSelection
+import com.gatecontrol.android.tv.gatedrop.TvDropEntry
+import com.gatecontrol.android.tv.gatedrop.TvDropLogic
+import com.gatecontrol.android.tv.gatedrop.TvGateDrop
+import com.gatecontrol.android.tv.ui.drive.TvLocalFile
+import com.gatecontrol.android.tv.ui.gatedrop.TvDropEntryDialog
+import com.gatecontrol.android.tv.ui.gatedrop.TvDropFileDialog
+import com.gatecontrol.android.tv.ui.gatedrop.TvDropProgressDialog
+import com.gatecontrol.android.tv.ui.gatedrop.TvSendDialog
+import com.gatecontrol.android.tv.ui.drive.TvLocalPhotos
+import android.content.ActivityNotFoundException
+import android.graphics.Bitmap
+import android.widget.Toast
+import androidx.core.content.FileProvider
+import androidx.core.net.toUri
+import com.gatecontrol.android.tv.ui.gatedrop.TvDropOfferDialog
+import com.gatecontrol.android.tv.ui.gatedrop.TvGateDropPage
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.launch
 import com.gatecontrol.android.tv.home.TvHomeViewModel
 import com.gatecontrol.android.tv.security.TvPinFunction
 import com.gatecontrol.android.tv.ui.cameras.TvCamerasPage
@@ -68,6 +87,8 @@ class TvActivity : ComponentActivity() {
 
     @Inject lateinit var pairingApi: TvPairingApi
     @Inject lateinit var supervisor: TvSupervisor
+    @Inject lateinit var gatedrop: TvGateDrop
+    @Inject lateinit var selection: TvMediaSelection
 
     private val vpnConsent = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         main.onConsent(result.resultCode == RESULT_OK)
@@ -107,12 +128,60 @@ class TvActivity : ComponentActivity() {
         super.onStop()
     }
 
+    /** The pictures and videos of a send kept on the TV in the viewer, from its file [from] (or the first). */
+    private fun showDrop(e: TvDropEntry, from: Int? = null) {
+        gatedrop.seen(e.sendId)
+        val files = e.files.mapIndexedNotNull { i, f ->
+            if (!TvDropLogic.media(f.mime)) return@mapIndexedNotNull null
+            gatedrop.file(e, i)?.let { i to TvLocalFile(it, f.name, f.mime) }
+        }
+        if (files.isEmpty()) return
+        selection.setLocal(e.sendId, files, files.indexOfFirst { it.first == from }.coerceAtLeast(0))
+        startActivity(Intent(this, TvMediaActivity::class.java))
+    }
+
+    /** A received file: pictures and videos in the viewer, anything else in another app on the TV (if one takes it). */
+    private fun openDropFile(e: TvDropEntry, i: Int) {
+        val f = e.files.getOrNull(i) ?: return
+        if (TvDropLogic.media(f.mime)) {
+            showDrop(e, i)
+            return
+        }
+        val file = gatedrop.file(e, i) ?: return
+        gatedrop.seen(e.sendId)
+        val opened = runCatching {
+            val uri = FileProvider.getUriForFile(this, "$packageName.provider", file)
+            startActivity(Intent(Intent.ACTION_VIEW).setDataAndType(uri, f.mime).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION))
+        }
+        if (opened.isFailure) {
+            if (opened.exceptionOrNull() !is ActivityNotFoundException) Timber.d("GateDrop TV: not opened (%s)", opened.exceptionOrNull()?.javaClass?.simpleName)
+            Toast.makeText(this, R.string.tv_drop_no_app, Toast.LENGTH_LONG).show()
+        }
+    }
+
+    /** A link of a send in the TV's browser (if there is one). */
+    private fun openDropLink(e: TvDropEntry) {
+        val link = e.link?.trim()?.takeIf(TvDropLogic::openableLink) ?: return
+        gatedrop.seen(e.sendId)
+        runCatching { startActivity(Intent(Intent.ACTION_VIEW, link.toUri())) }
+            .onFailure { Toast.makeText(this, R.string.tv_drop_no_app, Toast.LENGTH_LONG).show() }
+    }
+
+    /** The small picture of a send's card on the start page. */
+    private suspend fun dropCover(e: TvDropEntry): Bitmap? {
+        val i = TvDropLogic.cover(e) ?: return null
+        val file = gatedrop.file(e, i) ?: return null
+        return TvLocalPhotos(listOf(TvLocalFile(file, e.files[i].name, e.files[i].mime)), COVER_PX).load(0)
+    }
+
     override fun onResume() {
         super.onResume()
         // back from the system page "Unbekannte Apps installieren": the installer follows if it is allowed now
         updates.onResume(this)
         // the push service, if Fire OS refused to start it from the background
         supervisor.onForeground()
+        // GateDrop: what was sent to the TV while it was away
+        if (pairing.state.value is PairState.Paired) gatedrop.poll()
     }
 
     @Composable
@@ -150,6 +219,18 @@ class TvActivity : ComponentActivity() {
         val driveUi by drive.ui.collectAsStateWithLifecycle()
         val drivePreviews by drive.previews.collectAsStateWithLifecycle()
         val recent by drive.recent.collectAsStateWithLifecycle()
+        val dropEntries by gatedrop.entries.collectAsStateWithLifecycle()
+        val dropOffer by gatedrop.offer.collectAsStateWithLifecycle()
+        val dropWaiting by gatedrop.waiting.collectAsStateWithLifecycle()
+        val dropReceiving by gatedrop.receiving.collectAsStateWithLifecycle()
+        val dropAvailable by gatedrop.available.collectAsStateWithLifecycle()
+        val dropProgress by gatedrop.progress.collectAsStateWithLifecycle()
+        var dropOpen by remember { mutableStateOf<TvDropEntry?>(null) }
+        // a file of a send: its actions, then "Senden an …"
+        var dropFile by remember { mutableStateOf<Pair<TvDropEntry, Int>?>(null) }
+        var dropSend by remember { mutableStateOf<Pair<TvDropEntry, Int>?>(null) }
+        // "Annehmen und zeigen": the send whose files are awaited to be shown
+        var dropShowing by remember { mutableStateOf<String?>(null) }
         LaunchedEffect(Unit) { home.refresh() }
         TvHome(
             status = status,
@@ -167,7 +248,10 @@ class TvActivity : ComponentActivity() {
                         loading = load is QuickActionsLoad.Loading || load is QuickActionsLoad.Idle,
                         drive = if (driveOpen) recent else emptyList(),
                         drivePreviews = drivePreviews,
+                        drops = dropEntries,
                     ),
+                    onDrop = { dropOpen = it },
+                    dropCover = ::dropCover,
                     onDrive = { node ->
                         when (drive.pressRecent(node)) {
                             TvDriveOpen.PHOTO, TvDriveOpen.VIDEO, TvDriveOpen.PREVIEW -> startActivity(Intent(this, TvMediaActivity::class.java))
@@ -216,6 +300,17 @@ class TvActivity : ComponentActivity() {
                     onRetry = drive::reload,
                 )
             },
+            gatedropPage = {
+                TvGateDropPage(
+                    entries = dropEntries,
+                    waiting = dropWaiting,
+                    available = dropAvailable,
+                    receiving = dropReceiving,
+                    onOpen = { dropOpen = it },
+                    onTake = { send -> lifecycleScope.launch { gatedrop.accept(send) } },
+                    onStart = gatedrop::poll,
+                )
+            },
             onOpen = { destination, open ->
                 val function = when (destination) {
                     TvDestination.Settings -> TvPinFunction.SETTINGS
@@ -236,7 +331,12 @@ class TvActivity : ComponentActivity() {
                     onOpenOnBoot = main::setOpenOnBoot,
                     onCheckUpdate = updates::checkNow,
                     onInstallUpdate = { updates.install(this) },
-                    onUnpair = { main.unpair { pairing.reset() } },
+                    onUnpair = {
+                        main.unpair {
+                            gatedrop.clear()
+                            pairing.reset()
+                        }
+                    },
                     splitTunnel = { TvSplitTunnelOptions(split, apps, prefs::loadApps, prefs::setSplitTunnel) },
                     notices = {
                         TvNoticeOptions(push, prefs::setPush, bell, prefs::setDoorbell, prefs.canDrawOverlays(), bellCameras, prefs::loadCameras)
@@ -256,6 +356,74 @@ class TvActivity : ComponentActivity() {
                 onDismiss = { pinFor = null },
             )
         }
+        dropOffer?.let { offer ->
+            TvDropOfferDialog(
+                offer,
+                onShow = {
+                    dropShowing = offer.entry.id
+                    lifecycleScope.launch {
+                        val kept = gatedrop.accept(offer.entry)
+                        val wanted = dropShowing == offer.entry.id
+                        dropShowing = null
+                        if (wanted) kept?.let { showDrop(it) }
+                    }
+                },
+                onTake = { lifecycleScope.launch { gatedrop.accept(offer.entry) } },
+                onLater = gatedrop::later,
+            )
+        }
+        dropOpen?.let { e ->
+            TvDropEntryDialog(
+                entry = e,
+                onShow = {
+                    dropOpen = null
+                    showDrop(e)
+                },
+                onDelete = {
+                    dropOpen = null
+                    gatedrop.delete(e.sendId)
+                },
+                onDismiss = {
+                    dropOpen = null
+                    gatedrop.seen(e.sendId)
+                },
+                onFile = { i ->
+                    dropOpen = null
+                    dropFile = e to i
+                },
+                onLink = if (TvDropLogic.openableLink(e.link)) ({ openDropLink(e) }) else null,
+            )
+        }
+        dropFile?.let { (e, i) ->
+            val f = e.files.getOrNull(i)
+            if (f == null) {
+                dropFile = null
+            } else {
+                TvDropFileDialog(
+                    file = f,
+                    onShow = {
+                        dropFile = null
+                        openDropFile(e, i)
+                    },
+                    onSend = {
+                        dropFile = null
+                        dropSend = e to i
+                    },
+                    onDismiss = { dropFile = null },
+                )
+            }
+        }
+        dropSend?.let { (e, i) ->
+            TvSendDialog(
+                name = e.files.getOrNull(i)?.name.orEmpty(),
+                targets = gatedrop::targets,
+                send = { to -> gatedrop.sendReceived(e.sendId, i, to) },
+                onDismiss = { dropSend = null },
+            )
+        }
+        dropShowing?.let { id ->
+            TvDropProgressDialog(progress = dropProgress?.takeIf { it.sendId == id }, onDismiss = { dropShowing = null })
+        }
         pending?.let { p ->
             if (p.needsPin) {
                 TvPinDialog(stringResource(R.string.tv_pin_for_door), prefs::checkPin, home::pinPassed, home::cancelPending)
@@ -269,6 +437,11 @@ class TvActivity : ComponentActivity() {
                 )
             }
         }
+    }
+
+    private companion object {
+        /** The side of a send's picture on its card (px). */
+        const val COVER_PX = 160
     }
 
     /** VPN on (consent first, if not given yet) or off. */

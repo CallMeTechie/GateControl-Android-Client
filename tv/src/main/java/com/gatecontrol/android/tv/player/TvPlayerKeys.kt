@@ -83,8 +83,8 @@ object TvPlayerKeys {
     }
 }
 
-/** What the photo viewer does with a key: ◀ ▶ step, ⏯ / OK runs the slide show, Zurück closes. */
-enum class TvPhotoAction { PREVIOUS, NEXT, SLIDESHOW, BACK }
+/** What the photo viewer does with a key: ◀ ▶ step, ⏯ / OK runs the slide show, ☰ / ▲ sends, Zurück closes. */
+enum class TvPhotoAction { PREVIOUS, NEXT, SLIDESHOW, BACK, SEND }
 
 object TvPhotoKeys {
     fun action(keyCode: Int): TvPhotoAction? = when (keyCode) {
@@ -96,6 +96,8 @@ object TvPhotoKeys {
         KeyEvent.KEYCODE_MEDIA_PLAY, KeyEvent.KEYCODE_SPACE,
         -> TvPhotoAction.SLIDESHOW
         KeyEvent.KEYCODE_BACK, KeyEvent.KEYCODE_ESCAPE, KeyEvent.KEYCODE_MEDIA_STOP -> TvPhotoAction.BACK
+        // ☰ or ▲: "Senden an …" (GateDrop)
+        KeyEvent.KEYCODE_MENU, KeyEvent.KEYCODE_DPAD_UP -> TvPhotoAction.SEND
         else -> null
     }
 }

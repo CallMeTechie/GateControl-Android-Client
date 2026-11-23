@@ -1,6 +1,7 @@
 package com.gatecontrol.android.tv.ui.home
 
 import android.graphics.Bitmap
+import android.text.format.DateUtils
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -37,6 +38,7 @@ import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -55,6 +57,11 @@ import com.gatecontrol.android.drive.DNode
 import com.gatecontrol.android.drive.DriveLogic
 import com.gatecontrol.android.quickactions.QuickActionControlItem
 import com.gatecontrol.android.tv.R
+import com.gatecontrol.android.tv.gatedrop.TvDropEntry
+import com.gatecontrol.android.tv.gatedrop.TvDropKind
+import com.gatecontrol.android.tv.gatedrop.TvDropLogic
+import com.gatecontrol.android.tv.ui.components.TvPill
+import com.gatecontrol.android.tv.ui.components.TvPillTone
 import com.gatecontrol.android.tv.home.TvRunNotice
 import com.gatecontrol.android.tv.home.TvSetpoint
 import com.gatecontrol.android.tv.home.TvTile
@@ -72,6 +79,8 @@ data class TvStartUi(
     /** "Zuletzt in Drive": the files opened last (Drive's overview), with their previews. */
     val drive: List<DNode> = emptyList(),
     val drivePreviews: Map<Long, Bitmap> = emptyMap(),
+    /** "GateDrop-Eingang": the sends kept on the TV, newest first. */
+    val drops: List<TvDropEntry> = emptyList(),
 )
 
 /**
@@ -88,6 +97,9 @@ fun TvStartRows(
     modifier: Modifier = Modifier,
     onDrive: (DNode) -> Unit = {},
     onDrivePreview: (DNode) -> Unit = {},
+    onDrop: (TvDropEntry) -> Unit = {},
+    /** The card's picture of a send (its first picture, small); null: none. */
+    dropCover: suspend (TvDropEntry) -> Bitmap? = { null },
 ) {
     val colors = GateControlTvTheme.colors
     Column(modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
@@ -132,6 +144,18 @@ fun TvStartRows(
                 itemsIndexed(ui.drive, key = { _, n -> n.id }) { _, node ->
                     LaunchedEffect(node.id) { onDrivePreview(node) }
                     DriveCard(node, ui.drivePreviews[node.id], onClick = { onDrive(node) })
+                }
+            }
+        }
+        if (ui.drops.isNotEmpty()) {
+            val fresh = TvDropLogic.fresh(ui.drops)
+            RowTitle(stringResource(R.string.tv_row_gatedrop), if (fresh > 0) pluralStringResource(R.plurals.tv_drop_new_count, fresh, fresh) else null)
+            LazyRow(
+                contentPadding = PaddingValues(start = 2.dp, top = 9.dp, end = 30.dp, bottom = 14.dp),
+                horizontalArrangement = Arrangement.spacedBy(11.dp),
+            ) {
+                itemsIndexed(ui.drops.take(START_DROPS), key = { _, e -> e.sendId }) { _, e ->
+                    DropCard(e, dropCover, onClick = { onDrop(e) })
                 }
             }
         }
@@ -309,6 +333,54 @@ private fun DriveCard(node: DNode, preview: Bitmap?, onClick: () -> Unit) {
                 Modifier.align(Alignment.BottomStart).fillMaxWidth().background(Color.Black.copy(alpha = 0.45f)).padding(horizontal = 8.dp, vertical = 4.dp),
             ) {
                 Text(node.name, style = MaterialTheme.typography.labelMedium, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+        }
+    }
+}
+
+private const val START_DROPS = 12
+
+/** A send in "GateDrop-Eingang" (mockup 1): its picture or kind, "3 Fotos" / its name, "NEU", "von Mila · vor 5 Min.". */
+@Composable
+private fun DropCard(e: TvDropEntry, cover: suspend (TvDropEntry) -> Bitmap?, onClick: () -> Unit) {
+    val colors = GateControlTvTheme.colors
+    var picture by remember(e.sendId) { mutableStateOf<Bitmap?>(null) }
+    LaunchedEffect(e.sendId) { if (TvDropLogic.cover(e) != null) picture = cover(e) }
+    val summary = TvDropLogic.summary(e)
+    val title = when (summary.kind) {
+        TvDropKind.PHOTOS -> pluralStringResource(R.plurals.tv_drop_photos, summary.count, summary.count)
+        TvDropKind.VIDEOS -> pluralStringResource(R.plurals.tv_drop_videos, summary.count, summary.count)
+        TvDropKind.MEDIA -> pluralStringResource(R.plurals.tv_drop_media, summary.count, summary.count)
+        TvDropKind.FILES -> pluralStringResource(R.plurals.tv_drop_files, summary.count, summary.count)
+        TvDropKind.FILE, TvDropKind.TEXT, TvDropKind.LINK -> summary.name ?: stringResource(R.string.tv_drop_message)
+    }
+    val from = stringResource(
+        R.string.tv_drop_card_from,
+        e.from ?: stringResource(R.string.tv_drop_someone),
+        DateUtils.getRelativeTimeSpanString(e.at).toString(),
+    )
+    TvCard(170.dp, 58.dp, onClick = onClick, description = "$title, $from") {
+        Row(Modifier.fillMaxSize().padding(8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            val square = Modifier.size(42.dp).background(if (picture != null) Color(0xFF0B0F14) else colors.infoBg, RoundedCornerShape(6.dp))
+            Box(square, contentAlignment = Alignment.Center) {
+                val p = picture
+                if (p != null) {
+                    Image(p.asImageBitmap(), contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+                } else {
+                    val icon = when (summary.kind) {
+                        TvDropKind.PHOTOS -> TvIcons.Photo
+                        TvDropKind.VIDEOS, TvDropKind.MEDIA -> TvIcons.Play
+                        else -> TvIcons.File
+                    }
+                    Icon(icon, contentDescription = null, tint = colors.muted, modifier = Modifier.size(18.dp))
+                }
+            }
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                    Text(title, style = MaterialTheme.typography.labelMedium, color = colors.text, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+                    if (!e.seen) TvPill(stringResource(R.string.tv_drop_badge_new), TvPillTone.Accent, dot = false)
+                }
+                Text(from, style = MaterialTheme.typography.bodySmall, color = colors.muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         }
     }

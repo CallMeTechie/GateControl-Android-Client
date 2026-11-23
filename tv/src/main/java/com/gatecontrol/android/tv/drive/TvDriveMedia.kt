@@ -104,15 +104,37 @@ class TvMediaSelection @Inject constructor() {
     var document: Boolean = false
         private set
 
+    /** Files received with GateDrop instead of Drive's (their index in the send for "Senden an …"). */
+    @Volatile
+    var local: List<Pair<Int, com.gatecontrol.android.tv.ui.drive.TvLocalFile>> = emptyList()
+        private set
+
+    @Volatile
+    var localSend: String? = null
+        private set
+
     fun set(items: List<DNode>, at: Int, document: Boolean = false) {
         this.items = items
         this.at = at.coerceIn(0, (items.size - 1).coerceAtLeast(0))
         this.document = document
+        local = emptyList()
+        localSend = null
+    }
+
+    /** The pictures or videos of a GateDrop send kept on the TV ([sendId]), from [at]. */
+    fun setLocal(sendId: String, files: List<Pair<Int, com.gatecontrol.android.tv.ui.drive.TvLocalFile>>, at: Int) {
+        items = emptyList()
+        document = false
+        local = files
+        localSend = sendId
+        this.at = at.coerceIn(0, (files.size - 1).coerceAtLeast(0))
     }
 
     fun clear() {
         items = emptyList()
         at = 0
         document = false
+        local = emptyList()
+        localSend = null
     }
 }

@@ -63,6 +63,16 @@ class GateDropJsonTest {
     }
 
     @Test
+    fun `a device's platform, GateControl TV included`() {
+        fun platform(p: String) = GateDropJson.device(obj("""{"id":"9","name":"Wohnzimmer","platform":"$p"}"""))!!.platform
+        assertEquals("android-tv", platform("android-tv"))
+        assertEquals("windows", platform("Windows"))
+        assertNull(platform("android tv"))
+        assertNull(platform("<b>x</b>"))
+        assertNull(platform("x".repeat(21)))
+    }
+
+    @Test
     fun `device setting answer and body, the sender's name by own`() {
         assertEquals("self", GateDropJson.receiveFrom(obj("""{"ok":true,"device":{"id":"42","receiveFrom":"self"}}""")))
         assertNull(GateDropJson.receiveFrom(obj("""{"ok":true,"device":{"id":"42","receiveFrom":"x"}}""")))

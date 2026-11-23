@@ -275,14 +275,14 @@ private fun ReceivedList(ui: SharedUi, onSave: (GdReceived) -> Unit, onOpened: (
                     ScanLine(scan, Modifier.padding(start = 70.dp, end = 16.dp, bottom = 10.dp))
                 }
                 e.link != null -> GcListRow(
-                    title = stringResource(R.string.gatedrop_item_link, e.link),
+                    title = stringResource(R.string.gatedrop_item_link, e.link.orEmpty()),
                     description = sub,
                     leading = { KindSquare(null, link = true) },
                     onClick = {
                         onOpened(e)
-                        open(ctx, Intent(Intent.ACTION_VIEW, Uri.parse(e.link)))
+                        open(ctx, Intent(Intent.ACTION_VIEW, Uri.parse(e.link.orEmpty())))
                     },
-                    trailing = { GcIconButton(Icons.Outlined.ContentCopy, contentDescription = stringResource(R.string.gatedrop_copy), onClick = { copy(ctx, e.link) }) },
+                    trailing = { GcIconButton(Icons.Outlined.ContentCopy, contentDescription = stringResource(R.string.gatedrop_copy), onClick = { copy(ctx, e.link.orEmpty()) }) },
                 )
                 else -> GcListRow(
                     title = stringResource(R.string.gatedrop_item_text, e.text?.lineSequence()?.firstOrNull().orEmpty().take(60)),
@@ -353,7 +353,7 @@ private fun SentList(ui: SharedUi) {
             val title = when {
                 e.items.size > 1 -> pluralStringResource(R.plurals.gatedrop_files, e.items.size, e.items.size)
                 single != null -> single.name
-                e.link != null -> stringResource(R.string.gatedrop_item_link, e.link)
+                e.link != null -> stringResource(R.string.gatedrop_item_link, e.link.orEmpty())
                 else -> stringResource(R.string.gatedrop_item_text, e.text?.lineSequence()?.firstOrNull().orEmpty().take(60))
             }
             val to = e.deliveries.map { deliveryName(it) }.distinct().take(3).joinToString(", ")

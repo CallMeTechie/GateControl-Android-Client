@@ -30,10 +30,8 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
-import com.gatecontrol.android.drive.DNode
 import com.gatecontrol.android.tv.R
 import com.gatecontrol.android.tv.drive.TvDriveLogic
-import com.gatecontrol.android.tv.drive.TvDriveMedia
 import com.gatecontrol.android.tv.player.TvPhotoAction
 import com.gatecontrol.android.tv.player.TvPhotoKeys
 import com.gatecontrol.android.tv.player.TvPlayerKeys
@@ -45,32 +43,34 @@ import kotlinx.coroutines.delay
 private const val SLIDE_MS = 6_000L
 
 /**
- * A picture of [items] over the whole screen: ◀ ▶ the previous and next one, OK / ⏯ the slide show, Zurück closes.
+ * A picture of [source] over the whole screen: ◀ ▶ the previous and next one, OK / ⏯ the slide show, Zurück closes.
  * The name and "3 / 12" fade after a few seconds. [document]: a document's preview (no list, no slide show).
  */
 @Composable
 fun TvPhotoViewer(
-    items: List<DNode>,
+    source: TvPhotoSource,
     at: Int,
-    media: TvDriveMedia,
     onAt: (Int) -> Unit,
     onClose: () -> Unit,
     document: Boolean = false,
+    /** ☰ / ▲: "Senden an …" (GateDrop); null: not offered. */
+    onSend: (() -> Unit)? = null,
 ) {
-    val node = items[at]
-    var picture by remember(node.id) { mutableStateOf<Bitmap?>(null) }
-    var failed by remember(node.id) { mutableStateOf(false) }
+    val key = source.key(at)
+    val count = source.count
+    var picture by remember(key) { mutableStateOf<Bitmap?>(null) }
+    var failed by remember(key) { mutableStateOf(false) }
     var slideshow by remember { mutableStateOf(false) }
     var shown by remember { mutableIntStateOf(0) }
     var infoVisible by remember { mutableStateOf(true) }
     val focus = remember { FocusRequester() }
 
-    LaunchedEffect(node.id) {
-        picture = media.peek(node, large = true)
-        if (picture == null) picture = media.picture(node)
+    LaunchedEffect(key) {
+        picture = source.peek(at)
+        if (picture == null) picture = source.load(at)
         failed = picture == null
         // the next one in the background, so ▶ shows it at once
-        items.getOrNull(at + 1)?.let { media.picture(it) }
+        if (at + 1 < count) source.load(at + 1)
     }
     LaunchedEffect(shown) {
         infoVisible = true
@@ -80,7 +80,7 @@ fun TvPhotoViewer(
     LaunchedEffect(slideshow, at) {
         if (!slideshow) return@LaunchedEffect
         delay(SLIDE_MS)
-        if (at < items.size - 1) onAt(at + 1) else slideshow = false
+        if (at < count - 1) onAt(at + 1) else slideshow = false
     }
     LaunchedEffect(Unit) { focus.requestSoon() }
 
@@ -93,8 +93,14 @@ fun TvPhotoViewer(
             .onKeyEvent { e ->
                 if (e.type != KeyEventType.KeyDown) return@onKeyEvent false
                 when (TvPhotoKeys.action(e.nativeKeyEvent.keyCode)) {
-                    TvPhotoAction.PREVIOUS -> onAt(TvDriveLogic.step(at, -1, items.size)).also { shown++ }
-                    TvPhotoAction.NEXT -> onAt(TvDriveLogic.step(at, 1, items.size)).also { shown++ }
+                    TvPhotoAction.PREVIOUS -> onAt(TvDriveLogic.step(at, -1, count)).also { shown++ }
+                    TvPhotoAction.NEXT -> onAt(TvDriveLogic.step(at, 1, count)).also { shown++ }
+                    TvPhotoAction.SEND -> if (onSend != null) {
+                        slideshow = false
+                        onSend()
+                    } else {
+                        return@onKeyEvent false
+                    }
                     TvPhotoAction.SLIDESHOW -> if (!document) {
                         slideshow = !slideshow
                         shown++
@@ -106,7 +112,7 @@ fun TvPhotoViewer(
             },
     ) {
         picture?.let {
-            Image(it.asImageBitmap(), contentDescription = node.name, contentScale = ContentScale.Fit, modifier = Modifier.fillMaxSize())
+            Image(it.asImageBitmap(), contentDescription = source.name(at), contentScale = ContentScale.Fit, modifier = Modifier.fillMaxSize())
         }
         if (picture == null) {
             Text(
@@ -122,8 +128,8 @@ fun TvPhotoViewer(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                TvPill(node.name, TvPillTone.Neutral, dot = false)
-                if (items.size > 1) TvPill("${at + 1} / ${items.size}", TvPillTone.Neutral, dot = false)
+                TvPill(source.name(at), TvPillTone.Neutral, dot = false)
+                if (count > 1) TvPill("${at + 1} / $count", TvPillTone.Neutral, dot = false)
                 if (document) TvPill(stringResource(R.string.tv_viewer_preview_only), TvPillTone.Info, dot = false)
                 if (slideshow) TvPill(stringResource(R.string.tv_viewer_slideshow), TvPillTone.Accent)
             }
