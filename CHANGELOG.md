@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.144.1] - 2026-11-23
+
+### Fixes
+- Drive-Betrachter bleibt beim Falten, Aufklappen und Drehen offen (#278)
+
+---
+
 ## [1.144.0] - 2026-11-23
 
 ### Features
