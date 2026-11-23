@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.141.0] - 2026-11-23
+
+### Features
+- Drive-Fotos für den Fotorahmen freigeben oder entfernen (#275)
+
+---
+
 ## [1.140.0] - 2026-11-23
 
 ### Features
