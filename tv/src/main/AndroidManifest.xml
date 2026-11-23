@@ -62,6 +62,14 @@
             android:configChanges="keyboard|keyboardHidden|navigation"
             android:theme="@style/Theme.GateControlTv" />
 
+        <!-- The photo frame: the pictures of a Drive folder over the whole screen -->
+        <activity
+            android:name=".frame.TvFrameActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:configChanges="keyboard|keyboardHidden|navigation"
+            android:theme="@style/Theme.GateControlTv" />
+
         <activity
             android:name=".doorbell.TvDoorbellActivity"
             android:exported="false"

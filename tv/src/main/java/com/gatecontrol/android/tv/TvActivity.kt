@@ -23,6 +23,11 @@ import com.gatecontrol.android.tv.drive.TvDriveViewModel
 import com.gatecontrol.android.tv.ui.drive.TvDrivePage
 import com.gatecontrol.android.tv.ui.drive.TvMediaActivity
 import android.content.Intent
+import android.os.SystemClock
+import android.widget.Toast
+import com.gatecontrol.android.tv.frame.TvFrameActivity
+import com.gatecontrol.android.tv.frame.TvFrameSchedule
+import com.gatecontrol.android.tv.ui.settings.TvFrameOptions
 import com.gatecontrol.android.tv.home.TvHomeViewModel
 import com.gatecontrol.android.tv.security.TvPinFunction
 import com.gatecontrol.android.tv.ui.cameras.TvCamerasPage
@@ -107,8 +112,32 @@ class TvActivity : ComponentActivity() {
         super.onStop()
     }
 
+    /** When the remote last pressed a key here (the photo frame's idle start). */
+    @Volatile
+    private var lastKeyAt = SystemClock.elapsedRealtime()
+
+    @Volatile
+    private var resumed = false
+
+    /** Every key of the remote (and any other input) in GateControl. */
+    override fun onUserInteraction() {
+        super.onUserInteraction()
+        lastKeyAt = SystemClock.elapsedRealtime()
+    }
+
+    override fun onPause() {
+        resumed = false
+        super.onPause()
+    }
+
+    private fun startFrame() {
+        if (prefs.frame.value.ready) startActivity(Intent(this, TvFrameActivity::class.java))
+    }
+
     override fun onResume() {
         super.onResume()
+        resumed = true
+        lastKeyAt = SystemClock.elapsedRealtime()
         // back from the system page "Unbekannte Apps installieren": the installer follows if it is allowed now
         updates.onResume(this)
         // the push service, if Fire OS refused to start it from the background
@@ -150,6 +179,17 @@ class TvActivity : ComponentActivity() {
         val driveUi by drive.ui.collectAsStateWithLifecycle()
         val drivePreviews by drive.previews.collectAsStateWithLifecycle()
         val recent by drive.recent.collectAsStateWithLifecycle()
+        val frame by prefs.frame.collectAsStateWithLifecycle()
+        // the photo frame when nothing happened for a while (only while GateControl is in front)
+        LaunchedEffect(frame) {
+            while (frame.idleMinutes > 0 && frame.ready) {
+                kotlinx.coroutines.delay(IDLE_CHECK_MS)
+                if (resumed && TvFrameSchedule.idleDue(frame, lastKeyAt, SystemClock.elapsedRealtime())) {
+                    lastKeyAt = SystemClock.elapsedRealtime()
+                    startFrame()
+                }
+            }
+        }
         LaunchedEffect(Unit) { home.refresh() }
         TvHome(
             status = status,
@@ -214,6 +254,10 @@ class TvActivity : ComponentActivity() {
                     onMore = drive::more,
                     onPreview = drive::wantPreview,
                     onRetry = drive::reload,
+                    onFrame = { id, name ->
+                        prefs.setFrame(frame.copy(folderId = id, folderName = name))
+                        Toast.makeText(this, getString(R.string.tv_frame_chosen, name), Toast.LENGTH_SHORT).show()
+                    },
                 )
             },
             onOpen = { destination, open ->
@@ -242,6 +286,7 @@ class TvActivity : ComponentActivity() {
                         TvNoticeOptions(push, prefs::setPush, bell, prefs::setDoorbell, prefs.canDrawOverlays(), bellCameras, prefs::loadCameras)
                     },
                     security = { TvSecurityOptions(pinState, prefs::checkPin, prefs::setPin, prefs::removePin, prefs::setRequired) },
+                    frame = { TvFrameOptions(frame, prefs::setFrame, ::startFrame) },
                 )
             },
         )
@@ -287,5 +332,9 @@ class TvActivity : ComponentActivity() {
             Timber.w("VPN consent could not be asked (%s)", it.javaClass.simpleName)
             main.onConsent(false)
         }
+    }
+
+    private companion object {
+        const val IDLE_CHECK_MS = 30_000L
     }
 }

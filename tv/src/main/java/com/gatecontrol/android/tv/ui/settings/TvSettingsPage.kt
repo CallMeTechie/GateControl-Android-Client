@@ -59,6 +59,7 @@ internal enum class TvSettingsCategory(@param:StringRes val label: Int) {
     Connection(R.string.tv_set_connection),
     Notices(R.string.tv_set_notices),
     Security(R.string.tv_set_security),
+    Frame(R.string.tv_set_frame),
     Updates(R.string.tv_set_updates),
     Device(R.string.tv_set_device),
 }
@@ -82,6 +83,8 @@ fun TvSettingsPage(
     notices: @Composable () -> Unit = {},
     /** Sicherheit: the TV PIN. */
     security: @Composable () -> Unit = {},
+    /** Fotorahmen: folder, interval, order, idle start. */
+    frame: @Composable () -> Unit = {},
 ) {
     var category by rememberSaveable { mutableStateOf(TvSettingsCategory.Connection) }
     Row(modifier.fillMaxSize().padding(end = 30.dp, bottom = 20.dp), horizontalArrangement = Arrangement.spacedBy(24.dp)) {
@@ -99,6 +102,7 @@ fun TvSettingsPage(
                 }
                 TvSettingsCategory.Notices -> notices()
                 TvSettingsCategory.Security -> security()
+                TvSettingsCategory.Frame -> frame()
                 TvSettingsCategory.Updates -> UpdateOptions(update, onCheckUpdate, onInstallUpdate)
                 TvSettingsCategory.Device -> DeviceOptions(connection.host, deviceName, onUnpair)
             }

@@ -70,9 +70,9 @@ fun TvDrivePage(
     onMore: () -> Unit,
     onPreview: (DNode) -> Unit,
     onRetry: () -> Unit,
-    /** The folder shown becomes the photo frame (null: no photo frame on this TV yet). */
-    onFrame: ((id: Long, name: String) -> Unit)? = null,
     modifier: Modifier = Modifier,
+    /** The folder shown becomes the photo frame (null: not offered). */
+    onFrame: ((id: Long, name: String) -> Unit)? = null,
 ) {
     val colors = GateControlTvTheme.colors
     LaunchedEffect(Unit) { onStart() }

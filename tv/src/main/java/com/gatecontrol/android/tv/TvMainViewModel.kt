@@ -62,6 +62,7 @@ class TvMainViewModel @Inject constructor(
             tunnel.disconnect()
             setupRepository.clear()
             apiClientProvider.invalidate()
+            settings.clearFrameFolder()
             done()
         }
     }

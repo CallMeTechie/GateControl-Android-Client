@@ -247,4 +247,34 @@
     <string name="tv_player_subtitles">Untertitel</string>
     <string name="tv_player_subtitle">Untertitel</string>
     <string name="tv_player_close_panel">Schließen</string>
+
+    <!-- Fotorahmen (Stufe 2): die Fotos eines Drive-Ordners im Vollbild -->
+    <string name="tv_set_frame">Fotorahmen</string>
+    <string name="tv_frame_intro">Die Fotos eines Drive-Ordners als Diashow im Vollbild. Den Ordner wählst du in Drive: öffnen und „Als Fotorahmen verwenden“.</string>
+    <string name="tv_frame_folder">Ordner</string>
+    <string name="tv_frame_folder_none">Noch keiner – in Drive einen Ordner öffnen und „Als Fotorahmen verwenden“ wählen</string>
+    <string name="tv_frame_folder_none_short">Erst in Drive einen Ordner wählen</string>
+    <string name="tv_frame_start">Fotorahmen jetzt starten</string>
+    <string name="tv_frame_seconds">Nächstes Foto alle</string>
+    <plurals name="tv_frame_seconds_every">
+        <item quantity="one">%1$d Sekunde</item>
+        <item quantity="other">%1$d Sekunden</item>
+    </plurals>
+    <plurals name="tv_frame_minutes">
+        <item quantity="one">%1$d Minute</item>
+        <item quantity="other">%1$d Minuten</item>
+    </plurals>
+    <string name="tv_frame_shuffle">Zufällige Reihenfolge</string>
+    <string name="tv_frame_shuffle_on">Gemischt, jedes Foto einmal pro Runde</string>
+    <string name="tv_frame_shuffle_off">Nach Name</string>
+    <string name="tv_frame_clock">Uhrzeit und Datum zeigen</string>
+    <string name="tv_frame_idle">Starten, wenn nichts passiert</string>
+    <string name="tv_frame_idle_off">Aus – nur von Hand</string>
+    <plurals name="tv_frame_idle_after">
+        <item quantity="one">Nach %1$d Minute ohne Taste in GateControl</item>
+        <item quantity="other">Nach %1$d Minuten ohne Taste in GateControl</item>
+    </plurals>
+    <string name="tv_frame_chosen">Fotorahmen: %1$s</string>
+    <string name="tv_frame_empty">In diesem Ordner sind keine Fotos.</string>
+    <string name="tv_frame_failed">Der Ordner ließ sich nicht lesen. Neuer Versuch in einer Minute.</string>
 </resources>

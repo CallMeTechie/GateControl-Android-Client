@@ -46,6 +46,9 @@ class TvPrefsViewModel @Inject constructor(
     val doorbellSettings: StateFlow<DoorbellSettings> = settings.doorbell
     val splitTunnel: StateFlow<TvSplitTunnelSettings> = settings.splitTunnel
     val pin: StateFlow<TvPinState> = pins.state
+    val frame: StateFlow<com.gatecontrol.android.tv.frame.TvFrameSettings> = settings.frame
+
+    fun setFrame(value: com.gatecontrol.android.tv.frame.TvFrameSettings) = settings.setFrame(value)
     val pushEnabled: StateFlow<Boolean> = pushStore.settings.map { it.enabled }.stateIn(viewModelScope, SharingStarted.Eagerly, false)
 
     private val _apps = MutableStateFlow<List<TvInstalledApp>>(emptyList())
