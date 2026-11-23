@@ -76,7 +76,7 @@ data class DActivity(
 data class DOverviewStorage(val used: Long, val total: Long?, val target: String?)
 
 /** Pure parser of `GET overview` (bounded like every Drive parser; a part of the wrong shape is left out). */
-internal object DriveOverviewJson {
+object DriveOverviewJson {
 
     private const val DEADLINES_MAX = 3
     private const val RECENT_MAX = 10
@@ -204,7 +204,7 @@ internal object DriveOverviewJson {
 }
 
 /** Pure part of the overview (unit-tested): which sections show, the fallback, the labels. */
-internal object DriveOverviewLogic {
+object DriveOverviewLogic {
 
     const val ADDED_PHOTOS = "added_photos"
     const val ADDED_FILES = "added_files"

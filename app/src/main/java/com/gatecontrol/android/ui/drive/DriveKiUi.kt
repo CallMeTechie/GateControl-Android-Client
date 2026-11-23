@@ -221,8 +221,9 @@ internal fun DeadlineCard(
         if (open || d.reminder != null || d.calendar != null) {
             KiFlow {
                 if (calendar && (d.calendar != null || DriveKi.calendarOpen(d, today))) {
-                    if (d.calendar != null) {
-                        KiButton(calendarDoneText(d.calendar), GcIcons.Calendar, done = true, enabled = false) {}
+                    val entry = d.calendar
+                    if (entry != null) {
+                        KiButton(calendarDoneText(entry), GcIcons.Calendar, done = true, enabled = false) {}
                     } else {
                         KiButton(calendarLabel, GcIcons.Calendar, busy = calendarBusy, onClick = onCalendar)
                     }
@@ -679,8 +680,9 @@ internal fun AnswerCard(
                         color = x.muted,
                     )
                 }
-                if (calendar && deadline.calendar != null) {
-                    KiButton(calendarDoneText(deadline.calendar), GcIcons.Calendar, done = true, enabled = false) {}
+                val entry = deadline.calendar
+                if (calendar && entry != null) {
+                    KiButton(calendarDoneText(entry), GcIcons.Calendar, done = true, enabled = false) {}
                 } else if (calendar && DriveKi.calendarOpen(deadline, today)) {
                     KiButton(stringResource(R.string.drive_ki_ask_calendar), GcIcons.Calendar, busy = calendarBusy) { onCalendar(deadline) }
                 }

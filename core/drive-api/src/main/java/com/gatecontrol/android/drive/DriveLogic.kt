@@ -9,7 +9,7 @@ import java.time.temporal.ChronoUnit
 import java.util.Locale
 
 /** Pure helpers of the Drive tab (unit-tested). */
-internal object DriveLogic {
+object DriveLogic {
 
     /** What a file is, for its icon and its tile in "Zuletzt". */
     enum class Kind { FOLDER, IMAGE, VIDEO, AUDIO, PDF, TEXT, DOC, SHEET, SLIDES, ARCHIVE, OTHER }

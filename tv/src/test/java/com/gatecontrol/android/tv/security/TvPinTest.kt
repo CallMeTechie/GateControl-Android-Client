@@ -110,6 +110,6 @@ class TvPinTest {
     fun `functions keep their stored names`() {
         for (f in TvPinFunction.entries) assertEquals(f, TvPinFunction.fromWire(f.wire))
         assertEquals(null, TvPinFunction.fromWire("other"))
-        assertEquals(listOf(TvPinFunction.DOOR, TvPinFunction.SETTINGS), TvPinFunction.AVAILABLE)
+        assertEquals(listOf(TvPinFunction.DOOR, TvPinFunction.SETTINGS, TvPinFunction.DRIVE), TvPinFunction.AVAILABLE)
     }
 }

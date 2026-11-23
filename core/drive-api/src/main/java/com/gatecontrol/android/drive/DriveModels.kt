@@ -19,7 +19,7 @@ sealed class DResult<out T> {
 }
 
 /** A result that is not Ok, retyped (an Ok here is a programming error). */
-internal fun <T> DResult<*>.notOk(): DResult<T> = when (this) {
+fun <T> DResult<*>.notOk(): DResult<T> = when (this) {
     is DResult.Ok -> DResult.Failed(DriveApi.CODE_INVALID, 0)
     is DResult.Failed -> this
     DResult.Offline -> DResult.Offline

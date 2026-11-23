@@ -180,8 +180,9 @@ fun DrivePhotoSearchScreen(
                     items(marks, key = { "m-" + (it.person?.toString() ?: it.place.orEmpty()) }) { m ->
                         val remove = stringResource(R.string.drive_pp_mark_remove, m.name)
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            if (m.person != null) {
-                                PersonChip(m.person, m.name, m.name, selected = true, onClick = { onPerson(m.person) })
+                            val person = m.person
+                            if (person != null) {
+                                PersonChip(person, m.name, m.name, selected = true, onClick = { onPerson(person) })
                             } else {
                                 GcFilterChip("⌖ " + m.name, selected = true, onClick = { m.place?.let(onPlace) })
                             }

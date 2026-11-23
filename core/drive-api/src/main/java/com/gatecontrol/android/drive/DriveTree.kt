@@ -6,7 +6,7 @@ package com.gatecontrol.android.drive
  * while unknown — an older server without `vaultsApart` — so the arrow shows until its folders are loaded). The opened
  * folders are kept on the device ([encode] / [decode]).
  */
-internal object DriveTree {
+object DriveTree {
 
     /** One row of the menu's tree. [depth] 0 is the area itself (its top folder [id]). */
     data class Row(

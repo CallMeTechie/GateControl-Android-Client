@@ -110,6 +110,7 @@ dependencies {
     implementation(project(":core:notify"))
     implementation(project(":core:door"))
     implementation(project(":core:quickactions"))
+    implementation(project(":core:drive-api"))
     implementation(project(":core:tunnel"))
 
     implementation(libs.core.ktx)
