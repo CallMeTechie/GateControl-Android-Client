@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.137.0] - 2026-11-22
+
+### Features
+- GateControl TV Stufe 1a – Kopplung, VPN mit Autostart, Updates (#269)
+
+---
+
 ## [1.136.1] - 2026-11-22
 
 ### Fixes
