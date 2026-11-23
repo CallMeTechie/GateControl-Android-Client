@@ -608,6 +608,28 @@ object DriveJson {
         if (frame != null) addProperty("frame", frame)
     }
 
+    /**
+     * `GET|POST|DELETE frame/photos` (Drive 1.31) → `{ ok, album, ids, count, added?, removed?, skipped? }`; null without
+     * `ids`.
+     */
+    fun framePhotos(o: JsonObject): DFramePhotos? {
+        val ids = ids(o.arr("ids"), FRAME_IDS_MAX) ?: return null
+        return DFramePhotos(
+            ids = ids,
+            count = o.int("count")?.coerceAtLeast(0) ?: ids.size,
+            added = o.int("added")?.coerceAtLeast(0) ?: 0,
+            removed = o.int("removed")?.coerceAtLeast(0) ?: 0,
+            skipped = o.arr("skipped")?.mapNotNull { e ->
+                val s = e as? JsonObject ?: return@mapNotNull null
+                val id = s.long("id")?.takeIf { it > 0 } ?: return@mapNotNull null
+                DFrameSkip(id, s.str("reason")?.take(40) ?: "failed")
+            }?.take(FRAME_IDS_MAX).orEmpty(),
+        )
+    }
+
+    /** At most this many ids of the photo frame are kept from one answer. */
+    private const val FRAME_IDS_MAX = 100_000
+
     fun idsBody(ids: List<Long>) = JsonObject().apply {
         add("ids", JsonArray().apply { ids.forEach { add(it) } })
     }

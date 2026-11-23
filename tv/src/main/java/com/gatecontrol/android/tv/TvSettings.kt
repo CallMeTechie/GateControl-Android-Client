@@ -6,6 +6,9 @@ import androidx.core.content.edit
 import com.gatecontrol.android.common.SplitTunnelMode
 import com.gatecontrol.android.tv.doorbell.DoorbellMode
 import com.gatecontrol.android.tv.doorbell.DoorbellSettings
+import com.gatecontrol.android.tv.frame.TvFrameOrder
+import com.gatecontrol.android.tv.frame.TvFrameSchedule
+import com.gatecontrol.android.tv.frame.TvFrameSettings
 import com.gatecontrol.android.tv.tunnel.TvSplitTunnel
 import com.gatecontrol.android.tv.tunnel.TvSplitTunnelSettings
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -44,6 +47,32 @@ class TvSettings @Inject constructor(@ApplicationContext context: Context) {
 
     /** "Geteilter Tunnel": which other apps on the stick use the tunnel. Applies from the next connect. */
     val splitTunnel: StateFlow<TvSplitTunnelSettings> = _splitTunnel.asStateFlow()
+
+    private val _frame = MutableStateFlow(readFrame())
+
+    /** The photo frame: the interval and the order (each "as the server" or the TV's own), the clock, the idle start. */
+    val frame: StateFlow<TvFrameSettings> = _frame.asStateFlow()
+
+    fun setFrame(value: TvFrameSettings) {
+        val v = value.copy(
+            seconds = TvFrameSchedule.seconds(value.seconds),
+            idleMinutes = TvFrameSchedule.idleMinutes(value.idleMinutes),
+        )
+        prefs.edit {
+            putInt(KEY_FRAME_SECONDS, v.seconds)
+            if (v.order == null) remove(KEY_FRAME_ORDER) else putString(KEY_FRAME_ORDER, v.order.wire)
+            putInt(KEY_FRAME_IDLE, v.idleMinutes)
+            putBoolean(KEY_FRAME_CLOCK, v.clock)
+        }
+        _frame.value = v
+    }
+
+    private fun readFrame() = TvFrameSettings(
+        seconds = TvFrameSchedule.seconds(prefs.getInt(KEY_FRAME_SECONDS, 0)),
+        order = TvFrameOrder.of(prefs.getString(KEY_FRAME_ORDER, null)),
+        idleMinutes = TvFrameSchedule.idleMinutes(prefs.getInt(KEY_FRAME_IDLE, 0)),
+        clock = prefs.getBoolean(KEY_FRAME_CLOCK, true),
+    )
 
     fun setAutostartTunnel(on: Boolean) {
         prefs.edit { putBoolean(KEY_AUTOSTART_TUNNEL, on) }
@@ -114,6 +143,10 @@ class TvSettings @Inject constructor(@ApplicationContext context: Context) {
         private const val KEY_BELL_CAMERA = "doorbell_camera"
         private const val KEY_SPLIT_MODE = "split_mode"
         private const val KEY_SPLIT_APPS = "split_apps"
+        private const val KEY_FRAME_SECONDS = "frame_seconds"
+        private const val KEY_FRAME_ORDER = "frame_order"
+        private const val KEY_FRAME_IDLE = "frame_idle_minutes"
+        private const val KEY_FRAME_CLOCK = "frame_clock"
         private const val MINUTES_PER_DAY = 24 * 60
         const val DEFAULT_AUTOSTART_TUNNEL = true
         const val DEFAULT_OPEN_ON_BOOT = false

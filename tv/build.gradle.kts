@@ -112,6 +112,8 @@ dependencies {
     implementation(project(":core:quickactions"))
     implementation(project(":core:drive-api"))
     implementation(project(":core:tunnel"))
+    // the photo frame reads Drive's `GET frame` itself (JsonObject of the plugin bridge)
+    implementation(libs.retrofit.gson)
 
     implementation(libs.core.ktx)
     implementation(libs.activity.compose)

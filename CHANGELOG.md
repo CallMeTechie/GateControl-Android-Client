@@ -1,5 +1,26 @@
 # Changelog
 
+## [1.142.0] - 2026-11-23
+
+### Features
+- GateControl TV – Fotorahmen zeigt nur freigegebene Fotos (Drive GET frame) (#273)
+
+---
+
+## [1.141.0] - 2026-11-23
+
+### Features
+- Drive-Fotos für den Fotorahmen freigeben oder entfernen (#275)
+
+---
+
+## [1.140.0] - 2026-11-23
+
+### Features
+- GateControl TV Stufe 2a – Drive-API in core/drive-api, Drive und Videoplayer am TV (#272)
+
+---
+
 ## [1.139.1] - 2026-11-23
 
 ### Fixes
