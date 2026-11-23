@@ -108,6 +108,7 @@
     <string name="door_event_ding_title">Doorbell</string>
     <string name="door_event_motion_title">Motion</string>
     <string name="door_event_no_image">No picture (expired or none).</string>
+    <string name="door_event_live">View live picture</string>
     <string name="door_event_open">Open door</string>
     <string name="door_event_buzzer">Buzzer</string>
     <string name="door_pane_pick">Pick an entry on the left.</string>

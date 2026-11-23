@@ -200,6 +200,20 @@ class DoorJsonTest {
     }
 
     @Test
+    fun `Door 1_9 the home camera assigned to a doorbell in GET me and an event`() {
+        val cam = DoorJson.camera(json("""{"id":3,"name":"Klingel","doorbell":true,"homeCameraId":"c0123456789abcde"}"""))!!
+        assertEquals("c0123456789abcde", cam.homeCameraId)
+        val viaLive = DoorJson.camera(json("""{"id":3,"name":"Klingel","live":{"source":"home","cameraId":"c0123456789abcde","path":"cameras/home/c0123456789abcde/live"}}"""))!!
+        assertEquals("c0123456789abcde", viaLive.homeCameraId)
+        assertNull(DoorJson.camera(json("""{"id":3,"name":"Klingel"}"""))!!.homeCameraId)
+        assertNull(DoorJson.camera(json("""{"id":3,"homeCameraId":"C0123"}"""))!!.homeCameraId)
+        assertNull(DoorJson.linkedHomeCamera(json("""{"live":{"source":"ring","cameraId":"c0123456789abcde"}}""")))
+        val e = DoorJson.event(json("""{"ok":true,"event":{"id":5,"kind":"ding","homeCameraId":"c0123456789abcde","image":null,"lock":null}}"""))!!
+        assertEquals("c0123456789abcde", e.homeCameraId)
+        assertNull(DoorJson.event(json("""{"ok":true,"event":{"id":5,"kind":"ding"}}"""))!!.homeCameraId)
+    }
+
+    @Test
     fun `event detail with picture and lock, or without`() {
         val b64 = Base64.getEncoder().encodeToString(byteArrayOf(1, 2, 3))
         val e = DoorJson.event(

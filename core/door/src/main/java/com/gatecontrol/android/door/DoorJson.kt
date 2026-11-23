@@ -181,7 +181,22 @@ object DoorJson {
             battery = o.int("battery")?.takeIf { it in 0..100 },
             prefs = DoorCameraPrefs(ding = prefs?.flag("ding") ?: true, motion = prefs?.flag("motion") ?: false),
             lastImageAt = time(o.str("lastImageAt")),
+            homeCameraId = linkedHomeCamera(o),
         )
+    }
+
+    /**
+     * Door 1.9: the home camera assigned to a doorbell — `homeCameraId`, else `live: { source: 'home', cameraId, path }`
+     * (`path` then must be `cameras/home/<cameraId>/live`). In `GET me` cameras[], `GET events/<id>` and the ring / motion
+     * push (`data.door`). Null: none, or not a valid one.
+     */
+    fun linkedHomeCamera(o: JsonObject): String? {
+        o.str("homeCameraId")?.takeIf { HomeCameraJson.CAMERA_ID_RE.matches(it) }?.let { return it }
+        val live = o.obj("live") ?: return null
+        if (live.str("source") != "home") return null
+        val id = live.str("cameraId")?.takeIf { HomeCameraJson.CAMERA_ID_RE.matches(it) } ?: return null
+        val path = live.str("path")
+        return id.takeIf { path == null || path == "cameras/home/$id/live" }
     }
 
     fun prefs(o: JsonObject): DoorCameraPrefs? {
@@ -249,6 +264,6 @@ object DoorJson {
     fun event(o: JsonObject): DoorEventDetail? {
         val e = o.obj("event") ?: return null
         val item = historyItem(e) ?: return null
-        return DoorEventDetail(item, image(e.obj("image")), e.obj("lock")?.let(::lock))
+        return DoorEventDetail(item, image(e.obj("image")), e.obj("lock")?.let(::lock), linkedHomeCamera(e))
     }
 }

@@ -180,6 +180,7 @@
     <string name="tv_bell_motion_desc">Off: only when it rings</string>
     <string name="tv_bell_camera">Camera in the window</string>
     <string name="tv_bell_camera_none">The doorbell\'s own picture</string>
+    <string name="tv_bell_camera_fallback">The home camera assigned to the doorbell, else: %1$s</string>
     <string name="tv_pin_intro">A TV is shared. With a PIN, the functions below ask for it first. Without one nothing asks.</string>
     <string name="tv_pin_set">Set PIN</string>
     <string name="tv_pin_set_desc">4 to 8 digits, kept on this TV only as a hash</string>
@@ -219,7 +220,6 @@
     <string name="tv_drive_loading">Loading …</string>
     <string name="tv_drive_blocked">Held back by the virus scan</string>
     <string name="tv_drive_cannot_open">Cannot be opened on the TV</string>
-    <string name="tv_drive_as_frame">Use as photo frame</string>
     <string name="tv_drive_empty">This folder is empty.</string>
     <string name="tv_drive_offline">No connection to the server.</string>
     <string name="tv_drive_not_on">Drive is not switched on for you.</string>
@@ -309,4 +309,37 @@
     <string name="tv_send_person">Person</string>
     <string name="tv_send_device">Device</string>
     <string name="tv_send_device_online">Device · online</string>
+    <!-- Photo frame (stage 2): only photos shared on purpose (Drive "GET frame") over the whole screen -->
+    <string name="tv_set_frame">Photo frame</string>
+    <string name="tv_frame_intro">Shows only photos shared on purpose for the photo frame: in the phone or Windows app select them in the Photos tab and pick “Share for photo frame”.</string>
+    <string name="tv_frame_photos">Shared photos</string>
+    <plurals name="tv_frame_photos_count">
+        <item quantity="one">%1$d photo shared</item>
+        <item quantity="other">%1$d photos shared</item>
+    </plurals>
+    <string name="tv_frame_start">Start photo frame now</string>
+    <string name="tv_frame_seconds">Next picture every</string>
+    <string name="tv_frame_as_server">As on the server (%1$s)</string>
+    <plurals name="tv_frame_seconds_every">
+        <item quantity="one">%1$d second</item>
+        <item quantity="other">%1$d seconds</item>
+    </plurals>
+    <plurals name="tv_frame_minutes">
+        <item quantity="one">%1$d minute</item>
+        <item quantity="other">%1$d minutes</item>
+    </plurals>
+    <string name="tv_frame_order">Order</string>
+    <string name="tv_frame_order_random">Random, every photo once per round</string>
+    <string name="tv_frame_order_date">By date, newest first</string>
+    <string name="tv_frame_clock">Show time and date</string>
+    <string name="tv_frame_idle">Start when nothing happens</string>
+    <string name="tv_frame_idle_off">Off – only by hand</string>
+    <plurals name="tv_frame_idle_after">
+        <item quantity="one">After %1$d minute without a key in GateControl</item>
+        <item quantity="other">After %1$d minutes without a key in GateControl</item>
+    </plurals>
+    <string name="tv_frame_none_shared">No photos shared for the photo frame yet – in the phone or Windows app select them in the Photos tab and pick “Share for photo frame”.</string>
+    <string name="tv_frame_not_ready">The server cannot provide the photos for the photo frame yet. Update GateControl on the server.</string>
+    <string name="tv_frame_unavailable">Drive on the server does not know the photo frame for the TV yet (from Drive 1.31).</string>
+    <string name="tv_frame_failed">The photos could not be loaded. Trying again in a minute.</string>
 </resources>

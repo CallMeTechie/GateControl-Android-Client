@@ -96,6 +96,7 @@ import com.gatecontrol.android.drive.DMe
 import com.gatecontrol.android.drive.DNode
 import com.gatecontrol.android.drive.DResult
 import com.gatecontrol.android.drive.DriveLogic
+import com.gatecontrol.android.drive.DriveFrameLogic
 import com.gatecontrol.android.drive.DriveMediaLogic
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.gatecontrol.android.drive.work.DriveWorkLogic
@@ -286,6 +287,11 @@ internal fun DrivePhotosContent(
         val result = snackbar.showSnackbar(text, actionLabel = if (w.undo != null) undoLabel else null, withDismissAction = w.undo == null, duration = SnackbarDuration.Long)
         if (result == SnackbarResult.ActionPerformed) w.undo?.let(viewModel::undoWork)
     }
+    // „Für Fotorahmen freigeben“ / „Aus Fotorahmen entfernen“ (Drive 1.31): how many, and what was skipped and why
+    val frameSnack by viewModel.frameSnack.collectAsStateWithLifecycle()
+    GcShowOnce(frameSnack, consume = viewModel::frameSnackShown) { f ->
+        snackbar.showSnackbar(frameSnackText(resources, f), withDismissAction = true, duration = SnackbarDuration.Long)
+    }
     // marked photos the phone sorted alone ("Selbst einsortieren, wenn sicher"), now or since the last time
     GcShowOnce(autoSorted, consume = viewModel::autoSortedShown) { a ->
         val text = resources.getQuantityString(R.plurals.drive_work_auto_sorted, a.count, a.count)
@@ -432,6 +438,9 @@ internal fun DrivePhotosContent(
     SnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(start = 16.dp, end = 16.dp, bottom = if (selecting) 88.dp else if (running.isNotEmpty()) 84.dp else 16.dp))
     }
     DriveBulkHost(viewModel.bulk, snackbar)
+    // the sheet asks whether the ticked photos are in the photo frame already (Drive 1.31, `framePhotos`)
+    val frameShared by viewModel.frameShared.collectAsStateWithLifecycle()
+    LaunchedEffect(moreOpen) { if (moreOpen) viewModel.loadFrameState(chosen) }
     if (moreOpen && chosen.isNotEmpty()) {
         PhotosMoreSheet(
             nodes = chosen,
@@ -441,6 +450,7 @@ internal fun DrivePhotosContent(
             workLabel = workSettings.folderLabel ?: stringResource(R.string.drive_work_work_default),
             workFolderSet = workSettings.active,
             localReview = localReview,
+            frame = DriveFrameLogic.offer(me, chosen, frameShared),
             onFile = onFile,
             onDismiss = { moreOpen = false },
         )
@@ -1033,7 +1043,8 @@ internal fun FrameCard(album: DAlbum, onFrame: (Boolean) -> Unit) {
 
 /**
  * "Mehr" of the ticked photos: save on the phone, copy, one link, then — with work photos apart (Drive 1.13) — the
- * section "Zuordnung" ("Ist ein Arbeitsfoto", "Ist privat", "Zum Prüfen markieren"), and the details of one.
+ * section "Zuordnung" ("Ist ein Arbeitsfoto", "Ist privat", "Zum Prüfen markieren"), with Drive 1.31 the section
+ * "Fotorahmen" ("Für Fotorahmen freigeben", "Aus Fotorahmen entfernen", [frame]), and the details of one.
  */
 @Composable
 private fun PhotosMoreSheet(
@@ -1044,6 +1055,7 @@ private fun PhotosMoreSheet(
     workLabel: String,
     workFolderSet: Boolean,
     localReview: Map<Long, Int?>,
+    frame: DriveFrameLogic.Offer,
     onFile: ((Long) -> Unit)?,
     onDismiss: () -> Unit,
 ) {
@@ -1095,6 +1107,11 @@ private fun PhotosMoreSheet(
             else -> stringResource(R.string.drive_work_state_private)
         }
     }
+    // Drive 1.31 (`framePhotos`): single photos for the photo frame of the GateControl TV
+    val frameItems = listOfNotNull(
+        if (frame.add) MoreItem(GcIcons.Tv, stringResource(R.string.drive_frame_add), stringResource(R.string.drive_frame_add_desc)) { viewModel.frame(add = true, only = nodes) } else null,
+        if (frame.remove) MoreItem(GcIcons.Tv, stringResource(R.string.drive_frame_remove), stringResource(R.string.drive_frame_remove_desc)) { viewModel.frame(add = false, only = nodes) } else null,
+    )
     val details = if (one != null && onFile != null) listOf(MoreItem(GcIcons.Info, stringResource(R.string.drive_details)) { onFile(one.id) }) else emptyList()
     BulkMoreSheet(
         count = nodes.size,
@@ -1106,6 +1123,7 @@ private fun PhotosMoreSheet(
         last = emptyList(),
         sections = listOfNotNull(
             if (assign.isNotEmpty()) stringResource(R.string.drive_work_more_section) to assign else null,
+            if (frameItems.isNotEmpty()) stringResource(R.string.drive_album_frame) to frameItems else null,
             if (details.isNotEmpty()) null to details else null,
         ),
         onDismiss = onDismiss,
