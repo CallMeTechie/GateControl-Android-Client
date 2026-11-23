@@ -65,7 +65,7 @@ import com.gatecontrol.android.tv.ui.theme.TV_FOCUS_SCALE
 import java.util.Date
 
 /** The pages of the rail on the left (mockup "GateControl TV", start page). */
-internal enum class TvDestination(@param:StringRes val label: Int, val icon: ImageVector) {
+enum class TvDestination(@param:StringRes val label: Int, val icon: ImageVector) {
     Start(R.string.tv_nav_start, TvIcons.Home),
     Cameras(R.string.tv_nav_cameras, TvIcons.Cameras),
     Drive(R.string.tv_nav_drive, TvIcons.Drive),
@@ -103,6 +103,14 @@ fun TvHome(
     modifier: Modifier = Modifier,
     status: TvTopStatus? = null,
     settingsPage: (@Composable () -> Unit)? = null,
+    /** The start page once paired (null: the placeholder rows). */
+    startPage: (@Composable () -> Unit)? = null,
+    camerasPage: (@Composable () -> Unit)? = null,
+    /** Asked before a page opens (the TV PIN of Einstellungen); calls `open` when it may. */
+    onOpen: (TvDestination, open: () -> Unit) -> Unit = { _, open -> open() },
+    /** Another part of the app asks for a page (OK on a camera of the start page). */
+    requested: TvDestination? = null,
+    onRequestedShown: () -> Unit = {},
 ) {
     var current by rememberSaveable { mutableStateOf(TvDestination.Start) }
     val colors = GateControlTvTheme.colors
@@ -113,7 +121,9 @@ fun TvHome(
             TopBar(status, Modifier.padding(top = 18.dp, end = 30.dp))
             Spacer(Modifier.height(20.dp))
             if (current == TvDestination.Start) {
-                StartPage()
+                if (startPage != null) startPage() else StartPage()
+            } else if (current == TvDestination.Cameras && camerasPage != null) {
+                camerasPage()
             } else if (current == TvDestination.Settings && settingsPage != null) {
                 settingsPage()
             } else {
@@ -126,13 +136,19 @@ fun TvHome(
         }
         Rail(
             current = current,
-            onSelect = { current = it },
+            onSelect = { d -> if (d != current) onOpen(d) { current = d } },
             startFocus = startFocus,
             modifier = Modifier.align(Alignment.CenterStart),
         )
     }
     // The remote starts on the rail's current page, as in the mockup.
     LaunchedEffect(Unit) { startFocus.requestFocus() }
+    LaunchedEffect(requested) {
+        if (requested != null) {
+            current = requested
+            onRequestedShown()
+        }
+    }
 }
 
 @Composable

@@ -17,6 +17,21 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
     <!-- Android TV 13+: posting the system notifications (Fire OS 7 needs no runtime permission) -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- The doorbell's window over another app. Fire OS has no page for it: granted once by ADB
+         (appops set com.gatecontrol.client.tv SYSTEM_ALERT_WINDOW allow), else only the notice. -->
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+
+    <!-- "Geteilter Tunnel": the apps of the launcher to choose from (Android 11+ package visibility) -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.LAUNCHER" />
+        </intent>
+    </queries>
 
     <application
         android:name=".TvApp"
@@ -39,6 +54,14 @@
                 <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <activity
+            android:name=".doorbell.TvDoorbellActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:launchMode="singleTop"
+            android:taskAffinity="${applicationId}.doorbell"
+            android:theme="@style/Theme.GateControlTv.Overlay" />
 
         <receiver
             android:name=".boot.TvBootReceiver"

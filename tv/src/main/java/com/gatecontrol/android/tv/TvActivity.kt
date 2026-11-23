@@ -7,11 +7,28 @@ import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.gatecontrol.android.quickactions.QuickActionsLoad
 import com.gatecontrol.android.tunnel.TunnelState
+import com.gatecontrol.android.tv.doorbell.TvForeground
+import com.gatecontrol.android.tv.home.TvHomeViewModel
+import com.gatecontrol.android.tv.security.TvPinFunction
+import com.gatecontrol.android.tv.ui.cameras.TvCamerasPage
+import com.gatecontrol.android.tv.ui.components.TvConfirmDialog
+import com.gatecontrol.android.tv.ui.components.TvPinDialog
+import com.gatecontrol.android.tv.ui.home.TvDestination
+import com.gatecontrol.android.tv.ui.home.TvStartRows
+import com.gatecontrol.android.tv.ui.home.TvStartUi
+import com.gatecontrol.android.tv.ui.settings.TvNoticeOptions
+import com.gatecontrol.android.tv.ui.settings.TvSecurityOptions
+import com.gatecontrol.android.tv.ui.settings.TvSplitTunnelOptions
 import com.gatecontrol.android.tv.pair.PairState
 import com.gatecontrol.android.tv.pair.PairingViewModel
 import com.gatecontrol.android.tv.pair.TvPairingApi
@@ -40,6 +57,8 @@ class TvActivity : ComponentActivity() {
     private val pairing: PairingViewModel by viewModels()
     private val main: TvMainViewModel by viewModels()
     private val updates: TvUpdateViewModel by viewModels()
+    private val home: TvHomeViewModel by viewModels()
+    private val prefs: TvPrefsViewModel by viewModels()
 
     @Inject lateinit var pairingApi: TvPairingApi
     @Inject lateinit var supervisor: TvSupervisor
@@ -72,11 +91,13 @@ class TvActivity : ComponentActivity() {
 
     override fun onStart() {
         super.onStart()
+        TvForeground.onStart()
         pairing.setVisible(true)
     }
 
     override fun onStop() {
         pairing.setVisible(false)
+        TvForeground.onStop()
         super.onStop()
     }
 
@@ -102,8 +123,60 @@ class TvActivity : ComponentActivity() {
             is TunnelState.Connecting, is TunnelState.Reconnecting -> TvTopStatus(stringResource(R.string.tv_vpn_connecting), TvPillTone.Info)
             else -> TvTopStatus(stringResource(R.string.tv_status_vpn_off, host), TvPillTone.Neutral)
         }
+        val tiles by home.tiles.collectAsStateWithLifecycle()
+        val busy by home.busy.collectAsStateWithLifecycle()
+        val cameras by home.cameras.collectAsStateWithLifecycle()
+        val previews by home.previews.collectAsStateWithLifecycle()
+        val notice by home.notice.collectAsStateWithLifecycle()
+        val load by home.load.collectAsStateWithLifecycle()
+        val pending by home.pending.collectAsStateWithLifecycle()
+        val live by home.liveUi.collectAsStateWithLifecycle()
+        val pinState by prefs.pin.collectAsStateWithLifecycle()
+        val bell by prefs.doorbellSettings.collectAsStateWithLifecycle()
+        val split by prefs.splitTunnel.collectAsStateWithLifecycle()
+        val apps by prefs.apps.collectAsStateWithLifecycle()
+        val bellCameras by prefs.cameras.collectAsStateWithLifecycle()
+        val push by prefs.pushEnabled.collectAsStateWithLifecycle()
+        var requested by remember { mutableStateOf<TvDestination?>(null) }
+        var wanted by remember { mutableStateOf<String?>(null) }
+        // A page waiting for the TV PIN (Einstellungen).
+        var pinFor by remember { mutableStateOf<(() -> Unit)?>(null) }
+        LaunchedEffect(Unit) { home.refresh() }
         TvHome(
             status = status,
+            startPage = {
+                DisposableEffect(Unit) {
+                    home.setVisible(true)
+                    onDispose { home.setVisible(false) }
+                }
+                TvStartRows(
+                    ui = TvStartUi(tiles, busy, cameras, previews, notice, loading = load is QuickActionsLoad.Loading || load is QuickActionsLoad.Idle),
+                    onTile = home::press,
+                    onSetpoint = { tile, control, value -> home.setControl(tile, control.id, value) },
+                    onCamera = {
+                        wanted = it.id
+                        requested = TvDestination.Cameras
+                    },
+                )
+            },
+            camerasPage = {
+                LaunchedEffect(wanted) { home.showLive(wanted) }
+                TvCamerasPage(
+                    cameras = cameras,
+                    live = live,
+                    sourceFactory = home.live::sourceFactory,
+                    onShow = { wanted = it },
+                    onLeave = {
+                        wanted = null
+                        home.stopLive()
+                    },
+                )
+            },
+            onOpen = { destination, open ->
+                if (destination == TvDestination.Settings && pinState.needsPin(TvPinFunction.SETTINGS)) pinFor = open else open()
+            },
+            requested = requested,
+            onRequestedShown = { requested = null },
             settingsPage = {
                 TvSettingsPage(
                     connection = TvConnectionUi(tunnel, host, main.tunnelAddress(), autostart, openOnBoot, consentDenied),
@@ -115,9 +188,38 @@ class TvActivity : ComponentActivity() {
                     onCheckUpdate = updates::checkNow,
                     onInstallUpdate = { updates.install(this) },
                     onUnpair = { main.unpair { pairing.reset() } },
+                    splitTunnel = { TvSplitTunnelOptions(split, apps, prefs::loadApps, prefs::setSplitTunnel) },
+                    notices = {
+                        TvNoticeOptions(push, prefs::setPush, bell, prefs::setDoorbell, prefs.canDrawOverlays(), bellCameras, prefs::loadCameras)
+                    },
+                    security = { TvSecurityOptions(pinState, prefs::checkPin, prefs::setPin, prefs::removePin, prefs::setRequired) },
                 )
             },
         )
+        pinFor?.let { open ->
+            TvPinDialog(
+                title = stringResource(R.string.tv_pin_for_settings),
+                check = prefs::checkPin,
+                onPassed = {
+                    pinFor = null
+                    open()
+                },
+                onDismiss = { pinFor = null },
+            )
+        }
+        pending?.let { p ->
+            if (p.needsPin) {
+                TvPinDialog(stringResource(R.string.tv_pin_for_door), prefs::checkPin, home::pinPassed, home::cancelPending)
+            } else if (p.needsConfirm) {
+                TvConfirmDialog(
+                    title = stringResource(R.string.tv_confirm_title, p.item.title),
+                    text = p.item.subtitle,
+                    confirm = stringResource(R.string.tv_confirm_run),
+                    onConfirm = home::confirmPending,
+                    onDismiss = home::cancelPending,
+                )
+            }
+        }
     }
 
     /** VPN on (consent first, if not given yet) or off. */

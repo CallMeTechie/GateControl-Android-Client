@@ -136,6 +136,11 @@ dependencies {
     implementation(libs.retrofit)
     implementation(libs.okhttp)
     implementation(libs.timber)
+    // Home cameras live (HLS fMP4 over the client API's OkHttp), as in the phone app
+    implementation(libs.media3.exoplayer)
+    implementation(libs.media3.exoplayer.hls)
+    implementation(libs.media3.datasource.okhttp)
+    implementation(libs.media3.ui)
     // The pairing QR code (pure Java, no native code)
     implementation(libs.zxing.core)
 
