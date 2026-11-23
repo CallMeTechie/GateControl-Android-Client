@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.144.0] - 2026-11-23
+
+### Features
+- GateControl TV – GateDrop am TV (#276)
+
+---
+
 ## [1.143.0] - 2026-11-23
 
 ### Features
