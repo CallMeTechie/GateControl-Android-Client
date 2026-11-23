@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.143.0] - 2026-11-23
+
+### Features
+- Klingel-Einblendung am TV zeigt die zugeordnete Heimkamera live (#277)
+
+---
+
 ## [1.142.0] - 2026-11-23
 
 ### Features
