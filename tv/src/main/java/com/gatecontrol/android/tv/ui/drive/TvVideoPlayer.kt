@@ -132,6 +132,9 @@ fun TvVideoPlayer(
     val nowAt by rememberUpdatedState(at)
     val nowOnAt by rememberUpdatedState(onAt)
 
+    /** The length as the player knows it (0: not yet). */
+    fun lengthOf(p: Player): Long = p.duration.takeIf { it != C.TIME_UNSET && it > 0 } ?: 0
+
     fun keep() {
         val p = player ?: return
         if (p.playbackState != Player.STATE_IDLE) source.keep(at, p.currentPosition, p.duration.takeIf { it != C.TIME_UNSET } ?: 0)
@@ -141,7 +144,7 @@ fun TvVideoPlayer(
         val p = player ?: return
         if (!started) return
         started = false
-        source.report(at, TvPlayEvent.STOP, p.currentPosition.coerceAtLeast(0), paused = true)
+        source.report(at, TvPlayEvent.STOP, p.currentPosition.coerceAtLeast(0), paused = true, durationMs = lengthOf(p))
     }
 
     DisposableEffect(player) {
@@ -149,7 +152,7 @@ fun TvVideoPlayer(
             override fun onIsPlayingChanged(isPlaying: Boolean) {
                 playing = isPlaying
                 val p = player ?: return
-                if (started && p.playbackState != Player.STATE_ENDED) source.report(nowAt, TvPlayEvent.PROGRESS, p.currentPosition, paused = !isPlaying)
+                if (started && p.playbackState != Player.STATE_ENDED) source.report(nowAt, TvPlayEvent.PROGRESS, p.currentPosition, paused = !isPlaying, durationMs = lengthOf(p))
             }
 
             override fun onTracksChanged(t: Tracks) {
@@ -174,14 +177,14 @@ fun TvVideoPlayer(
                 val p = player ?: return
                 if (state == Player.STATE_READY && !started) {
                     started = true
-                    source.report(nowAt, TvPlayEvent.START, p.currentPosition, paused = !p.playWhenReady)
+                    source.report(nowAt, TvPlayEvent.START, p.currentPosition, paused = !p.playWhenReady, durationMs = lengthOf(p))
                 }
                 // the end of a video: the next one (an episode after "Nächste Folge in 10 s")
                 if (state == Player.STATE_ENDED) {
                     source.forget(nowAt)
                     if (started) {
                         started = false
-                        source.report(nowAt, TvPlayEvent.STOP, p.duration.takeIf { it != C.TIME_UNSET } ?: p.currentPosition, paused = false)
+                        source.report(nowAt, TvPlayEvent.STOP, p.duration.takeIf { it != C.TIME_UNSET } ?: p.currentPosition, paused = false, durationMs = lengthOf(p))
                     }
                     if (nowAt < count - 1) {
                         if (source.nextCountdownSeconds > 0) countdown = source.nextCountdownSeconds else nowOnAt(nowAt + 1)
@@ -244,7 +247,7 @@ fun TvVideoPlayer(
         val p = player ?: return@LaunchedEffect
         while (true) {
             delay(PROGRESS_MS)
-            if (started && p.isPlaying) source.report(at, TvPlayEvent.PROGRESS, p.currentPosition, paused = false)
+            if (started && p.isPlaying) source.report(at, TvPlayEvent.PROGRESS, p.currentPosition, paused = false, durationMs = lengthOf(p))
         }
     }
     LaunchedEffect(touched, playing, panel) {

@@ -142,6 +142,7 @@ object JellyfinJson {
             backdropId = backdropId,
             backdropTag = backdropTag,
             addedAt = o.str("DateCreated")?.let { runCatching { OffsetDateTime.parse(it).toInstant().toEpochMilli() }.getOrNull() },
+            playedAt = user?.str("LastPlayedDate")?.let { runCatching { OffsetDateTime.parse(it).toInstant().toEpochMilli() }.getOrNull() },
         )
     }
 

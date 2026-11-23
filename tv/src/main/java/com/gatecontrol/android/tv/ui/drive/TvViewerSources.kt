@@ -81,7 +81,8 @@ interface TvVideoSource {
     /** A line of [choices] was taken; true: the video opens again at the same place (another stream or quality). */
     fun choose(i: Int, choice: TvChoice): Boolean = false
 
-    fun report(i: Int, event: TvPlayEvent, positionMs: Long, paused: Boolean) {}
+    /** [durationMs]: the video's length as the player found it (0: not known yet). */
+    fun report(i: Int, event: TvPlayEvent, positionMs: Long, paused: Boolean, durationMs: Long = 0) {}
 
     /** Seconds of "Nächste Folge in …" at the end before the next one starts; 0: at once (Drive's folder). */
     val nextCountdownSeconds: Int get() = 0

@@ -133,14 +133,66 @@ class MediaPartsTest {
     }
 
     @Test
+    fun `stored shares - password kept, SMB and WebDAV of one folder paired, unpaired when one goes`() {
+        val secrets = MapSecrets()
+        val store = MediaSourceStore(secrets)
+        val smb = store.save(MediaSource("smb1", MediaSourceKind.SMB, "nas", "smb://nas/filme", userName = "kino", password = "geheim pw"))
+        assertNull(smb.pairWith)
+        assertTrue(smb.ready)
+        assertFalse(smb.toString().contains("geheim"))
+        // another folder: not paired
+        store.save(MediaSource("dav0", MediaSourceKind.WEBDAV, "x", "https://192.168.1.20:5006/serien", userName = "kino", password = "pw"))
+        val dav = store.save(MediaSource("dav1", MediaSourceKind.WEBDAV, "x", "https://192.168.1.20:5006/Filme", userName = "kino", password = "pw"))
+        assertEquals("smb1", dav.pairWith)
+        assertEquals("dav1", store.source("smb1")?.pairWith)
+        assertNull(store.source("dav0")?.pairWith)
+        // kept as it was, encrypted storage only
+        val reread = MediaSourceStore(secrets)
+        assertEquals("geheim pw", reread.source("smb1")?.password)
+        assertEquals("smb://nas/filme", reread.source("smb1")?.address)
+        assertEquals("dav1", reread.source("smb1")?.pairWith)
+        // the same share again (new password): replaced, still paired
+        val again = reread.save(MediaSource("smb2", MediaSourceKind.SMB, "n", "smb://nas/filme", userName = "kino", password = "neu"))
+        assertEquals("smb1", again.id)
+        assertEquals("dav1", again.pairWith)
+        reread.remove("dav1")
+        assertNull(reread.source("smb1")?.pairWith)
+        assertEquals(listOf("smb1", "dav0"), MediaSourceStore(secrets).sources.value.map { it.id })
+    }
+
+    @Test
+    fun `progress of share files - kept, the oldest go, gone with the pairing`() {
+        val secrets = MapSecrets()
+        val store = MediaSourceStore(secrets)
+        store.setProgress("smb1|a.mkv", ShareProgress(60_000, 6_000_000, false, 10))
+        store.setProgress("smb1|b.mkv", ShareProgress(0, 0, true, 11))
+        store.setProgress("other|c.mkv", ShareProgress(1, 2, false, 12))
+        val reread = MediaSourceStore(secrets)
+        assertEquals(ShareProgress(60_000, 6_000_000, false, 10), reread.progress("smb1|a.mkv"))
+        assertEquals(setOf("smb1|a.mkv", "smb1|b.mkv"), reread.all("smb1|").keys)
+        repeat(MediaSourceStore.MAX_PROGRESS) { reread.setProgress("x|$it", ShareProgress(1, 2, false, 100L + it)) }
+        // the oldest went first
+        assertNull(reread.progress("smb1|a.mkv"))
+        assertEquals(MediaSourceStore.MAX_PROGRESS, reread.all("").size)
+        reread.forgetAll()
+        assertTrue(MediaSourceStore(secrets).all("").isEmpty())
+        assertTrue(secrets.map.isEmpty())
+    }
+
+    @Test
     fun `stored sources - broken or foreign entries are left out`() {
         assertTrue(MediaSourceStore.decode("not json").isEmpty())
         val list = MediaSourceStore.decode(
             """{"sources":[{"id":"a","kind":"jellyfin","name":"N","address":"http://192.168.1.20:8096"},
                 {"id":"b","kind":"nfs","name":"N","address":"http://192.168.1.21"},
-                {"id":"c","kind":"jellyfin","name":"N","address":"http://media.example.test"}]}""",
+                {"id":"c","kind":"jellyfin","name":"N","address":"http://media.example.test"},
+                {"id":"d","kind":"smb","name":"N","address":"smb://media.example.test/filme"},
+                {"id":"e","kind":"smb","name":"N","address":"smb://nas/filme","pairWith":"gone"},
+                {"id":"f","kind":"webdav","name":"N","address":"http://dav.example.test/filme"}]}""",
         )
-        assertEquals(listOf("a"), list.map { it.id })
+        assertEquals(listOf("a", "e"), list.map { it.id })
+        // a partner that is not there is none
+        assertNull(list[1].pairWith)
     }
 
     @Test

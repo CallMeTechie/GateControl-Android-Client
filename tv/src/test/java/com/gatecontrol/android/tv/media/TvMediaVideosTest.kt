@@ -17,6 +17,9 @@ import com.gatecontrol.android.media.MediaTrackChoice
 import com.gatecontrol.android.media.MediaVersion
 import com.gatecontrol.android.media.PlayMethod
 import com.gatecontrol.android.media.jellyfin.JellyfinDeviceCaps
+import com.gatecontrol.android.media.share.ShareFs
+import com.gatecontrol.android.media.share.ShareInput
+import com.gatecontrol.android.media.share.ShareUri
 import com.gatecontrol.android.tv.ui.drive.TvChoiceKind
 import com.gatecontrol.android.tv.ui.drive.TvOpen
 import com.gatecontrol.android.tv.ui.drive.TvPlayEvent
@@ -205,5 +208,49 @@ class TvMediaVideosTest {
         assertEquals(0, v.nextCountdownSeconds)
         assertEquals(2_530_000L, v.startAt(0))
         assertEquals(0L, videos(TvMediaQueue("s1", listOf(film), 0, startMs = 0)).startAt(0))
+    }
+
+    private val share = MediaSource("smb1", MediaSourceKind.SMB, "nas", "smb://nas/filme", userName = "kino", password = "pw")
+    private val shareFs = mockk<ShareFs>(relaxed = true) {
+        every { kind } returns MediaSourceKind.SMB
+        every { open("Filme/Kobaltnacht.mkv", any()) } answers {
+            val bytes = ByteArray(100) { it.toByte() }
+            val at = secondArg<Long>().toInt()
+            ShareInput(bytes.size.toLong(), java.io.ByteArrayInputStream(bytes, at, bytes.size - at))
+        }
+    }
+
+    @Test
+    fun `a share's film - the original, the file's own tracks, the progress with its length`() = runBlocking {
+        val film = MediaTitle("f:Filme/Kobaltnacht.mkv", "smb1", MediaTitle.Kind.MOVIE, "Kobaltnacht", fromShare = true, positionMs = 42_000, runtimeMs = 6_480_000)
+        every { store.source("smb1") } returns share
+        val shareVersion = MediaVersion("Filme/Kobaltnacht.mkv", container = "mkv", supportsDirectPlay = true)
+        coEvery { lib.detail(film.id) } returns MediaResult.Ok(MediaDetail(film, listOf(shareVersion)))
+        coEvery { lib.play(any()) } returns MediaResult.Ok(
+            MediaPlan(film.id, ShareUri.of("Filme/Kobaltnacht.mkv"), PlayMethod.DIRECT_PLAY, shareVersion, null, hls = false, audioIndex = null, subtitleIndex = null),
+        )
+        every { lib.files() } returns shareFs
+        val v = TvMediaVideos(TvMediaQueue("smb1", listOf(film), 0), media, res)
+        val open = v.open(0) as TvOpen.Ready
+        assertEquals("Directly from the share (SMB)", open.info)
+        assertEquals("gcshare://share/Filme/Kobaltnacht.mkv", open.item.localConfiguration?.uri.toString())
+        // the file's own sound tracks and subtitles in the player's panel, no quality
+        assertNull(v.choices(0))
+        assertEquals(42_000L, v.startAt(0))
+        assertTrue(v.factory(RuntimeEnvironment.getApplication()) is TvShareDataSource.Factory)
+        v.report(0, TvPlayEvent.PROGRESS, 50_000, false, durationMs = 6_480_000)
+        coVerify { lib.progress(match { it.positionMs == 50_000L && it.durationMs == 6_480_000L }) }
+
+        // the player reads the file through the share from its place
+        val ds = TvShareDataSource { shareFs }
+        val length = ds.open(androidx.media3.datasource.DataSpec.Builder().setUri(open.item.localConfiguration!!.uri).setPosition(90).build())
+        assertEquals(10L, length)
+        val buf = ByteArray(32)
+        assertEquals(10, ds.read(buf, 0, 32))
+        assertEquals(90.toByte(), buf[0])
+        assertEquals(androidx.media3.common.C.RESULT_END_OF_INPUT, ds.read(buf, 0, 32))
+        ds.close()
+        // another URL is not a share's file
+        assertTrue(runCatching { TvShareDataSource { shareFs }.open(androidx.media3.datasource.DataSpec(android.net.Uri.parse("https://192.168.1.20/a.mkv"))) }.isFailure)
     }
 }

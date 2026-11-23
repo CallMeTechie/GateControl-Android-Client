@@ -95,6 +95,7 @@ fun TvMediaDetailPage(
         ) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text(stringResource(R.string.tv_nav_media), style = MaterialTheme.typography.titleMedium, color = colors.muted)
+                if (t.fromShare) NasBadge()
                 LinkPill(link)
                 if (detail.loading) TvPill(stringResource(R.string.tv_drive_loading), TvPillTone.Info)
             }

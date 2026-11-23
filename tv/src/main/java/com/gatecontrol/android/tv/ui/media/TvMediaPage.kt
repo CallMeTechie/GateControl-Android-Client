@@ -49,6 +49,7 @@ import androidx.tv.material3.Icon
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import com.gatecontrol.android.media.MediaSource
+import com.gatecontrol.android.media.MediaSourceKind
 import com.gatecontrol.android.media.MediaTitle
 import com.gatecontrol.android.media.jellyfin.JellyfinServerHint
 import com.gatecontrol.android.tv.R
@@ -108,12 +109,17 @@ class TvMediaActions(
     val onLogin: () -> Unit = {},
     val onQuickConnect: (Boolean) -> Unit = {},
     val onPassword: (String, String) -> Unit = { _, _ -> },
+    /** "Quelle hinzufügen": SMB-Freigabe or WebDAV chosen. */
+    val onShareKind: (MediaSourceKind) -> Unit = {},
+    /** "Verbinden" of a share with name and password. */
+    val onShareConnect: (String, String) -> Unit = { _, _ -> },
 )
 
 /**
- * The page "Medien" of the rail (mockup 7): Weiterschauen, Zuletzt hinzugefügt, Filme A–Z, Serien of the current
- * source; OK on a poster opens its details (mockup 8), OK on "Weiterschauen" plays on, ☰ shows the details.
- * "Quellen" (▲ to the top) lists the sources and adds one (mockup 10).
+ * The page "Medien" of the rail (mockup 7): Weiterschauen, Zuletzt hinzugefügt, Filme A–Z, Serien of the Jellyfin
+ * server shown and of the shares in one ("NAS" on a share's title; one in both shows once, Jellyfin's); OK on a poster
+ * opens its details (mockup 8), OK on "Weiterschauen" plays on, ☰ shows the details. "Quellen" (▲ to the top) lists
+ * the sources and adds one (mockup 10).
  */
 @Composable
 fun TvMediaPage(screen: TvMediaScreen, actions: TvMediaActions, modifier: Modifier = Modifier) {
@@ -144,6 +150,15 @@ private fun Header(screen: TvMediaScreen, onSources: (() -> Unit)?, modifier: Mo
     Row(modifier.fillMaxWidth().padding(end = 30.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
         Text(stringResource(R.string.tv_nav_media), style = MaterialTheme.typography.titleMedium, color = colors.text)
         screen.ui.source?.let { TvPill(TvMediaLogic.sourceLabel(it), TvPillTone.Accent) }
+        val shareWord = stringResource(R.string.tv_media_share)
+        for (share in screen.ui.shares.take(MAX_SHARE_PILLS)) {
+            val label = TvMediaLogic.sourceLabel(share, shareWord)
+            if (share.id in screen.ui.shareProblems) {
+                TvPill(stringResource(R.string.tv_media_share_unreachable, label), TvPillTone.Warn)
+            } else {
+                TvPill(label, TvPillTone.Accent)
+            }
+        }
         LinkPill(screen.link)
         if (screen.ui.loading) TvPill(stringResource(R.string.tv_drive_loading), TvPillTone.Info)
         Spacer(Modifier.weight(1f))
@@ -169,13 +184,15 @@ private fun Rows(screen: TvMediaScreen, actions: TvMediaActions, onSources: () -
     Column(modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Header(screen, onSources)
         val problem = ui.problem
+        val anyTitles = ui.resume.isNotEmpty() || ui.latest.isNotEmpty() || ui.movies.isNotEmpty() || ui.series.isNotEmpty()
         when {
-            ui.source == null -> Column(verticalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.padding(top = 10.dp)) {
+            !ui.any -> Column(verticalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.padding(top = 10.dp)) {
                 Text(stringResource(R.string.tv_media_none), style = MaterialTheme.typography.bodyLarge, color = colors.muted)
                 TvButton(stringResource(R.string.tv_media_add), onClick = actions.onAdd, style = TvButtonStyle.Primary, modifier = Modifier.focusRequester(first))
                 LaunchedEffect(Unit) { first.requestSoon() }
             }
-            problem != null -> Column(verticalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.padding(top = 10.dp)) {
+            // the Jellyfin server has a problem and no share has titles: only the problem
+            problem != null && !anyTitles -> Column(verticalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.padding(top = 10.dp)) {
                 Text(
                     stringResource(
                         when (problem) {
@@ -195,6 +212,17 @@ private fun Rows(screen: TvMediaScreen, actions: TvMediaActions, onSources: () -
                 LaunchedEffect(problem) { first.requestSoon() }
             }
             else -> Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
+                // the Jellyfin server has a problem, the shares' titles are there
+                if (problem != null) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(bottom = 4.dp)) {
+                        Text(
+                            stringResource(if (problem == TvMediaProblem.OFFLINE) R.string.tv_media_offline else if (problem == TvMediaProblem.SIGNED_OUT) R.string.tv_media_signed_out else R.string.tv_media_failed),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = colors.warn,
+                        )
+                        if (problem == TvMediaProblem.SIGNED_OUT) TvButton(stringResource(R.string.tv_media_sign_in_again), onClick = actions.onAdd)
+                    }
+                }
                 if (ui.resume.isNotEmpty()) {
                     RowTitle(stringResource(R.string.tv_media_row_resume), pluralStringResource(R.plurals.tv_media_titles, ui.resume.size, ui.resume.size))
                     LazyRow(contentPadding = RowPadding, horizontalArrangement = Arrangement.spacedBy(11.dp)) {
@@ -283,6 +311,7 @@ internal fun ResumeCard(t: MediaTitle, pictures: Map<String, Bitmap>, actions: T
     TvCard(width, width * 9 / 16, onClick = { actions.onPlay(t, false) }, description = t.seriesName ?: t.name, modifier = modifier.menuOpens { actions.onOpen(t) }) {
         Box(Modifier.fillMaxSize().background(PictureBg)) {
             if (picture != null) Image(picture.asImageBitmap(), contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+            if (t.fromShare) Box(Modifier.align(Alignment.TopStart).padding(6.dp)) { NasBadge() }
             left(t)?.let { l ->
                 Box(Modifier.align(Alignment.TopEnd).padding(6.dp).background(Color.Black.copy(alpha = 0.6f), RoundedCornerShape(5.dp)).padding(horizontal = 6.dp, vertical = 2.dp)) {
                     Text(l, style = MaterialTheme.typography.labelMedium, color = Color.White)
@@ -340,8 +369,11 @@ private fun PosterCard(t: MediaTitle, pictures: Map<String, Bitmap>, actions: Tv
                 } else {
                     Icon(TvIcons.Media, contentDescription = null, tint = colors.faint, modifier = Modifier.align(Alignment.Center).size(26.dp))
                 }
-                if (TvMediaUiLogic.isNew(t)) {
-                    Box(Modifier.align(Alignment.TopStart).padding(5.dp)) { TvPill(stringResource(R.string.tv_drop_badge_new), TvPillTone.Accent, dot = false) }
+                if (t.fromShare || TvMediaUiLogic.isNew(t)) {
+                    Row(Modifier.align(Alignment.TopStart).padding(5.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        if (t.fromShare) NasBadge()
+                        if (TvMediaUiLogic.isNew(t)) TvPill(stringResource(R.string.tv_drop_badge_new), TvPillTone.Accent, dot = false)
+                    }
                 }
                 if (t.played) {
                     Box(Modifier.align(Alignment.TopEnd).padding(5.dp).background(colors.accent, RoundedCornerShape(50)).padding(horizontal = 5.dp)) {
@@ -358,6 +390,15 @@ private fun PosterCard(t: MediaTitle, pictures: Map<String, Bitmap>, actions: Tv
 }
 
 internal val PictureBg = Color(0xFF0B0F14)
+
+/** At most this many shares in the header (more are in "Quellen"). */
+private const val MAX_SHARE_PILLS = 2
+
+/** "NAS" top left on a picture: the title comes from an SMB or WebDAV share (mockup 7). */
+@Composable
+internal fun NasBadge() {
+    TvPill(stringResource(R.string.tv_media_badge_nas), TvPillTone.Info, dot = false)
+}
 
 /** Rules of the cards, kept apart from the composables. */
 internal object TvMediaUiLogic {

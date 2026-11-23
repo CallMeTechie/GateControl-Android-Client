@@ -12,6 +12,8 @@ import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
+import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.test.performKeyInput
 import androidx.compose.ui.test.pressKey
 import com.gatecontrol.android.media.MediaDetail
@@ -24,6 +26,7 @@ import com.gatecontrol.android.media.MediaVersion
 import com.gatecontrol.android.media.jellyfin.JellyfinQuickConnect
 import com.gatecontrol.android.media.jellyfin.JellyfinServerHint
 import com.gatecontrol.android.media.jellyfin.JellyfinServerInfo
+import com.gatecontrol.android.tv.media.TvAddProblem
 import com.gatecontrol.android.tv.media.TvAddStep
 import com.gatecontrol.android.tv.media.TvAddUi
 import com.gatecontrol.android.tv.media.TvDetailUi
@@ -207,5 +210,113 @@ class TvMediaPageTest {
         rule.onNodeWithText("482 913").assertExists()
         rule.onNodeWithText("Waiting for confirmation …").assertExists()
         rule.onNodeWithText("The access stays encrypted on this TV.").assertExists()
+    }
+
+    private val share = MediaSource("smb1", MediaSourceKind.SMB, "nas", "smb://nas/filme", userName = "kino", password = "pw")
+    private val lindqvist = MediaTitle("f:l.mkv", "smb1", MediaTitle.Kind.EPISODE, "Folge 7", seriesName = "Die Lindqvist-Akten", season = 1, episode = 7, positionMs = 60_000, runtimeMs = 2_520_000, fromShare = true)
+    private val kupfer = MediaTitle("f:k.mkv", "smb1", MediaTitle.Kind.MOVIE, "Kupferstadt", year = 2025, fromShare = true)
+
+    @Test
+    fun `titles of a share - NAS on the picture, the share in the header`() {
+        val ui = rows.copy(
+            shares = listOf(share),
+            resume = listOf(kobalt, lindqvist),
+            movies = rows.movies + kupfer,
+        )
+        val opened = mutableListOf<String>()
+        rule.setContent { GateControlTvTheme { TvMediaPage(TvMediaScreen(ui, link = TvMediaLink(atHome = true)), TvMediaActions(onOpen = { opened += it.id })) } }
+        rule.onNodeWithText("Jellyfin · DS918+").assertExists()
+        rule.onNodeWithText("NAS share · \\\\nas\\filme").assertExists()
+        // the share's two titles carry the mark, Jellyfin's none
+        assertEquals(2, rule.onAllNodesWithText("NAS").fetchSemanticsNodes().size)
+        rule.onNodeWithText("Kupferstadt").assertExists()
+    }
+
+    @Test
+    fun `a share that cannot be read says so in the header`() {
+        val ui = TvMediaUi(sources = listOf(share), shares = listOf(share), shareProblems = setOf("smb1"))
+        rule.setContent { GateControlTvTheme { TvMediaPage(TvMediaScreen(ui), TvMediaActions()) } }
+        rule.onNodeWithText("NAS share · \\\\nas\\filme not reachable").assertExists()
+        rule.onNodeWithText("Nothing in this library yet.").assertExists()
+    }
+
+    @Test
+    fun `the detail page of a share's film - only the original`() {
+        val version = MediaVersion("f:k.mkv", container = "mkv", supportsDirectPlay = true)
+        val offer = MediaQuality.offer(atHome = false, measuredBps = 18_000_000, originalBps = null, canConvert = false)
+        val detail = TvDetailUi(kupfer, MediaDetail(kupfer, listOf(version)), loading = false, offer = offer)
+        rule.setContent { GateControlTvTheme { TvMediaPage(TvMediaScreen(rows, detail = detail, link = TvMediaLink(atHome = false, bps = 18_000_000)), TvMediaActions()) } }
+        rule.onNodeWithText("Kupferstadt").assertExists()
+        rule.onNodeWithText("NAS").assertExists()
+        rule.onNodeWithText("Original (direct)").assertExists()
+        rule.onNodeWithText("Adapted (the NAS converts)").assertDoesNotExist()
+        // no sound or subtitle list of a server: the player shows the file's own
+        rule.onNodeWithText("Subtitles: Off ▾").assertDoesNotExist()
+        rule.onNodeWithText("Play").assertIsFocused()
+    }
+
+    @Test
+    fun `adding a share - SMB and WebDAV can be chosen, NFS later, address with name and password`() {
+        var add by mutableStateOf(TvAddUi())
+        val calls = mutableListOf<String>()
+        rule.setContent {
+            GateControlTvTheme {
+                TvMediaPage(
+                    TvMediaScreen(TvMediaUi(), add = add),
+                    TvMediaActions(
+                        onShareKind = { calls += it.wire },
+                        onAddress = { calls += "address:$it" },
+                        onShareConnect = { n, p -> calls += "connect:$n:$p" },
+                    ),
+                )
+            }
+        }
+        rule.onNodeWithText("SMB share").assertExists()
+        rule.onNodeWithText("WebDAV").assertExists()
+        rule.onNodeWithText("NFS").assertExists()
+        // only NFS is still "später"
+        assertEquals(1, rule.onAllNodesWithText("later").fetchSemanticsNodes().size)
+        rule.onRoot().performKeyInput { pressKey(Key.DirectionDown) }
+        rule.onRoot().performKeyInput { pressKey(Key.DirectionCenter) }
+        assertEquals(listOf("smb"), calls)
+        rule.onRoot().performKeyInput { pressKey(Key.DirectionDown) }
+        rule.onRoot().performKeyInput { pressKey(Key.DirectionCenter) }
+        assertEquals(listOf("smb", "webdav"), calls)
+
+        add = TvAddUi(step = TvAddStep.ADDRESS, kind = MediaSourceKind.SMB, address = "\\\\nas\\filme")
+        rule.waitForIdle()
+        rule.onNodeWithText("SMB share").assertExists()
+        rule.onNodeWithText("Jellyfin server").assertDoesNotExist()
+        rule.onNodeWithText("WebDAV").assertDoesNotExist()
+        rule.onNodeWithText("e.g. \\\\nas\\movies or smb://192.168.1.20/movies. Best a NAS user of its own with read access only.").assertExists()
+        rule.onNodeWithText("Name").assertExists()
+        rule.onNodeWithText("Password").assertExists()
+        rule.onNodeWithText("Connect").assertExists()
+        rule.onNodeWithText("Connect").performSemanticsAction(SemanticsActions.OnClick)
+        assertEquals("connect::", calls.last())
+
+        add = add.copy(problem = TvAddProblem.WRONG_LOGIN)
+        rule.waitForIdle()
+        rule.onNodeWithText("Name or password is wrong.").assertExists()
+        add = add.copy(problem = TvAddProblem.NOT_FOUND)
+        rule.waitForIdle()
+        rule.onNodeWithText("Share or folder not found.").assertExists()
+
+        add = TvAddUi(step = TvAddStep.ADDRESS, kind = MediaSourceKind.WEBDAV, done = true, pairedWith = share)
+        rule.waitForIdle()
+        rule.onNodeWithText("Paired with \\\\nas\\filme: at home by SMB, away by WebDAV.").assertExists()
+    }
+
+    @Test
+    fun `the sources - a share shows always, without Always original`() {
+        val dav = MediaSource("dav1", MediaSourceKind.WEBDAV, "dav", "https://192.168.1.20:5006/filme", userName = "kino", pairWith = "smb1")
+        val paired = share.copy(pairWith = "dav1")
+        val ui = rows.copy(sources = listOf(source, paired, dav), shares = listOf(paired))
+        rule.setContent { GateControlTvTheme { TvSourcesPage(ui, TvMediaActions(), onClose = {}) } }
+        rule.onNodeWithText("NAS share · \\\\nas\\filme").assertExists()
+        rule.onNodeWithText("SMB · kino · at home SMB, away WebDAV").assertExists()
+        rule.onNodeWithText("WebDAV · kino · at home SMB, away WebDAV").assertExists()
+        assertEquals(3, rule.onAllNodesWithText("shown").fetchSemanticsNodes().size)
+        assertEquals(1, rule.onAllNodesWithText("Always original: off").fetchSemanticsNodes().size)
     }
 }

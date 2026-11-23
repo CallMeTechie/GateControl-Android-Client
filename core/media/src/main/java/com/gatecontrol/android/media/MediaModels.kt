@@ -1,8 +1,8 @@
 package com.gatecontrol.android.media
 
 /**
- * What a media source is. Jellyfin first (posters, progress, converting on the NAS); SMB and WebDAV shares follow
- * behind the same [MediaLibrary] (only the original, progress kept on the device). NFS is planned, not offered.
+ * What a media source is. Jellyfin first (posters, progress, converting on the NAS); SMB and WebDAV shares behind the
+ * same [MediaLibrary] (only the original, progress kept on the device). NFS is planned, not offered.
  */
 enum class MediaSourceKind(val wire: String) {
     JELLYFIN("jellyfin"),
@@ -13,14 +13,18 @@ enum class MediaSourceKind(val wire: String) {
     /** Only Jellyfin converts on the NAS; a share always plays the original. */
     val canConvert: Boolean get() = this == JELLYFIN
 
+    /** A folder of the NAS or a PC (SMB, WebDAV): file names and pictures beside them, no server of its own. */
+    val share: Boolean get() = this == SMB || this == WEBDAV
+
     companion object {
         fun fromWire(value: String?): MediaSourceKind? = entries.firstOrNull { it.wire == value }
     }
 }
 
 /**
- * A source of Medien › Quellen. [address]: the server's base URL (`http://192.168.1.20:8096`); [token] the access of
- * this device (a Jellyfin access token) — secret: never logged, kept only in the encrypted storage.
+ * A source of Medien › Quellen. [address]: the server's base URL (`http://192.168.1.20:8096`), a share's
+ * `smb://nas/filme` or `https://192.168.1.20:5006/filme`; [token] the access of this device (a Jellyfin access token),
+ * [password] a share's password — secrets: never logged, kept only in the encrypted storage.
  */
 data class MediaSource(
     val id: String,
@@ -35,8 +39,19 @@ data class MediaSource(
     val serverId: String? = null,
     /** "Immer Original": never converted, also away (per source, decision 10). */
     val alwaysOriginal: Boolean = false,
+    /** A share's password (with [userName]); null: as guest. */
+    val password: String? = null,
+    /**
+     * The same share set up once more with the other protocol (SMB ↔ WebDAV): the id of that source. Both show as
+     * one; at home the app takes SMB, away WebDAV.
+     */
+    val pairWith: String? = null,
 ) {
-    override fun toString(): String = "MediaSource($id, ${kind.wire}, $name, token=${if (token != null) "set" else "none"})"
+    /** Can be asked: a Jellyfin source signed in, a share always (its password goes along on each connection). */
+    val ready: Boolean get() = kind.share || token != null
+
+    override fun toString(): String =
+        "MediaSource($id, ${kind.wire}, $name, token=${if (token != null) "set" else "none"}, password=${if (password != null) "set" else "none"})"
 }
 
 /** A film, a series, a season, an episode or another video of a source. */
@@ -71,6 +86,10 @@ data class MediaTitle(
     val backdropTag: String? = null,
     /** When it came to the library (ms since 1970), for "Zuletzt hinzugefügt". */
     val addedAt: Long? = null,
+    /** When it was watched last (ms since 1970): "Weiterschauen" of several sources in one row. */
+    val playedAt: Long? = null,
+    /** From an SMB or WebDAV share (the "NAS" mark): only its file name and the picture beside it. */
+    val fromShare: Boolean = false,
 ) {
     enum class Kind { MOVIE, SERIES, SEASON, EPISODE, VIDEO }
 
@@ -201,6 +220,8 @@ data class MediaProgress(
     val plan: MediaPlan,
     val positionMs: Long,
     val paused: Boolean,
+    /** The length the player found (0: unknown); a share knows it only from there. */
+    val durationMs: Long = 0,
 )
 
 /** The answer of a call to a source. */
@@ -233,8 +254,9 @@ data class MediaClientInfo(
 )
 
 /**
- * One source as the TV goes through it. Jellyfin now; an SMB or WebDAV share implements the same (lists from its
- * folders, [play] always the original, progress on the device).
+ * One source as the TV goes through it: Jellyfin, or an SMB or WebDAV share
+ * ([com.gatecontrol.android.media.share.ShareLibrary]: lists from its folders, [play] always the original, progress on
+ * the device).
  */
 interface MediaLibrary {
     val source: MediaSource
@@ -263,4 +285,13 @@ interface MediaLibrary {
 
     /** The headers the player and the picture loads send (the access); never logged. */
     fun headers(): Map<String, String>
+
+    /** A picture that has no URL (a share's `poster.jpg` beside the film), at most a few MB; null: none. */
+    suspend fun imageBytes(title: MediaTitle, backdrop: Boolean): ByteArray? = null
+
+    /** A share's files for the player ([MediaPlan.url] is then a [com.gatecontrol.android.media.share.ShareUri]); null: HTTP. */
+    fun files(): com.gatecontrol.android.media.share.ShareFs? = null
+
+    /** The library is no longer used (the network or the access changed): its connection may go. */
+    fun close() {}
 }
