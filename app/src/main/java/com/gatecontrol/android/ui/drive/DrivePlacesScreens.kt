@@ -98,7 +98,7 @@ fun DrivePhotoMapScreen(onBack: () -> Unit, onPlace: (String?, DBbox?) -> Unit, 
     var q by rememberSaveable { mutableStateOf("") }
     var center by remember { mutableStateOf<org.osmdroid.util.GeoPoint?>(null) }
     var fit by remember { mutableStateOf<DBbox?>(null) }
-    var viewing by remember { mutableStateOf<Int?>(null) }
+    var viewing by rememberSaveable { mutableStateOf<Int?>(null) }
     LaunchedEffect(Unit) { viewModel.start() }
     // the first view: all places
     LaunchedEffect(places.isNotEmpty()) {
@@ -286,7 +286,7 @@ fun DrivePlaceScreen(onBack: () -> Unit, viewModel: DrivePlaceViewModel = hiltVi
     val clusters by viewModel.clusters.collectAsStateWithLifecycle()
     val busy by viewModel.busy.collectAsStateWithLifecycle()
     val message by viewModel.message.collectAsStateWithLifecycle()
-    var viewing by remember { mutableStateOf<Int?>(null) }
+    var viewing by rememberSaveable { mutableStateOf<Int?>(null) }
     LaunchedEffect(message) {
         message?.let {
             Toast.makeText(context, photosText(context, it), Toast.LENGTH_SHORT).show()

@@ -233,9 +233,9 @@ fun DriveFileScreen(onBack: () -> Unit, onFolder: (Long) -> Unit, viewModel: Dri
     val ask = rememberScanAsk()
     var shown by remember { mutableStateOf(false) }
     /** Drive 1.21: "Öffnen" of a picture or video shows it in the viewer, no download first. */
-    var viewing by remember { mutableStateOf<DNode?>(null) }
+    var viewing by rememberKept<DNode?> { null }
     /** "Öffnen" of a PDF, text or Markdown: the viewer of documents (the same pages as in the vault). */
-    var doc by remember { mutableStateOf<DNode?>(null) }
+    var doc by rememberKept<DNode?> { null }
     LifecycleResumeEffect(viewModel) {
         if (shown) viewModel.refresh(quiet = true)
         shown = true

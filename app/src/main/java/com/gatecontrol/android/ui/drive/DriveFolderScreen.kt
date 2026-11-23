@@ -174,9 +174,9 @@ internal fun DriveFolderContent(
 
     var menuFor by remember { mutableStateOf<DNode?>(null) }
     /** Drive 1.21: the pictures and videos of the folder in the viewer, and where it starts. */
-    var viewing by remember { mutableStateOf<Pair<List<DNode>, Int>?>(null) }
+    var viewing by rememberKept<Pair<List<DNode>, Int>?> { null }
     /** A PDF, text or Markdown in the viewer of documents (the same pages as in the vault). */
-    var doc by remember { mutableStateOf<DNode?>(null) }
+    var doc by rememberKept<DNode?> { null }
     var renaming by remember { mutableStateOf<DNode?>(null) }
     var deleting by remember { mutableStateOf<DNode?>(null) }
     var newFolder by remember { mutableStateOf(false) }

@@ -125,7 +125,7 @@ fun DriveDeviceScreen(
         viewModel.onResume()
         onPauseOrDispose { }
     }
-    var viewing by remember { mutableStateOf<DeviceEntry?>(null) }
+    var viewing by rememberKept<DeviceEntry?> { null }
     Column(Modifier.fillMaxSize()) {
         GcSubpageBar(stringResource(R.string.drive_dev_title), onBack = onBack, backDescription = stringResource(R.string.drive_back))
         if (!access) {

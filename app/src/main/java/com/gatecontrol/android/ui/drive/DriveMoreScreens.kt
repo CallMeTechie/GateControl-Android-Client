@@ -186,9 +186,9 @@ fun DriveSearchScreen(onBack: () -> Unit, onFolder: (Long) -> Unit, viewModel: D
     val where = DriveBulk.Where(writable = { n -> areaOf(n)?.writable == true }, child = { n -> areaOf(n)?.via == "parent" })
     val ask = rememberScanAsk()
     /** Drive 1.21: the pictures and videos of the hits in the viewer, and where it starts. */
-    var viewing by remember { mutableStateOf<Pair<List<DNode>, Int>?>(null) }
+    var viewing by rememberKept<Pair<List<DNode>, Int>?> { null }
     /** A PDF, text or Markdown in the viewer of documents. */
-    var doc by remember { mutableStateOf<DNode?>(null) }
+    var doc by rememberKept<DNode?> { null }
     val open: (DNode, Boolean) -> Unit = { n, send ->
         // a picture or video (Drive 1.21): the viewer with the other hits, no download first
         if (!send && DriveMediaLogic.opensInViewer(n)) {

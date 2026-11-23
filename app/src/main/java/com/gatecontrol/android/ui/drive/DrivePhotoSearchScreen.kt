@@ -155,7 +155,7 @@ fun DrivePhotoSearchScreen(
     val me by viewModel.live.me.collectAsStateWithLifecycle()
     val x = GateControlTheme.extraColors
     var q by rememberSaveable { mutableStateOf("") }
-    var viewing by remember { mutableStateOf<Int?>(null) }
+    var viewing by rememberSaveable { mutableStateOf<Int?>(null) }
     LaunchedEffect(Unit) { if (q.isNotBlank()) viewModel.search(q) }
     val set: (String) -> Unit = { q = it; viewModel.search(it) }
     // Drive 1.16: people and places too (suggestions while typing, the marks of a search)
