@@ -149,6 +149,11 @@ data class DMe(
          * covers) and `GET memories/photos?id=`; the overview's „Alle“ opens it (without: „Fotos“ as before).
          */
         const val FEATURE_MEMORY_COLLECTIONS = "memoryCollections"
+        /**
+         * Drive 1.31: single photos for the photo frame of the GateControl TV — `GET frame/photos[?ids=]`,
+         * `POST|DELETE frame/photos { ids }` (the album „Fotorahmen“ of „Meine Dateien“).
+         */
+        const val FEATURE_FRAME_PHOTOS = "framePhotos"
     }
 }
 
@@ -403,6 +408,22 @@ data class DAlbum(
     /** May switch [frame] (the area's rights, for family areas also an administrator or a parent). */
     val canFrame: Boolean = false,
 )
+
+/**
+ * The photos shared for the photo frame (Drive 1.31, feature `framePhotos`): [ids] the shared ones (newest first; with
+ * `ids=` only those asked for), [count] all of them; after `POST` / `DELETE` how many were [added] or [removed] and
+ * which were [skipped].
+ */
+data class DFramePhotos(
+    val ids: List<Long>,
+    val count: Int,
+    val added: Int = 0,
+    val removed: Int = 0,
+    val skipped: List<DFrameSkip> = emptyList(),
+)
+
+/** A photo the photo frame did not take, and why: `not_found`, `not_image`, `vault`, `blocked`, `child`. */
+data class DFrameSkip(val id: Long, val reason: String)
 
 /** `GET albums/<id>`: the album and a page of its photos. */
 data class DAlbumPage(val album: DAlbum, val items: List<DNode>, val next: String?)
