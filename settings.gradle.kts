@@ -30,6 +30,8 @@ include(":core:quickactions")
 include(":core:drive-api")
 include(":core:gatedrop")
 include(":core:tunnel")
+// Media of the own NAS (Jellyfin; SMB and WebDAV later): shared by GateControl TV and, later, the phone app
+include(":core:media")
 include(":core:rdp")
 // SSH terminal of „Fernzugriff“: Termux terminal-emulator + terminal-view (Apache-2.0), fixed release sources
 include(":termux-terminal")

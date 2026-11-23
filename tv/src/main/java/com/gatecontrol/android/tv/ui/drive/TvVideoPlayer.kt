@@ -78,9 +78,11 @@ import com.gatecontrol.android.tv.ui.theme.GateControlTvTheme
 import kotlinx.coroutines.delay
 
 /**
- * The player of Drive's videos (mockup 4 and 9): streams with Range from the own server, keys of the remote
- * ([TvPlayerKeys]): OK / ⏯ play and pause, ◀ ▶ ⏪ ⏩ ±10 s, ⏭ ⏮ the next / previous video of the folder, ▲ or ☰ the panel
- * "Ton & Untertitel", ▼ the bar, Zurück closes. Where a video was left is kept ([DriveVideoPlaces]).
+ * The player of Drive's videos (mockup 4 and 9) and of Medien's films and episodes: streams with Range from the own
+ * server or the NAS, keys of the remote ([TvPlayerKeys]): OK / ⏯ play and pause, ◀ ▶ ⏪ ⏩ ±10 s, ⏭ ⏮ the next /
+ * previous video, ▲ or ☰ the panel "Ton & Untertitel", ▼ the bar, Zurück closes. Where a video was left is kept
+ * ([TvVideoSource.keep], Medien in Jellyfin through [TvVideoSource.report]). A source with its own panel
+ * ([TvVideoSource.choices]: Jellyfin's streams and the quality) opens the video again at the same place on a choice.
  */
 @OptIn(UnstableApi::class)
 @Composable
@@ -93,7 +95,6 @@ fun TvVideoPlayer(
     onSend: (() -> Unit)? = null,
 ) {
     val context = LocalContext.current
-    val colors = GateControlTvTheme.colors
     val key = source.key(at)
     val count = source.count
     val factory = remember { source.factory(context) }
@@ -108,13 +109,25 @@ fun TvVideoPlayer(
     var trouble by remember(key) { mutableStateOf<String?>(null) }
     var resumedAt by remember(key) { mutableStateOf<Long?>(null) }
     var format by remember(key) { mutableStateOf<String?>(null) }
+    var info by remember(key) { mutableStateOf<String?>(null) }
     var panel by remember { mutableStateOf(false) }
     var touched by remember { mutableIntStateOf(0) }
     var controls by remember { mutableStateOf(true) }
+    // a choice of the source's panel: the same video again from where it is
+    var reload by remember(key) { mutableIntStateOf(0) }
+    var reloadFrom by remember(key) { mutableStateOf<Long?>(null) }
+    // the file's own track to choose once the tracks are known (Medien, played directly)
+    // (not keyed: the player's listener keeps writing the same states; reset when a video opens)
+    var pending by remember { mutableStateOf<TvOpen.Ready?>(null) }
+    // the source was told the playback started (and has not been told it stopped)
+    var started by remember { mutableStateOf(false) }
+    // "Nächste Folge in 10 s"
+    var countdown by remember { mutableStateOf<Int?>(null) }
     val root = remember { FocusRequester() }
     val cannotPlay = stringResource(R.string.tv_player_cannot_play, source.typeName(at))
     val network = stringResource(R.string.tv_player_network)
     val failed = stringResource(R.string.tv_viewer_failed)
+    val signedOut = stringResource(R.string.tv_media_signed_out)
     // the listener lives as long as the player: it reads the video shown now
     val nowAt by rememberUpdatedState(at)
     val nowOnAt by rememberUpdatedState(onAt)
@@ -124,15 +137,29 @@ fun TvVideoPlayer(
         if (p.playbackState != Player.STATE_IDLE) source.keep(at, p.currentPosition, p.duration.takeIf { it != C.TIME_UNSET } ?: 0)
     }
 
+    fun stopReport() {
+        val p = player ?: return
+        if (!started) return
+        started = false
+        source.report(at, TvPlayEvent.STOP, p.currentPosition.coerceAtLeast(0), paused = true)
+    }
+
     DisposableEffect(player) {
         val listener = object : Player.Listener {
             override fun onIsPlayingChanged(isPlaying: Boolean) {
                 playing = isPlaying
+                val p = player ?: return
+                if (started && p.playbackState != Player.STATE_ENDED) source.report(nowAt, TvPlayEvent.PROGRESS, p.currentPosition, paused = !isPlaying)
             }
 
             override fun onTracksChanged(t: Tracks) {
                 tracks = t
                 format = player?.videoFormat?.let { f -> TvPlayerUi.formatLabel(f.height, f.sampleMimeType) }
+                val want = pending ?: return
+                val p = player ?: return
+                if (t.groups.isEmpty()) return
+                pending = null
+                p.trackSelectionParameters = TvPlayerUi.apply(p.trackSelectionParameters, t, want)
             }
 
             override fun onPlayerError(error: PlaybackException) {
@@ -144,10 +171,21 @@ fun TvVideoPlayer(
             }
 
             override fun onPlaybackStateChanged(state: Int) {
-                // the end of a video: the next one of the folder, as the bar's "Nächstes Video"
+                val p = player ?: return
+                if (state == Player.STATE_READY && !started) {
+                    started = true
+                    source.report(nowAt, TvPlayEvent.START, p.currentPosition, paused = !p.playWhenReady)
+                }
+                // the end of a video: the next one (an episode after "Nächste Folge in 10 s")
                 if (state == Player.STATE_ENDED) {
                     source.forget(nowAt)
-                    if (nowAt < count - 1) nowOnAt(nowAt + 1)
+                    if (started) {
+                        started = false
+                        source.report(nowAt, TvPlayEvent.STOP, p.duration.takeIf { it != C.TIME_UNSET } ?: p.currentPosition, paused = false)
+                    }
+                    if (nowAt < count - 1) {
+                        if (source.nextCountdownSeconds > 0) countdown = source.nextCountdownSeconds else nowOnAt(nowAt + 1)
+                    }
                 }
             }
         }
@@ -157,22 +195,28 @@ fun TvVideoPlayer(
         }
     }
     DisposableEffect(player) { onDispose { player?.release() } }
-    // the video at [at]: its stream first (Drive: the rights, the virus scan), then from where it was left
-    LaunchedEffect(player, key) {
+    // the video at [at]: its stream first (Drive: the rights, the virus scan; Medien: direct or converted), then from
+    // where it was left
+    LaunchedEffect(player, key, reload) {
         val p = player ?: run {
             trouble = failed
             return@LaunchedEffect
         }
+        val again = reloadFrom
+        stopReport()
         p.stop()
         p.clearMediaItems()
         trouble = null
+        countdown = null
         when (val s = source.open(at)) {
             is TvOpen.Ready -> {
                 val item = s.item
-                val from = source.startAt(at)
-                if (from != null) {
+                info = s.info
+                pending = s.takeIf { it.audioOrdinal != null || it.textOrdinal != null || it.textOff }
+                val from = again ?: source.startAt(at)
+                if (from != null && from > 0) {
                     p.setMediaItem(item, from)
-                    resumedAt = from
+                    if (again == null) resumedAt = from
                 } else {
                     p.setMediaItem(item)
                 }
@@ -181,6 +225,7 @@ fun TvVideoPlayer(
             }
             TvOpen.Offline -> trouble = network
             TvOpen.Failed -> trouble = failed
+            TvOpen.SignedOut -> trouble = signedOut
         }
     }
     // the bar's times while it shows (and where the video is, for "Weiter ab")
@@ -192,6 +237,14 @@ fun TvVideoPlayer(
             buffered = p.bufferedPosition
             delay(if (controls) 500 else 5_000)
             if (!controls) keep()
+        }
+    }
+    // the progress to the source every few seconds while it plays (Jellyfin: "Weiterschauen" on every device)
+    LaunchedEffect(player, key) {
+        val p = player ?: return@LaunchedEffect
+        while (true) {
+            delay(PROGRESS_MS)
+            if (started && p.isPlaying) source.report(at, TvPlayEvent.PROGRESS, p.currentPosition, paused = false)
         }
     }
     LaunchedEffect(touched, playing, panel) {
@@ -206,19 +259,49 @@ fun TvVideoPlayer(
             resumedAt = null
         }
     }
+    LaunchedEffect(countdown) {
+        val c = countdown ?: return@LaunchedEffect
+        if (c <= 0) {
+            countdown = null
+            onAt(at + 1)
+            return@LaunchedEffect
+        }
+        delay(1_000)
+        if (countdown == c) countdown = c - 1
+    }
     LaunchedEffect(panel) { if (!panel) root.requestSoon() }
-    DisposableEffect(key) { onDispose { keep() } }
+    DisposableEffect(key) {
+        onDispose {
+            keep()
+            stopReport()
+        }
+    }
 
     val menu = remember(tracks) { TvTracks.menu(TvTracks.of(tracks)) }
+    // the source's own panel, read again after each opening
+    val choices = remember(key, reload, info, tracks) { source.choices(at) }
 
     fun close() {
         keep()
+        stopReport()
         onClose()
     }
 
     fun act(action: TvPlayerAction, repeat: Int): Boolean {
         val p = player
         touched++
+        countdown?.let {
+            // "Nächste Folge in …": OK starts it now, Zurück stays at the end
+            when (action) {
+                TvPlayerAction.TOGGLE, TvPlayerAction.NEXT -> {
+                    countdown = null
+                    onAt(at + 1)
+                }
+                TvPlayerAction.BACK, TvPlayerAction.STOP -> countdown = null
+                else -> Unit
+            }
+            return true
+        }
         when (action) {
             TvPlayerAction.TOGGLE -> p?.let { if (it.isPlaying) it.pause() else it.play() }
             TvPlayerAction.PLAY -> p?.play()
@@ -240,7 +323,7 @@ fun TvVideoPlayer(
                     onAt(TvDriveLogic.step(at, -1, count))
                 }
             }
-            TvPlayerAction.TRACKS -> if (menu.any || onSend != null) panel = true
+            TvPlayerAction.TRACKS -> if (menu.any || onSend != null || choices != null) panel = true
             TvPlayerAction.SHOW_CONTROLS -> Unit
             TvPlayerAction.BACK -> if (controls && playing) controls = false else close()
             TvPlayerAction.STOP -> close()
@@ -282,7 +365,7 @@ fun TvVideoPlayer(
         trouble?.let {
             Text(it, style = MaterialTheme.typography.bodyLarge, color = Color.White, modifier = Modifier.align(Alignment.Center).padding(40.dp))
         }
-        if (controls || trouble != null) {
+        if (controls || trouble != null || countdown != null) {
             Box(Modifier.fillMaxWidth().fillMaxHeight(0.3f).background(Brush.verticalGradient(listOf(Color.Black.copy(alpha = 0.65f), Color.Transparent))))
             Box(
                 Modifier.align(Alignment.BottomStart).fillMaxWidth().fillMaxHeight(0.42f)
@@ -291,8 +374,9 @@ fun TvVideoPlayer(
             Column(Modifier.align(Alignment.TopStart).padding(start = 48.dp, top = 28.dp, end = 48.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(source.name(at), style = MaterialTheme.typography.headlineSmall, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                    if (count > 1) TvPill("${at + 1} / $count", TvPillTone.Neutral, dot = false)
-                    format?.let { TvPill(it, TvPillTone.Neutral, dot = false) }
+                    if (count > 1 && choices == null) TvPill("${at + 1} / $count", TvPillTone.Neutral, dot = false)
+                    val line = info
+                    if (line != null) TvPill(line, TvPillTone.Accent) else format?.let { TvPill(it, TvPillTone.Neutral, dot = false) }
                     resumedAt?.let { TvPill(stringResource(R.string.tv_player_resumed, TvPlayerKeys.time(it)), TvPillTone.Accent) }
                 }
             }
@@ -308,18 +392,95 @@ fun TvVideoPlayer(
                     RoundIcon(if (playing) TvIcons.Pause else TvIcons.Play, main = true)
                     RoundIcon(TvIcons.Forward, main = false)
                     Spacer(Modifier.weight(1f))
-                    if (menu.any) Hint(stringResource(R.string.tv_player_tracks_hint, TvPlayerUi.textState(menu, stringResource(R.string.tv_player_subtitles_off))))
-                    if (at < count - 1) Hint(stringResource(R.string.tv_player_next_hint))
+                    if (choices != null) {
+                        Hint(stringResource(R.string.tv_player_tracks_short))
+                        choices.quality0?.let { Hint(stringResource(R.string.tv_media_quality_hint, it.label)) }
+                    } else if (menu.any) {
+                        Hint(stringResource(R.string.tv_player_tracks_hint, TvPlayerUi.textState(menu, stringResource(R.string.tv_player_subtitles_off))))
+                    }
+                    if (at < count - 1) Hint(stringResource(if (source.nextCountdownSeconds > 0) R.string.tv_media_next_episode_hint else R.string.tv_player_next_hint))
                 }
             }
         }
-        if (panel) TracksPanel(menu, onAudio = { t -> player?.let { p -> p.trackSelectionParameters = TvTracks.choose(p.trackSelectionParameters, p.currentTracks, t) } }, onText = { t ->
-            player?.let { p ->
-                p.trackSelectionParameters = if (t == null) TvTracks.subtitlesOff(p.trackSelectionParameters) else TvTracks.choose(p.trackSelectionParameters, p.currentTracks, t)
+        countdown?.let { c ->
+            Column(
+                Modifier.align(Alignment.BottomEnd).padding(end = 48.dp, bottom = 120.dp)
+                    .background(GateControlTvTheme.colors.panel.copy(alpha = 0.96f), RoundedCornerShape(9.dp))
+                    .padding(horizontal = 18.dp, vertical = 12.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                Text(stringResource(R.string.tv_media_next_in, c), style = MaterialTheme.typography.titleSmall, color = GateControlTvTheme.colors.text)
+                Text(source.name(at + 1), style = MaterialTheme.typography.bodySmall, color = GateControlTvTheme.colors.muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(stringResource(R.string.tv_media_next_keys), style = MaterialTheme.typography.labelMedium, color = GateControlTvTheme.colors.faint)
             }
-        }, onClose = { panel = false }, onSend = onSend?.let { send -> { panel = false; player?.pause(); send() } }, modifier = Modifier.align(Alignment.CenterEnd))
+        }
+        if (panel) {
+            val own = choices
+            if (own != null) {
+                SourcePanel(
+                    own,
+                    onChoose = { c ->
+                        val p = player
+                        if (source.choose(at, c)) {
+                            reloadFrom = p?.currentPosition
+                            reload++
+                        }
+                    },
+                    onClose = { panel = false },
+                    modifier = Modifier.align(Alignment.CenterEnd),
+                )
+            } else {
+                TracksPanel(menu, onAudio = { t -> player?.let { p -> p.trackSelectionParameters = TvTracks.choose(p.trackSelectionParameters, p.currentTracks, t) } }, onText = { t ->
+                    player?.let { p ->
+                        p.trackSelectionParameters = if (t == null) TvTracks.subtitlesOff(p.trackSelectionParameters) else TvTracks.choose(p.trackSelectionParameters, p.currentTracks, t)
+                    }
+                }, onClose = { panel = false }, onSend = onSend?.let { send -> { panel = false; player?.pause(); send() } }, modifier = Modifier.align(Alignment.CenterEnd))
+            }
+        }
     }
     LaunchedEffect(Unit) { root.requestSoon() }
+}
+
+/** How often a playing video's place goes to the source (Jellyfin: "Fortschritt alle paar Sekunden"). */
+private const val PROGRESS_MS = 10_000L
+
+/** The panel of a source with its own lists (Medien, mockup 9): Ton, Untertitel, Qualität; OK takes a line. */
+@Composable
+private fun SourcePanel(choices: TvChoices, onChoose: (TvChoice) -> Unit, onClose: () -> Unit, modifier: Modifier = Modifier) {
+    val colors = GateControlTvTheme.colors
+    val first = remember { FocusRequester() }
+    Column(
+        modifier
+            .width(340.dp)
+            .fillMaxHeight()
+            .background(colors.panel.copy(alpha = 0.96f))
+            .padding(20.dp)
+            .verticalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        Text(stringResource(R.string.tv_player_tracks), style = MaterialTheme.typography.titleMedium, color = colors.text)
+        var firstSet = false
+        fun focus(): Modifier = if (!firstSet) {
+            firstSet = true
+            Modifier.focusRequester(first)
+        } else {
+            Modifier
+        }
+        for ((title, list) in listOf(
+            R.string.tv_player_audio to choices.audio,
+            R.string.tv_player_subtitles to choices.text,
+            R.string.tv_media_quality to choices.quality,
+        )) {
+            if (list.isEmpty()) continue
+            Text(stringResource(title), style = MaterialTheme.typography.labelMedium, color = colors.muted, modifier = Modifier.padding(top = 10.dp))
+            for (c in list) {
+                Choice(c.label, c.selected, onClick = { onChoose(c) }, note = c.note, modifier = focus())
+            }
+        }
+        Spacer(Modifier.height(10.dp))
+        Choice(stringResource(R.string.tv_player_close_panel), false, onClick = onClose, modifier = focus())
+    }
+    LaunchedEffect(Unit) { first.requestSoon() }
 }
 
 /** Texts of the player, kept apart from the composables (unit-tested). */
@@ -342,6 +503,22 @@ internal object TvPlayerUi {
             else -> null
         }
         return listOfNotNull(res, codec).joinToString(" · ").ifEmpty { null }
+    }
+
+    /**
+     * [params] with the file's own sound track / subtitle [want] names by place (Medien, played directly: Jellyfin's
+     * stream of that place among the file's tracks of its kind), or subtitles off.
+     */
+    fun apply(params: androidx.media3.common.TrackSelectionParameters, tracks: Tracks, want: TvOpen.Ready): androidx.media3.common.TrackSelectionParameters {
+        val all = TvTracks.of(tracks)
+        var p = params
+        want.audioOrdinal?.let { n -> all.filter { it.kind == TvTrack.Kind.AUDIO }.getOrNull(n)?.let { p = TvTracks.choose(p, tracks, it) } }
+        if (want.textOff) {
+            p = TvTracks.subtitlesOff(p)
+        } else {
+            want.textOrdinal?.let { n -> all.filter { it.kind == TvTrack.Kind.TEXT }.getOrNull(n)?.let { p = TvTracks.choose(p, tracks, it) } }
+        }
+        return p
     }
 
     /** What the bar says about subtitles: the chosen one's language or label, else [off]. */
@@ -438,12 +615,12 @@ private fun TracksPanel(
 }
 
 @Composable
-private fun Choice(text: String, selected: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
+private fun Choice(text: String, selected: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier, note: String? = null) {
     val colors = GateControlTvTheme.colors
     val shape = RoundedCornerShape(7.dp)
     Surface(
         onClick = onClick,
-        modifier = modifier.fillMaxWidth().height(36.dp),
+        modifier = modifier.fillMaxWidth().height(if (note != null) 52.dp else 36.dp),
         shape = ClickableSurfaceDefaults.shape(shape),
         colors = ClickableSurfaceDefaults.colors(
             containerColor = if (selected) colors.accentBg else Color.Transparent,
@@ -455,7 +632,10 @@ private fun Choice(text: String, selected: Boolean, onClick: () -> Unit, modifie
         scale = ClickableSurfaceDefaults.scale(focusedScale = 1f),
     ) {
         Row(Modifier.fillMaxSize().padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text(text, style = MaterialTheme.typography.labelLarge, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+            Column(Modifier.weight(1f)) {
+                Text(text, style = MaterialTheme.typography.labelLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                if (note != null) Text(note, style = MaterialTheme.typography.bodySmall, color = colors.muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
             if (selected) Text("✓", style = MaterialTheme.typography.labelLarge)
         }
     }

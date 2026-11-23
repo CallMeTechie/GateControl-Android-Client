@@ -16,6 +16,8 @@ internal object TvIcons {
     val Home = icon("M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z")
     val Cameras = icon("M5 6h9a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2z", "M16 10l5-3v10l-5-3")
     val Drive = icon("M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z")
+    /** Medien: a film strip. */
+    val Media = icon("M4 4h16v16H4z", "M8 4v16M16 4v16", "M4 8h4M4 12h4M4 16h4M16 8h4M16 12h4M16 16h4")
     val GateDrop = icon("M12 3v12M7 10l5 5 5-5M4 19h16")
     val Family = icon(
         "M6 8a3 3 0 1 0 6 0a3 3 0 1 0-6 0",
