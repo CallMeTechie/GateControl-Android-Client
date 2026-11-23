@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.145.0] - 2026-11-23
+
+### Features
+- GateControl TV – Medien von Jellyfin (Stufe 2b-1) (#281)
+
+---
+
 ## [1.144.1] - 2026-11-23
 
 ### Fixes
