@@ -58,6 +58,8 @@ robolectric = "4.17"
 org-json = "20260814"
 # Vault: Argon2id, XChaCha20-Poly1305, X25519, BLAKE2b in pure Java (no native code, runs in unit tests).
 bouncycastle = "1.86"
+# Medien (GateControl TV): SMB2/3 shares of the NAS (pure Java, also on the 32-bit stick).
+smbj = "0.15.0"
 # Vault: the recovery key as a QR code.
 zxing = "3.5.4"
 
@@ -147,6 +149,7 @@ onnxruntime-android = { group = "com.microsoft.onnxruntime", name = "onnxruntime
 
 # Vault
 bouncycastle-prov = { group = "org.bouncycastle", name = "bcprov-jdk18on", version.ref = "bouncycastle" }
+smbj = { group = "com.hierynomus", name = "smbj", version.ref = "smbj" }
 zxing-core = { group = "com.google.zxing", name = "core", version.ref = "zxing" }
 
 # Logging

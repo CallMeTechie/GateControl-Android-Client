@@ -113,7 +113,7 @@ dependencies {
     implementation(project(":core:drive-api"))
     implementation(project(":core:gatedrop"))
     implementation(project(":core:tunnel"))
-    // Medien: Jellyfin (later SMB, WebDAV), shared with the phone app later
+    // Medien: Jellyfin, SMB and WebDAV shares, shared with the phone app later
     implementation(project(":core:media"))
     // the photo frame reads Drive's `GET frame` itself (JsonObject of the plugin bridge)
     implementation(libs.retrofit.gson)

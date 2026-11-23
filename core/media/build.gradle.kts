@@ -31,8 +31,8 @@ android {
     }
 }
 
-// Media of the own NAS (stage 2 of GateControl TV, later the phone and Windows apps): the sources (Jellyfin first,
-// SMB and WebDAV later behind the same [com.gatecontrol.android.media.MediaLibrary]), their stored access (encrypted),
+// Media of the own NAS (stage 2 of GateControl TV, later the phone and Windows apps): the sources (Jellyfin, SMB and
+// WebDAV shares behind the same [com.gatecontrol.android.media.MediaLibrary]), their stored access (encrypted),
 // the server search in the home network, the device profile and the choice of quality by bandwidth. No UI here.
 dependencies {
     implementation(project(":core:data"))
@@ -45,6 +45,10 @@ dependencies {
     implementation(libs.retrofit.gson)
     implementation(libs.coroutines.core)
     implementation(libs.timber)
+    // SMB2/3 shares (pure Java, also on the 32-bit Fire TV Stick). Its NTLM and SMB3 signing/encryption run on
+    // Bouncy Castle's own classes (Android has no MD4 in its JCE), pinned to the version the vault uses.
+    implementation(libs.smbj)
+    implementation(libs.bouncycastle.prov)
 
     testImplementation(libs.junit5.api)
     testRuntimeOnly(libs.junit5.engine)

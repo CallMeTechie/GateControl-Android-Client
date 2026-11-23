@@ -13,6 +13,7 @@ import com.gatecontrol.android.media.MediaAddress
 import com.gatecontrol.android.media.MediaClientInfo
 import com.gatecontrol.android.media.MediaLibrary
 import com.gatecontrol.android.media.MediaQualitySetting
+import com.gatecontrol.android.media.MediaResult
 import com.gatecontrol.android.media.MediaSource
 import com.gatecontrol.android.media.MediaSourceKind
 import com.gatecontrol.android.media.MediaSourceStore
@@ -21,6 +22,11 @@ import com.gatecontrol.android.media.jellyfin.JellyfinDiscovery
 import com.gatecontrol.android.media.jellyfin.JellyfinLibrary
 import com.gatecontrol.android.media.jellyfin.JellyfinServerHint
 import com.gatecontrol.android.media.jellyfin.JellyfinSignIn
+import com.gatecontrol.android.media.share.ShareFs
+import com.gatecontrol.android.media.share.ShareLibrary
+import com.gatecontrol.android.media.share.SmbFs
+import com.gatecontrol.android.media.share.WebDavFs
+import com.gatecontrol.android.tv.R
 import com.gatecontrol.android.tv.BuildConfig
 import com.gatecontrol.android.tv.TvSettings
 import com.gatecontrol.android.tv.pair.TvPairingApi
@@ -51,10 +57,10 @@ import javax.inject.Singleton
 data class TvMediaLink(val atHome: Boolean? = null, val bps: Long? = null, val measuredAt: Long = 0)
 
 /**
- * The media of GateControl TV (stage 2, "Medien"): the stored sources, one [MediaLibrary] per source, the connection
- * (at home straight through the Wi-Fi, also while the tunnel is up; away through the tunnel), the bandwidth, what the
- * HDMI sink plays, the posters and the progress reports (which outlive the player). Shared by the page, the start
- * page's "Weiterschauen" and the player.
+ * The media of GateControl TV (stage 2, "Medien"): the stored sources, one [MediaLibrary] per source (a share set up
+ * as SMB and as WebDAV is one: at home SMB, away WebDAV), the connection (at home straight through the Wi-Fi, also
+ * while the tunnel is up; away through the tunnel), the bandwidth, what the HDMI sink plays, the posters and the
+ * progress reports (which outlive the player). Shared by the page, the start page's "Weiterschauen" and the player.
  */
 @Singleton
 class TvMedia @Inject constructor(
@@ -76,6 +82,8 @@ class TvMedia @Inject constructor(
     }
 
     private val clients = ConcurrentHashMap<String, OkHttpClient>()
+
+    /** Per source (a pair under its SMB source): the libraries by their access and network, made once each. */
     private val libraries = ConcurrentHashMap<String, Pair<String, MediaLibrary>>()
 
     private val _link = MutableStateFlow(TvMediaLink())
@@ -83,7 +91,7 @@ class TvMedia @Inject constructor(
 
     private val _current = MutableStateFlow<String?>(null)
 
-    /** The source the page shows ("▲ Quelle wechseln"); the first one when none was chosen. */
+    /** The Jellyfin server the page shows ("▲ Quelle wechseln"); the first one when none was chosen. Shares show always. */
     val current: StateFlow<String?> = _current.asStateFlow()
 
     val quality: StateFlow<MediaQualitySetting> get() = settings.mediaQuality
@@ -91,9 +99,12 @@ class TvMedia @Inject constructor(
     fun setQuality(value: MediaQualitySetting) = settings.setMediaQuality(value)
 
     fun currentSource(): MediaSource? {
-        val list = store.sources.value
+        val list = store.sources.value.filter { it.kind == MediaSourceKind.JELLYFIN }
         return list.firstOrNull { it.id == _current.value } ?: list.firstOrNull { it.token != null } ?: list.firstOrNull()
     }
+
+    /** The shares the page shows, a pair once (as its SMB source). */
+    fun shares(): List<MediaSource> = TvMediaLogic.shares(store.sources.value)
 
     fun select(id: String) {
         _current.value = id
@@ -113,15 +124,67 @@ class TvMedia @Inject constructor(
 
     /** The library of [source] (made again when its access or the network changed). */
     fun library(source: MediaSource): MediaLibrary {
+        if (source.kind.share) return shareLibrary(source)
         val key = "${source.token.hashCode()}:${source.address}:${_link.value.atHome}"
         libraries[source.id]?.let { (k, lib) -> if (k == key) return lib }
-        val lib: MediaLibrary = when (source.kind) {
-            // SMB and WebDAV follow in a later version behind the same interface
-            MediaSourceKind.JELLYFIN, MediaSourceKind.SMB, MediaSourceKind.WEBDAV ->
-                JellyfinLibrary(source, http(MediaAddress.host(source.address)), info, ::caps)
-        }
-        libraries[source.id] = key to lib
+        val lib: MediaLibrary = JellyfinLibrary(source, http(MediaAddress.host(source.address)), info, ::caps)
+        libraries.put(source.id, key to lib)?.second?.close()
         return lib
+    }
+
+    /**
+     * A share's library: of a pair at home the SMB source, away the WebDAV one (decision 9), the titles always under
+     * the SMB source's id and its progress. The old one stays open for a player still reading from it until the next
+     * change.
+     */
+    private fun shareLibrary(source: MediaSource): MediaLibrary {
+        val list = store.sources.value
+        val partner = source.pairWith?.let { id -> list.firstOrNull { it.id == id && it.pairWith == source.id } }
+        val smb = listOfNotNull(source, partner).firstOrNull { it.kind == MediaSourceKind.SMB }
+        val webdav = listOfNotNull(source, partner).firstOrNull { it.kind == MediaSourceKind.WEBDAV }
+        val primary = smb ?: source
+        val atHome = _link.value.atHome
+        val use = TvMediaLogic.shareFor(smb, webdav, atHome) ?: source
+        val key = "${use.id}:${use.address}:${use.userName}:${use.password.hashCode()}:$atHome"
+        val group = "share:${primary.id}"
+        libraries[group]?.let { (k, lib) -> if (k == key) return lib }
+        val lib = ShareLibrary(primary, shareFs(use), store, primary.id, seasonName = { context.getString(R.string.tv_media_season, it) })
+        libraries.put(group, key to lib)?.second?.let { old -> retired.put(group, old)?.let { gone -> scope.launch { gone.close() } } }
+        return lib
+    }
+
+    /** The library a share had before the network changed (a running player may still read from it). */
+    private val retired = ConcurrentHashMap<String, MediaLibrary>()
+
+    /** The files of share [s]: SMB at home bound to the Wi-Fi; WebDAV through [http]. */
+    private fun shareFs(s: MediaSource): ShareFs = when (s.kind) {
+        MediaSourceKind.SMB -> {
+            val a = MediaAddress.parseSmb(s.address) ?: error("not an SMB address")
+            val factory = if (_link.value.atHome == true) homeLan.lanSocketFactory(a.host) else null
+            SmbFs(a, s.userName, s.password, factory)
+        }
+        else -> WebDavFs(s.address, http(MediaAddress.host(s.address)), s.userName, s.password)
+    }
+
+    /** "Verbinden" of a new share: its root can be read with this access. */
+    suspend fun tryShare(kind: MediaSourceKind, address: String, user: String?, password: String?): MediaResult<Unit> {
+        val s = MediaSource("try", kind, "", address, userName = user, password = password)
+        val fs = try {
+            shareFs(s)
+        } catch (e: IllegalStateException) {
+            return MediaResult.NotFound
+        }
+        return try {
+            when (val r = fs.list("")) {
+                is MediaResult.Ok -> MediaResult.Ok(Unit)
+                is MediaResult.Offline -> r
+                is MediaResult.Unauthorized -> r
+                is MediaResult.NotFound -> r
+                is MediaResult.Failed -> r
+            }
+        } finally {
+            withContext(Dispatchers.IO) { fs.close() }
+        }
     }
 
     fun signIn(address: String): JellyfinSignIn = JellyfinSignIn(address, http(MediaAddress.host(address)), info)
@@ -149,7 +212,8 @@ class TvMedia @Inject constructor(
         val fresh = old.atHome == false && old.bps != null && now - old.measuredAt < MEASURE_EVERY_MS
         if (fresh && !force) return@withLock
         _link.value = old.copy(atHome = false)
-        val bps = source?.takeIf { it.token != null }?.let { library(it).measure() }
+        // a share has no bandwidth test: it plays the original in any case
+        val bps = source?.takeIf { it.kind == MediaSourceKind.JELLYFIN && it.token != null }?.let { library(it).measure() }
         _link.value = TvMediaLink(atHome = false, bps = bps ?: old.bps.takeIf { old.atHome == false }, measuredAt = now)
     }
 
@@ -193,6 +257,23 @@ class TvMedia @Inject constructor(
         }
     }
 
+    /** A share's picture (its bytes): scaled down to about [maxHeight] px, 16-bit colour. */
+    suspend fun decode(bytes: ByteArray, maxHeight: Int): Bitmap? = withContext(Dispatchers.Default) {
+        runCatching {
+            val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+            BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
+            var sample = 1
+            while (bounds.outHeight / (sample * 2) >= maxHeight) sample *= 2
+            BitmapFactory.decodeByteArray(bytes, 0, bytes.size, BitmapFactory.Options().apply { inSampleSize = sample; inPreferredConfig = Bitmap.Config.RGB_565 })
+        }.getOrNull()
+    }
+
+    /** A source was removed: its connection goes. */
+    fun forget(id: String) {
+        listOf(id, "share:$id").forEach { k -> libraries.remove(k)?.second?.let { lib -> scope.launch { lib.close() } } }
+        retired.remove("share:$id")?.let { lib -> scope.launch { lib.close() } }
+    }
+
     /** Fire and forget (a progress report), on [scope]. */
     fun later(block: suspend () -> Unit) {
         scope.launch { runCatching { block() } }
@@ -201,7 +282,10 @@ class TvMedia @Inject constructor(
     /** Unpaired: the sources are gone with the encrypted storage. */
     fun clear() {
         store.forgetAll()
+        val open = libraries.values.map { it.second } + retired.values
         libraries.clear()
+        retired.clear()
+        scope.launch { open.forEach { runCatching { it.close() } } }
         _current.value = null
     }
 

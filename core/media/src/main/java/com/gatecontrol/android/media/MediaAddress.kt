@@ -42,6 +42,70 @@ object MediaAddress {
         return LOCAL_SUFFIXES.any { h.endsWith(it) }
     }
 
+    /**
+     * A WebDAV folder as typed: `https://192.168.1.20:5006/filme` (without a scheme HTTPS is meant). Plain HTTP only
+     * in the home network, as [normalize]; the port stays as given (443 for HTTPS without one).
+     */
+    fun normalizeWebDav(input: String): String? {
+        val raw = input.trim()
+        if (raw.isEmpty()) return null
+        return normalize(if (raw.contains("://")) raw else "https://$raw")?.takeIf { it.startsWith("https://") || it.startsWith("http://") }
+    }
+
+    /** An SMB share: the server, its port, the share and a folder in it ("" the share itself). */
+    data class Smb(val host: String, val port: Int, val share: String, val path: String) {
+        /** `smb://nas/filme/Neu` (stored). */
+        val url: String get() = "smb://" + host + (if (port != SMB_PORT) ":$port" else "") + "/" + share + (if (path.isNotEmpty()) "/$path" else "")
+
+        /** `\\nas\filme\Neu` (shown, as Windows writes it). */
+        val unc: String get() = "\\\\" + host + "\\" + share + (if (path.isNotEmpty()) "\\" + path.replace('/', '\\') else "")
+    }
+
+    /** SMB's TCP port. */
+    const val SMB_PORT = 445
+
+    private val SMB_HOST = Regex("^[A-Za-z0-9]([A-Za-z0-9.-]{0,252})$")
+
+    /**
+     * An SMB share as typed: `\\nas\filme`, `\\nas\filme\Neu`, `smb://192.168.1.20/filme`, `nas/filme`. Only a
+     * host of the home network ([isHomeHost]): SMB never goes over the internet (away it goes through the tunnel).
+     */
+    fun parseSmb(input: String): Smb? {
+        var raw = input.trim().replace('\\', '/')
+        if (raw.isEmpty() || raw.length > 512 || raw.any { it.isISOControl() }) return null
+        raw = when {
+            raw.startsWith("smb://", ignoreCase = true) -> raw.substring(6)
+            raw.contains("://") -> return null
+            else -> raw.trimStart('/')
+        }
+        val parts = raw.split('/').map { it.trim() }.filter { it.isNotEmpty() }
+        if (parts.size < 2) return null
+        if (parts.any { it == "." || it == ".." || it.contains('@') }) return null
+        val hostPort = parts[0]
+        val host = hostPort.substringBefore(':')
+        val port = if (hostPort.contains(':')) hostPort.substringAfter(':').toIntOrNull()?.takeIf { it in 1..65535 } ?: return null else SMB_PORT
+        if (!SMB_HOST.matches(host) || !isHomeHost(host)) return null
+        val share = parts[1]
+        if (share.length > 80 || share.any { it in "\"<>|?*:" }) return null
+        val path = parts.drop(2).joinToString("/")
+        if (path.any { it in "\"<>|?*:" }) return null
+        return Smb(host.lowercase(Locale.ROOT), port, share, path)
+    }
+
+    /** A share's address as the store keeps it; null when it is not one of [kind]. */
+    fun normalizeShare(kind: MediaSourceKind, input: String): String? = when (kind) {
+        MediaSourceKind.SMB -> parseSmb(input)?.url
+        MediaSourceKind.WEBDAV -> normalizeWebDav(input)
+        MediaSourceKind.JELLYFIN -> normalize(input)
+    }
+
+    /** The last folder of a share's address ("filme" of `\\nas\filme` and of `https://nas:5006/filme`), lower case. */
+    fun folderName(kind: MediaSourceKind, address: String): String? = when (kind) {
+        MediaSourceKind.SMB -> parseSmb(address)?.let { s -> (if (s.path.isNotEmpty()) s.path.substringAfterLast('/') else s.share) }
+        MediaSourceKind.WEBDAV -> address.toHttpUrlOrNull()?.pathSegments?.lastOrNull { it.isNotEmpty() }
+        MediaSourceKind.JELLYFIN -> null
+    }?.lowercase(Locale.ROOT)
+
     /** The host of a base URL ("192.168.1.20"); null when it is not one. */
     fun host(baseUrl: String): String? = baseUrl.toHttpUrlOrNull()?.host
 

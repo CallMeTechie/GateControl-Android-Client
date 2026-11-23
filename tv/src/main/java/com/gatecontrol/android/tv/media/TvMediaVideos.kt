@@ -48,7 +48,12 @@ class TvMediaVideos(
 ) : TvVideoSource {
 
     private val source: MediaSource? = media.store.source(queue.sourceId)
-    private val library: MediaLibrary? = source?.let(media::library)
+
+    /** Asked each time: a share's library changes with the network (at home SMB, away WebDAV). */
+    private val library: MediaLibrary? get() = source?.let(media::library)
+
+    /** An SMB or WebDAV share: the original only, the file's own tracks in the player's panel, progress on the TV. */
+    private val share: Boolean = source?.kind?.share == true
     private val items: List<MediaTitle> get() = queue.items
 
     /** The plan of the video opened last, per index. */
@@ -87,6 +92,8 @@ class TvMediaVideos(
     @OptIn(UnstableApi::class)
     override fun factory(context: Context): DataSource.Factory? {
         val lib = library ?: return null
+        // a share's file through its own connection (SMB, or WebDAV with its access), read at the player's place
+        if (share) return TvShareDataSource.Factory { library?.files() }
         return OkHttpDataSource.Factory(media.http(MediaAddress.host(source!!.address))).setDefaultRequestProperties(lib.headers())
     }
 
@@ -129,6 +136,10 @@ class TvMediaVideos(
         plans[i] = plan
         audio[i] = plan.audioIndex
         text[i] = plan.subtitleIndex ?: s
+        if (share) {
+            val via = if (lib.files()?.kind == com.gatecontrol.android.media.MediaSourceKind.WEBDAV) "WebDAV" else "SMB"
+            return TvOpen.Ready(MediaItem.Builder().setUri(plan.url).setMediaId(key(i)).build(), info = res.getString(R.string.tv_media_info_share, via))
+        }
         val builder = MediaItem.Builder().setUri(plan.url).setMediaId(key(i))
         if (plan.hls) builder.setMimeType(MimeTypes.APPLICATION_M3U8)
         if (plan.sideSubtitles.isNotEmpty()) {
@@ -179,6 +190,8 @@ class TvMediaVideos(
     }
 
     override fun choices(i: Int): TvChoices? {
+        // a share's file: the player's own sound tracks and subtitles (no server lists them)
+        if (share) return null
         val plan = plans[i] ?: return null
         val v = plan.version
         val converting = plan.converted
@@ -260,10 +273,10 @@ class TvMediaVideos(
         media.store.setTrackChoice(seriesId, MediaTracks.choiceOf(version, audio[i], text[i]))
     }
 
-    override fun report(i: Int, event: TvPlayEvent, positionMs: Long, paused: Boolean) {
+    override fun report(i: Int, event: TvPlayEvent, positionMs: Long, paused: Boolean, durationMs: Long) {
         val lib = library ?: return
         val plan = plans[i] ?: return
-        val p = MediaProgress(plan, positionMs.coerceAtLeast(0), paused)
+        val p = MediaProgress(plan, positionMs.coerceAtLeast(0), paused, durationMs.coerceAtLeast(0))
         media.later {
             when (event) {
                 TvPlayEvent.START -> lib.started(p)

@@ -262,6 +262,8 @@ class TvActivity : ComponentActivity() {
         onLogin = mediaVm::toLogin,
         onQuickConnect = mediaVm::chooseQuickConnect,
         onPassword = mediaVm::signIn,
+        onShareKind = mediaVm::chooseShare,
+        onShareConnect = mediaVm::connectShare,
     )
 
     @Composable
@@ -353,7 +355,7 @@ class TvActivity : ComponentActivity() {
                         drivePreviews = drivePreviews,
                         drops = dropEntries,
                         media = mediaUi.resume,
-                        mediaSource = mediaUi.source?.let(TvMediaLogic::sourceLabel),
+                        mediaSource = (mediaUi.source ?: mediaUi.shares.firstOrNull())?.let { TvMediaLogic.sourceLabel(it, getString(R.string.tv_media_share)) },
                         mediaPictures = mediaPictures,
                     ),
                     media = mediaActions,
