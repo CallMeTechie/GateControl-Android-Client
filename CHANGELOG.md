@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.139.1] - 2026-11-23
+
+### Fixes
+- Seitenmenü auf breiten Fenstern nicht mehr halb über der Navigationsleiste (#274)
+
+---
+
 ## [1.139.0] - 2026-11-23
 
 ### Features
