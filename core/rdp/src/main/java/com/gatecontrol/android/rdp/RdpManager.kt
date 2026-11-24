@@ -13,6 +13,7 @@ import com.gatecontrol.android.network.RdpHeartbeatRequest
 import com.gatecontrol.android.network.RdpRoute
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
+import retrofit2.HttpException
 import timber.log.Timber
 
 class RdpManager(
@@ -36,7 +37,12 @@ class RdpManager(
 
     sealed class ConnectResult {
         data class Success(val session: RdpSession, val passwordCopied: Boolean = false) : ConnectResult()
-        data class Error(val message: String, val step: RdpProgress) : ConnectResult()
+        /** [failure]: a refusal the app explains in its own words (null: show [message]). */
+        data class Error(
+            val message: String,
+            val step: RdpProgress,
+            val failure: RdpConnectFailure? = null
+        ) : ConnectResult()
         data class NeedsPassword(val username: String, val domain: String?) : ConnectResult()
         data class MaintenanceWarning(val schedule: String?) : ConnectResult()
         data class VpnRequired(val message: String) : ConnectResult()
@@ -50,8 +56,12 @@ class RdpManager(
      * 2. TCP reachability check — 5-second Socket connect.
      *    If host is unreachable and WoL is enabled, send WoL then poll until online.
      * 3. Maintenance check — return [ConnectResult.MaintenanceWarning] if enabled and bypass not forced.
-     * 4. Fetch credentials via the API (ECDH exchange).
-     *    - credential_mode "full"      → decrypt username + password.
+     * 4. Ask the server for the connection (GET /rdp/:id/connect) — always, also without credentials:
+     *    for a PC registered with Fernzugriff this call opens its Windows firewall for this app and
+     *    waits for the PC; without it port 3389 stays closed. A refusal the person can act on
+     *    (firewall_timeout, firewall_failed, code_required, …) returns [ConnectResult.Error] with
+     *    its [RdpConnectFailure].
+     *    - credential_mode "full"      → decrypt username + password (ECDH exchange).
      *    - credential_mode "user_only" → decrypt username; return [ConnectResult.NeedsPassword] if no userPassword supplied.
      *    - credential_mode "none"      → no credentials.
      * 5. Launch the RDP client (external preferred, intent fired via Context).
@@ -137,20 +147,36 @@ class RdpManager(
         var resolvedPassword: String? = null
         var resolvedDomain: String? = route.domain
 
-        if (credentialMode != CredentialMode.NONE) {
-            val publicKey = credentialHandler.generatePublicKey()
-            Timber.i("RDP connect: ECDH publicKey generated (${publicKey.length} chars)")
-            val connectionResponse = try {
-                apiClient.getRdpConnection(route.id, ecdhPublicKey = publicKey)
-            } catch (e: Exception) {
-                Timber.e(e, "RDP connect: auth data fetch FAILED")
-                credentialHandler.clear()
-                return ConnectResult.Error(
-                    "Failed to fetch credentials: ${e.message}",
-                    RdpProgress.CREDENTIALS
-                )
+        // Always ask for the connection: for a registered PC this opens its firewall (and waits for it).
+        val publicKey = if (credentialMode != CredentialMode.NONE) {
+            credentialHandler.generatePublicKey().also {
+                Timber.i("RDP connect: ECDH publicKey generated (${it.length} chars)")
             }
+        } else {
+            null
+        }
+        val connectionResponse = try {
+            apiClient.getRdpConnection(route.id, ecdhPublicKey = publicKey)
+        } catch (e: HttpException) {
+            val body = runCatching { e.response()?.errorBody()?.string() }.getOrNull()
+            val failure = RdpConnectFailure.from(e.code(), body)
+            Timber.w("RDP connect: connect refused HTTP %d (%s)", e.code(), failure ?: "unknown")
+            credentialHandler.clear()
+            return ConnectResult.Error(
+                "Server refused the connection: HTTP ${e.code()}${RdpConnectFailure.errorOf(body)?.let { " ($it)" } ?: ""}",
+                RdpProgress.CREDENTIALS,
+                failure
+            )
+        } catch (e: Exception) {
+            Timber.e(e, "RDP connect: connection data fetch FAILED")
+            credentialHandler.clear()
+            return ConnectResult.Error(
+                "Failed to fetch connection data: ${e.message}",
+                RdpProgress.CREDENTIALS
+            )
+        }
 
+        if (credentialMode != CredentialMode.NONE) {
             val connection = connectionResponse.connection
             val e2eePayload = connection.credentialsE2ee
             Timber.i("RDP connect: e2eePayload=${if (e2eePayload != null) "present (data=${e2eePayload.data.length} chars)" else "NULL"}")

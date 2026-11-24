@@ -6,6 +6,7 @@ import com.gatecontrol.android.data.LicenseRepository
 import com.gatecontrol.android.data.SetupRepository
 import com.gatecontrol.android.network.ApiClientProvider
 import com.gatecontrol.android.network.RdpRoute
+import com.gatecontrol.android.rdp.RdpConnectFailure
 import com.gatecontrol.android.rdp.RdpManager
 import com.gatecontrol.android.rdp.RdpProgress
 import com.gatecontrol.android.rdp.RdpSession
@@ -34,7 +35,8 @@ sealed class ConnectState {
     object Idle : ConnectState()
     data class Connecting(val progress: RdpProgress) : ConnectState()
     data class Connected(val session: RdpSession, val passwordCopied: Boolean = false) : ConnectState()
-    data class Error(val message: String) : ConnectState()
+    /** [failure]: a refusal the sheet explains in the app's words instead of [message]. */
+    data class Error(val message: String, val failure: RdpConnectFailure? = null) : ConnectState()
     data class NeedsPassword(val username: String, val domain: String?) : ConnectState()
     object MaintenanceWarning : ConnectState()
 }
@@ -169,7 +171,7 @@ class RdpViewModel @Inject constructor(
                         _connectState.value = ConnectState.MaintenanceWarning
                     }
                     is RdpManager.ConnectResult.Error -> {
-                        _connectState.value = ConnectState.Error(result.message)
+                        _connectState.value = ConnectState.Error(result.message, result.failure)
                     }
                     is RdpManager.ConnectResult.VpnRequired -> {
                         _connectState.value = ConnectState.Error(result.message)

@@ -34,10 +34,12 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import androidx.lifecycle.lifecycleScope
 import com.gatecontrol.android.R
+import com.gatecontrol.android.rdp.freerdp.RdpConnectTimeout
 import com.gatecontrol.android.rdp.freerdp.RdpSessionController
 import com.gatecontrol.android.rdp.freerdp.RdpSessionEvent
 import com.gatecontrol.android.service.RdpSessionService
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import timber.log.Timber
@@ -278,6 +280,18 @@ class RdpSessionActivity : ComponentActivity() {
         var hasPicture by remember { mutableStateOf(rdpSurface != null) }
         // the connection failed or ended before a picture came: a message instead of a silent close
         var failed by remember { mutableStateOf(false) }
+        // no picture and no error within RdpConnectTimeout.MILLIS: the same dialog, with the timeout hint
+        var timedOut by remember { mutableStateOf(false) }
+        val timeoutRuns = RdpConnectTimeout.shouldRun(hasPicture, failed, event)
+
+        LaunchedEffect(timeoutRuns) {
+            if (!timeoutRuns) return@LaunchedEffect
+            delay(RdpConnectTimeout.MILLIS)
+            Timber.w("RDP: no picture and no error within %d ms", RdpConnectTimeout.MILLIS)
+            diagLog.log("Connect timeout")
+            timedOut = true
+            failed = true
+        }
 
         LaunchedEffect(event) {
             when (val e = event) {
@@ -328,7 +342,7 @@ class RdpSessionActivity : ComponentActivity() {
             }
 
             if (failed) {
-                ConnectionFailedDialog { finishSession() }
+                ConnectionFailedDialog(timedOut = timedOut) { finishSession() }
             }
 
             when (val e = event) {
@@ -355,11 +369,17 @@ class RdpSessionActivity : ComponentActivity() {
     }
 
     @Composable
-    private fun ConnectionFailedDialog(onDismiss: () -> Unit) {
+    private fun ConnectionFailedDialog(timedOut: Boolean, onDismiss: () -> Unit) {
         AlertDialog(
             onDismissRequest = onDismiss,
             title = { Text(stringResource(R.string.rdp_session_failed_title)) },
-            text = { Text(stringResource(R.string.rdp_session_failed_message)) },
+            text = {
+                Text(
+                    stringResource(
+                        if (timedOut) R.string.rdp_session_timeout_message else R.string.rdp_session_failed_message
+                    )
+                )
+            },
             confirmButton = {
                 TextButton(onClick = onDismiss) { Text(stringResource(R.string.close)) }
             },

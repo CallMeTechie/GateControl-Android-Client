@@ -91,6 +91,12 @@
     <string name="rdp_session_connecting">Verbinde mit dem Remote-Desktop&#8230;</string>
     <string name="rdp_session_failed_title">Verbindung fehlgeschlagen</string>
     <string name="rdp_session_failed_message">Der Remote-Desktop hat die Verbindung nicht aufgebaut. Prüfe, ob der PC eingeschaltet und im VPN ist, ob Remote Desktop dort erlaubt ist und ob Benutzername und Passwort stimmen.</string>
+    <string name="rdp_session_timeout_message">Vom Remote-Desktop kam in 30 Sekunden kein Bild. Prüfe, ob der PC eingeschaltet und im VPN erreichbar ist und ob seine Firewall Remote Desktop erlaubt (bei einem PC mit Fernzugriff: ob die GateControl-App dort verbunden ist).</string>
+    <string name="rdp_error_firewall_timeout">Der PC hat den Zugang nicht rechtzeitig geöffnet – ist er an und die GateControl-App dort verbunden?</string>
+    <string name="rdp_error_firewall_refused">Der PC hat den Zugang abgelehnt oder konnte ihn nicht öffnen. Prüfe am PC, ob der Fernzugriff in der GateControl-App eingeschaltet ist, und versuche es noch einmal.</string>
+    <string name="rdp_error_code_required">Für diesen PC ist ein Code nötig – er steht in der Windows-App unter Einstellungen › Sicherheit.</string>
+    <string name="rdp_error_host_offline">Der PC ist nicht bereit – ist er an und die GateControl-App dort verbunden?</string>
+    <string name="rdp_error_no_vpn">Der Server kennt die VPN-Adresse dieses Geräts noch nicht. Verbinde das VPN und versuche es noch einmal.</string>
 
     <!-- Settings -->
     <string name="settings_title">Einstellungen</string>
