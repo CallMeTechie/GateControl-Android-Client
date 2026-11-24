@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.146.0] - 2026-11-23
+
+### Features
+- GateControl TV – Medien von SMB- und WebDAV-Freigaben (Stufe 2b-2) (#282)
+
+---
+
 ## [1.145.0] - 2026-11-23
 
 ### Features
