@@ -1,5 +1,6 @@
 package com.gatecontrol.android.tv.ui.zuhause
 
+import com.gatecontrol.android.tv.ui.input.ComposeField
 import android.app.Application
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.assertCountEquals
@@ -100,7 +101,7 @@ class TvZuhausePageTest {
     @Test
     fun addSomethingSendsTheTypedText() {
         val added = mutableListOf<String>()
-        rule.setContent { GateControlTvTheme { TvZuhausePage(ui(), TvZuhauseActions(onAdd = { added += it })) } }
+        rule.setContent { GateControlTvTheme { ComposeField { TvZuhausePage(ui(), TvZuhauseActions(onAdd = { added += it })) } } }
         rule.onNodeWithText("Add something").performSemanticsAction(SemanticsActions.OnClick)
         rule.onNodeWithText("OK for the keyboard, then hold the microphone button and speak.").assertExists()
         rule.onNodeWithContentDescription("New entry").performTextInput("Butter und Eier")

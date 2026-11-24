@@ -22,8 +22,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardActions
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -50,7 +48,6 @@ import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
@@ -79,7 +76,8 @@ import com.gatecontrol.android.tv.notizen.TvNotizenUi
 import com.gatecontrol.android.tv.ui.components.TvButton
 import com.gatecontrol.android.tv.ui.components.TvButtonStyle
 import com.gatecontrol.android.tv.ui.components.TvDialog
-import com.gatecontrol.android.tv.ui.components.TvTextInput
+import com.gatecontrol.android.tv.ui.input.TvDictationHint
+import com.gatecontrol.android.tv.ui.input.TvInputField
 import com.gatecontrol.android.tv.ui.drive.requestSoon
 import com.gatecontrol.android.tv.ui.home.TvIcons
 import com.gatecontrol.android.tv.ui.theme.GateControlTvTheme
@@ -437,19 +435,16 @@ private fun AddTask(ui: TvNotizenUi, actions: TvNotizenActions, modifier: Modifi
                 actions.onAdd()
             })
             TvNotesAdd.Typing -> {
-                TvTextInput(
+                TvInputField(
                     value = text,
-                    onValueChange = { text = it.take(TvNotizenLogic.TEXT_MAX) },
+                    onValueChange = { text = it },
                     label = stringResource(R.string.tv_notes_add_label),
                     placeholder = stringResource(R.string.tv_notes_add_example),
-                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
-                    keyboardActions = KeyboardActions(onDone = { actions.onRead(text) }),
+                    maxLength = TvNotizenLogic.TEXT_MAX,
+                    onDone = { if (text.isNotBlank()) actions.onRead(text) },
                     fieldModifier = Modifier.focusRequester(field),
                 )
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Icon(TvIcons.Mic, contentDescription = null, tint = colors.muted, modifier = Modifier.size(14.dp))
-                    Text(stringResource(R.string.tv_home_voice_hint), style = MaterialTheme.typography.bodySmall, color = colors.muted)
-                }
+                TvDictationHint(stringResource(R.string.tv_home_voice_hint))
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     TvButton(stringResource(R.string.tv_notes_add_check), onClick = { actions.onRead(text) }, style = TvButtonStyle.Primary, enabled = text.isNotBlank())
                     TvButton(stringResource(R.string.tv_cancel), onClick = actions.onCancelAdd)

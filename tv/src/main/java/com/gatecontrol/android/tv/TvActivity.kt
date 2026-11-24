@@ -7,6 +7,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -78,6 +79,8 @@ import com.gatecontrol.android.tv.ui.settings.TvConnectionUi
 import com.gatecontrol.android.tv.ui.settings.TvSettingsPage
 import com.gatecontrol.android.tv.ui.settings.TvUpdateUi
 import com.gatecontrol.android.tv.ui.theme.GateControlTvTheme
+import com.gatecontrol.android.tv.ui.input.LocalTvDictationHints
+import com.gatecontrol.android.tv.ui.settings.TvInputOptions
 import com.gatecontrol.android.tv.update.TvUpdateViewModel
 import com.gatecontrol.android.tv.ui.settings.TvStartRowOptions
 import com.gatecontrol.android.tv.ui.settings.TvVoiceTestOption
@@ -132,20 +135,26 @@ class TvActivity : ComponentActivity() {
         setContent {
             GateControlTvTheme {
                 val state by pairing.state.collectAsStateWithLifecycle()
-                if (state is PairState.Paired) {
-                    val pairedNow by pairing.pairedNow.collectAsStateWithLifecycle()
-                    // Just paired: the tunnel is on by default — the consent once, then connect.
-                    LaunchedEffect(pairedNow) {
-                        if (pairedNow) {
-                            pairing.consumePairedNow()
-                            setVpn(true)
-                        }
-                    }
-                    Paired()
-                } else {
-                    TvPairScreen(state, onEvent = pairing::dispatch)
+                val dictationHints by prefs.dictationHints.collectAsStateWithLifecycle()
+                CompositionLocalProvider(LocalTvDictationHints provides dictationHints) { Screen(state) }
+            }
+        }
+    }
+
+    @Composable
+    private fun Screen(state: PairState) {
+        if (state is PairState.Paired) {
+            val pairedNow by pairing.pairedNow.collectAsStateWithLifecycle()
+            // Just paired: the tunnel is on by default — the consent once, then connect.
+            LaunchedEffect(pairedNow) {
+                if (pairedNow) {
+                    pairing.consumePairedNow()
+                    setVpn(true)
                 }
             }
+            Paired()
+        } else {
+            TvPairScreen(state, onEvent = pairing::dispatch)
         }
     }
 
@@ -542,6 +551,11 @@ class TvActivity : ComponentActivity() {
                         TvFrameOptions(frame, frameStatus, prefs.frameServer(), prefs::setFrame, ::startFrame, prefs::refreshFrame)
                     },
                     startRows = { TvStartRowOptions(rowsOff, prefs::setStartRow) },
+                    input = {
+                        val snippets by prefs.snippets.collectAsStateWithLifecycle()
+                        val hints by prefs.dictationHints.collectAsStateWithLifecycle()
+                        TvInputOptions(snippets, prefs::setSnippets, hints, prefs::setDictationHints)
+                    },
                     voiceTest = { TvVoiceTestOption() },
                 )
             },

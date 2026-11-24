@@ -662,6 +662,16 @@ object MailLogic {
     /** A suggestion of the AI put above what the server prefilled. */
     fun withReply(reply: String, text: String): String = if (text.isBlank()) reply else reply + "\n\n" + text
 
+    /**
+     * A draft opened with a text from GateControl TV („Am Handy weiterschreiben“): [reply] before the draft's [text];
+     * null when there is none or the draft has it already (the TV saved it on the server).
+     */
+    fun continued(reply: String?, text: String): String? {
+        val r = reply?.trim()?.takeIf { it.isNotEmpty() } ?: return null
+        if (text.contains(r)) return null
+        return withReply(r, text.trimStart('\n'))
+    }
+
     // ─── attachments ────────────────────────────────────────────────
 
     /** Short type label of the file icon (`PDF`, `DOC`, `XLS`, `IMG` …). */

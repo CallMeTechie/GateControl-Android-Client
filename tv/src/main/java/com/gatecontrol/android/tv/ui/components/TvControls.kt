@@ -38,6 +38,8 @@ import androidx.compose.ui.unit.dp
 import androidx.tv.material3.Border
 import androidx.tv.material3.ClickableSurfaceDefaults
 import androidx.tv.material3.Glow
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.tv.material3.Icon
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
@@ -56,6 +58,8 @@ fun TvButton(
     modifier: Modifier = Modifier,
     style: TvButtonStyle = TvButtonStyle.Secondary,
     enabled: Boolean = true,
+    /** A line icon before the text (mockup: „Weiter sprechen“ with the microphone). */
+    icon: ImageVector? = null,
 ) {
     val colors = GateControlTvTheme.colors
     val shape = RoundedCornerShape(7.dp)
@@ -84,11 +88,14 @@ fun TvButton(
         glow = ClickableSurfaceDefaults.glow(focusedGlow = Glow(elevationColor = colors.focusGlow, elevation = 12.dp)),
         scale = ClickableSurfaceDefaults.scale(focusedScale = TV_FOCUS_SCALE),
     ) {
-        Text(
-            text,
-            style = MaterialTheme.typography.labelLarge,
-            modifier = Modifier.align(Alignment.Center).padding(horizontal = 16.dp, vertical = 8.dp),
-        )
+        Row(
+            Modifier.align(Alignment.Center).padding(horizontal = 16.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            if (icon != null) Icon(icon, contentDescription = null, modifier = Modifier.size(15.dp))
+            Text(text, style = MaterialTheme.typography.labelLarge)
+        }
     }
 }
 

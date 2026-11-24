@@ -1545,6 +1545,22 @@ private fun openPushTarget(
                 navController.navigate(Screen.ChatConversation.create(target.conversationId, share = true)) { launchSingleTop = true }
             }
         }
+        // GateControl TV „Am Handy weiterschreiben“: the chat with the text in its composer, or the mail draft
+        is PushNavTarget.Continue -> when (val t = target.target) {
+            is com.gatecontrol.android.common.ContinueLink.Chat -> if (chats) {
+                ChatShareHandover.offer(com.gatecontrol.android.chat.SharePayload(target.text, emptyList()))
+                if (layout.twoPane) {
+                    openTab(Screen.Chats.create(conv = t.conversationId, share = true))
+                } else {
+                    navigateToTab(Screen.Chats.create())
+                    navController.navigate(Screen.ChatConversation.create(t.conversationId, share = true)) { launchSingleTop = true }
+                }
+            }
+            is com.gatecontrol.android.common.ContinueLink.MailDraft -> if (mail) {
+                navigateToTab(Screen.Mail.route)
+                navController.navigate(Screen.MailCompose.create(draft = t.draftId, reply = target.text)) { launchSingleTop = true }
+            }
+        }
         PushNavTarget.Inbox -> navController.navigate(Screen.Inbox.create()) { launchSingleTop = true }
         // GateDrop "Geteilt": one at a time, the tab the notification asks for.
         is PushNavTarget.Shared -> navController.navigate(Screen.Shared.create(target.tab)) {

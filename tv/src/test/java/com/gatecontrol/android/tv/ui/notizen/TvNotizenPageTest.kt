@@ -1,5 +1,6 @@
 package com.gatecontrol.android.tv.ui.notizen
 
+import com.gatecontrol.android.tv.ui.input.ComposeField
 import android.app.Application
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.assertCountEquals
@@ -140,7 +141,7 @@ class TvNotizenPageTest {
     @Test
     fun addTaskReadsTheLineThenSavesIt() {
         val read = mutableListOf<String>()
-        rule.setContent { GateControlTvTheme { TvNotizenPage(ui(add = TvNotesAdd.Typing), TvNotizenActions(onRead = { read += it })) } }
+        rule.setContent { GateControlTvTheme { ComposeField { TvNotizenPage(ui(add = TvNotesAdd.Typing), TvNotizenActions(onRead = { read += it })) } } }
         rule.onNodeWithText("OK for the keyboard, then hold the microphone button and speak.").assertExists()
         rule.onNodeWithContentDescription("New task").performTextInput("Winterreifen abholen morgen 17 Uhr")
         rule.onNodeWithContentDescription("New task").performImeAction()
