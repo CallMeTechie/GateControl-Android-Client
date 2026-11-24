@@ -263,7 +263,7 @@ fun StoryViewerScreen(
             }
             if (story != null && story.kind != ChatStory.KIND_TEXT && story.kind != ChatStory.KIND_UNSUPPORTED && !story.text.isNullOrBlank()) {
                 Text(
-                    story.text,
+                    story.text!!,
                     color = Color.White,
                     style = MaterialTheme.typography.bodyLarge,
                     modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth().background(Color.Black.copy(alpha = 0.45f)).padding(12.dp),

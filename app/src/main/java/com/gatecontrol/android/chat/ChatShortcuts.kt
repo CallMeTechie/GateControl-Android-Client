@@ -240,7 +240,7 @@ class ChatShortcuts @Inject constructor(
     }
 
     private fun titleOf(ctx: Context, c: ChatConversation): String = when {
-        !c.title.isNullOrBlank() -> c.title
+        !c.title.isNullOrBlank() -> c.title!!
         // Messenger 1.14: a chat over a bridge with a contact the service knows no name of
         c.bridge != null -> ctx.getString(R.string.chat_bridged_unknown_contact)
         c.isGroup -> ctx.getString(R.string.chat_group_fallback)

@@ -28,12 +28,25 @@ enum class TvStartRow(val wire: String) {
     MEDIA("media"),
     DRIVE("drive"),
     GATEDROP("gatedrop"),
+    /** „Neue Nachrichten“ (stage 3e): who wrote and how many, never the text. */
+    MESSAGES("messages"),
     ;
 
     companion object {
         fun fromWire(value: String?): TvStartRow? = entries.firstOrNull { it.wire == value }
     }
 }
+
+/**
+ * „Neue Nachricht von …“ over other apps: [on] (default off), with quiet hours from [quietFrom] to [quietTo] (minutes
+ * of the day; over midnight when from > to).
+ */
+data class TvChatHintSettings(
+    val on: Boolean = false,
+    val quiet: Boolean = true,
+    val quietFrom: Int = 22 * 60,
+    val quietTo: Int = 7 * 60,
+)
 
 /**
  * Settings of GateControl TV (Einstellungen › Verbindung, Einblendungen) and the server typed in for the pairing.
@@ -200,6 +213,51 @@ class TvSettings @Inject constructor(@ApplicationContext context: Context) {
         _dictationHints.value = on
     }
 
+    private val _chats = MutableStateFlow(readChats())
+
+    /**
+     * Nachrichten: the chats shown on the TV (their ids); null — nothing chosen yet: only the family's groups
+     * (Frage 14 a). Mail accounts are chosen by Mail itself (stage 3f).
+     */
+    val chats: StateFlow<Set<Long>?> = _chats.asStateFlow()
+
+    fun setChats(ids: Set<Long>?) {
+        val clean = ids?.filter { it > 0 }?.take(MAX_CHATS)?.toSet()
+        prefs.edit {
+            if (clean == null) remove(KEY_CHATS) else putStringSet(KEY_CHATS, clean.map { it.toString() }.toSet())
+        }
+        _chats.value = clean
+    }
+
+    private fun readChats(): Set<Long>? =
+        prefs.getStringSet(KEY_CHATS, null)?.mapNotNull { it.toLongOrNull()?.takeIf { id -> id > 0 } }?.toSet()
+
+    private val _chatHint = MutableStateFlow(readChatHint())
+
+    /**
+     * Nachrichten: „Neue Nachricht von …“ over other apps (Frage 18 a) — off by default, only the name, never the
+     * text, not in its quiet hours.
+     */
+    val chatHint: StateFlow<TvChatHintSettings> = _chatHint.asStateFlow()
+
+    fun setChatHint(value: TvChatHintSettings) {
+        val v = value.copy(quietFrom = value.quietFrom.mod(MINUTES_PER_DAY), quietTo = value.quietTo.mod(MINUTES_PER_DAY))
+        prefs.edit {
+            putBoolean(KEY_CHAT_HINT, v.on)
+            putBoolean(KEY_CHAT_HINT_QUIET, v.quiet)
+            putInt(KEY_CHAT_HINT_FROM, v.quietFrom)
+            putInt(KEY_CHAT_HINT_TO, v.quietTo)
+        }
+        _chatHint.value = v
+    }
+
+    private fun readChatHint() = TvChatHintSettings(
+        on = prefs.getBoolean(KEY_CHAT_HINT, false),
+        quiet = prefs.getBoolean(KEY_CHAT_HINT_QUIET, true),
+        quietFrom = prefs.getInt(KEY_CHAT_HINT_FROM, 22 * 60).mod(MINUTES_PER_DAY),
+        quietTo = prefs.getInt(KEY_CHAT_HINT_TO, 7 * 60).mod(MINUTES_PER_DAY),
+    )
+
     /** The server typed in once at the TV (https://host[:port]); kept for a new code after the old one ran out. */
     var pairServer: String?
         get() = prefs.getString(KEY_PAIR_SERVER, null)?.takeIf { it.isNotBlank() }
@@ -229,6 +287,12 @@ class TvSettings @Inject constructor(@ApplicationContext context: Context) {
         private const val KEY_SHOPPING_LIST = "zuhause_shopping_list"
         private const val KEY_SNIPPETS = "input_snippets"
         private const val KEY_DICTATION_HINTS = "input_dictation_hints"
+        private const val KEY_CHATS = "messages_chats"
+        private const val KEY_CHAT_HINT = "messages_hint"
+        private const val KEY_CHAT_HINT_QUIET = "messages_hint_quiet"
+        private const val KEY_CHAT_HINT_FROM = "messages_hint_quiet_from"
+        private const val KEY_CHAT_HINT_TO = "messages_hint_quiet_to"
+        private const val MAX_CHATS = 200
         private const val MINUTES_PER_DAY = 24 * 60
         const val DEFAULT_AUTOSTART_TUNNEL = true
         const val DEFAULT_OPEN_ON_BOOT = false

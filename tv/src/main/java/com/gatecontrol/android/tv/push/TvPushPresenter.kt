@@ -78,10 +78,49 @@ class TvPushPresenter @Inject constructor(
     /** GateDrop's direct-transfer offers and data pushes: handled by [TvGateDrop], never shown. */
     override fun consume(message: PushMessage): Boolean = gatedrop.get().consume(message)
 
+    /** When the last door message came (epoch ms; 0: none) — the hint of new chat messages waits for the doorbell. */
+    @Volatile
+    var lastDoorbellAt: Long = 0L
+        private set
+
     override suspend fun onNew(message: PushMessage) {
-        if (DoorPush.isDoorMessage(message)) door.get().onPush(message)
+        if (DoorPush.isDoorMessage(message)) {
+            lastDoorbellAt = System.currentTimeMillis()
+            door.get().onPush(message)
+        }
         gatedrop.get().onNew(message)
         _messages.tryEmit(message)
+    }
+
+    /**
+     * „Neue Nachricht von …“ over other apps (stage 3e, Frage 18 a): Fire OS shows it as a short banner. [title] is the
+     * whole notification — no text of the message, no preview, no reply; OK opens GateControl. One per chat, gone
+     * after a minute.
+     */
+    fun chatHint(conversationId: Long, title: String) {
+        val manager = nm ?: return
+        if (manager.getNotificationChannel(CHAT_HINT_CHANNEL) == null) {
+            manager.createNotificationChannel(
+                NotificationChannel(CHAT_HINT_CHANNEL, context.getString(R.string.tv_channel_messages), NotificationManager.IMPORTANCE_HIGH).apply {
+                    setSound(null, null)
+                    enableVibration(false)
+                    lockscreenVisibility = android.app.Notification.VISIBILITY_SECRET
+                },
+            )
+        }
+        val n = NotificationCompat.Builder(context, CHAT_HINT_CHANNEL)
+            .setSmallIcon(R.mipmap.ic_launcher)
+            .setContentTitle(title)
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setCategory(NotificationCompat.CATEGORY_MESSAGE)
+            .setVisibility(NotificationCompat.VISIBILITY_SECRET)
+            .setAutoCancel(true)
+            .setSilent(true)
+            .setTimeoutAfter(CHAT_HINT_TIMEOUT_MS)
+            .setContentIntent(openApp())
+            .build()
+        runCatching { manager.notify(CHAT_HINT_BASE + (conversationId % CHAT_HINT_SPAN).toInt(), n) }
+            .onFailure { Timber.w("TV push: chat hint not shown (%s)", it.javaClass.simpleName) }
     }
 
     /** The ongoing card of the push service ("Verbindung", importance min). */
@@ -137,5 +176,9 @@ class TvPushPresenter @Inject constructor(
     companion object {
         /** The push service's ongoing card (the phone app uses the same id). */
         const val ONGOING_ID = 1003
+        private const val CHAT_HINT_CHANNEL = "gc_tv_messages"
+        private const val CHAT_HINT_BASE = 7_000
+        private const val CHAT_HINT_SPAN = 1_000L
+        private const val CHAT_HINT_TIMEOUT_MS = 60_000L
     }
 }

@@ -400,8 +400,8 @@ fun ArrivalContent(m: ChatMessage, arrival: ChatArrival, actions: RichActions) {
     val scheme = MaterialTheme.colorScheme
     val loc = locale(ctx)
     Column(Modifier.width(276.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        val pos = if (arrival.lat != null && arrival.lon != null) LatLon(arrival.lat, arrival.lon)
-        else if (arrival.dest.lat != null && arrival.dest.lon != null) LatLon(arrival.dest.lat, arrival.dest.lon) else null
+        val pos = if (arrival.lat != null && arrival.lon != null) LatLon(arrival.lat!!, arrival.lon!!)
+        else if (arrival.dest.lat != null && arrival.dest.lon != null) LatLon(arrival.dest.lat!!, arrival.dest.lon!!) else null
         if (pos != null && arrival.live) {
             OsmMap(
                 point = pos,
@@ -591,7 +591,7 @@ fun PluginCardContent(m: ChatMessage, actions: RichActions) {
         if (doorbell || card.title == null) {
             (card.text ?: m.text)?.let { Text(it, style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.SemiBold), color = scheme.onSurface) }
         } else {
-            Text(card.title, style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.ExtraBold), color = scheme.onSurface)
+            Text(card.title!!, style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.ExtraBold), color = scheme.onSurface)
             (card.text ?: m.text)?.let { Text(it, style = MaterialTheme.typography.bodyMedium, color = extra.muted) }
         }
         if (card.buttons.isNotEmpty()) {

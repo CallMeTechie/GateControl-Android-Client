@@ -11,14 +11,17 @@ data class RdpSession(
 
 enum class CredentialMode { FULL, USER_ONLY, NONE }
 
+/** The steps of [RdpManager.connect] in their order (the sheet shows them by [step]). */
 enum class RdpProgress(val step: Int) {
     VPN_CHECK(1),
     TCP_CHECK(2),
-    CREDENTIALS(3),
-    CLIENT_LAUNCH(4),
+    /** GET /connect runs: for a PC registered with Fernzugriff the server waits for the PC to open access. */
+    HOST_ACCESS(3),
+    CREDENTIALS(4),
     SESSION_START(5),
-    SERVICE_START(6),
-    COMPLETE(7)
+    CLIENT_LAUNCH(6),
+    SERVICE_START(7),
+    COMPLETE(8)
 }
 
 data class RdpCredentials(

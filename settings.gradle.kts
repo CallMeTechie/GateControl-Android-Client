@@ -35,6 +35,8 @@ include(":core:familie-api")
 include(":core:notizen-api")
 // GateControl Mail (accounts, lists, reading, drafts and sending, AI): phone app and GateControl TV
 include(":core:mail-api")
+// Messenger (API, answers, models, realtime events, bridge rules): phone app and GateControl TV
+include(":core:chat-api")
 include(":core:tunnel")
 // Media of the own NAS (Jellyfin, SMB and WebDAV shares): shared by GateControl TV and, later, the phone app
 include(":core:media")

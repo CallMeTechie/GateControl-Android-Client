@@ -59,6 +59,7 @@ internal enum class TvSettingsCategory(@param:StringRes val label: Int) {
     Connection(R.string.tv_set_connection),
     Notices(R.string.tv_set_notices),
     Security(R.string.tv_set_security),
+    Messages(R.string.tv_set_messages),
     Start(R.string.tv_set_start),
     Input(R.string.tv_set_input),
     Frame(R.string.tv_set_frame),
@@ -87,6 +88,8 @@ fun TvSettingsPage(
     security: @Composable () -> Unit = {},
     /** Fotorahmen: what is shared, interval, order, idle start. */
     frame: @Composable () -> Unit = {},
+    /** Nachrichten: the chats (and, with stage 3f, the mail accounts) the TV shows, the hint over other apps. */
+    messages: @Composable () -> Unit = {},
     /** Startseite: which rows show. */
     startRows: @Composable () -> Unit = {},
     /** Eingabe: own text building blocks, dictation hints and privacy. */
@@ -110,6 +113,7 @@ fun TvSettingsPage(
                 }
                 TvSettingsCategory.Notices -> notices()
                 TvSettingsCategory.Security -> security()
+                TvSettingsCategory.Messages -> messages()
                 TvSettingsCategory.Start -> startRows()
                 TvSettingsCategory.Input -> input()
                 TvSettingsCategory.Frame -> frame()

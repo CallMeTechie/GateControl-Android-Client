@@ -699,7 +699,7 @@ fun ArrivalSheet(
                 Text(stringResource(R.string.chat_arrival_dest_map_hint), style = MaterialTheme.typography.bodySmall, color = extra.muted)
                 val p = picked
                 OsmMap(
-                    point = if (p?.lat != null && p.lon != null) LatLon(p.lat, p.lon) else null,
+                    point = if (p?.lat != null && p.lon != null) LatLon(p.lat!!, p.lon!!) else null,
                     contentDescription = stringResource(R.string.chat_arrival_dest_map),
                     modifier = Modifier.fillMaxWidth().height(220.dp),
                     zoom = if (p != null) 15.0 else 6.0,

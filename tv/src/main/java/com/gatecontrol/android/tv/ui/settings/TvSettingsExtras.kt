@@ -151,6 +151,7 @@ fun TvSecurityOptions(
                     TvPinFunction.DRIVE -> R.string.tv_pin_fn_drive
                     TvPinFunction.VAULT -> R.string.tv_pin_fn_vault
                     TvPinFunction.NOTES -> R.string.tv_pin_fn_notes
+                    TvPinFunction.MESSAGES -> R.string.tv_pin_fn_messages
                 },
             ),
             description = stringResource(if (!pin.hasPin) R.string.tv_pin_fn_needs_pin else if (on) R.string.tv_pin_fn_on else R.string.tv_pin_fn_off),

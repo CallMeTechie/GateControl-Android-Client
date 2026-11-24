@@ -49,11 +49,16 @@ class TvPinStore @Inject constructor(@ApplicationContext context: Context) {
         write(TvPinRules.setRequired(_state.value, function, on))
     }
 
+    /** The offer to set a PIN for [function] was shown. */
+    fun offered(function: TvPinFunction) = synchronized(this) { write(TvPinRules.offered(_state.value, function)) }
+
     private fun read(): TvPinState = TvPinState(
         hash = prefs.getString(KEY_HASH, null)?.takeIf { it.isNotBlank() },
         required = prefs.getStringSet(KEY_REQUIRED, emptySet()).orEmpty().mapNotNull(TvPinFunction::fromWire).toSet(),
         failures = prefs.getInt(KEY_FAILURES, 0).coerceAtLeast(0),
         lastFailureAt = prefs.getLong(KEY_LAST_FAILURE, 0L),
+        off = prefs.getStringSet(KEY_OFF, emptySet()).orEmpty().mapNotNull(TvPinFunction::fromWire).toSet(),
+        offered = prefs.getStringSet(KEY_OFFERED, emptySet()).orEmpty().mapNotNull(TvPinFunction::fromWire).toSet(),
     )
 
     private fun write(state: TvPinState) {
@@ -62,6 +67,8 @@ class TvPinStore @Inject constructor(@ApplicationContext context: Context) {
             putStringSet(KEY_REQUIRED, state.required.map { it.wire }.toSet())
             putInt(KEY_FAILURES, state.failures)
             putLong(KEY_LAST_FAILURE, state.lastFailureAt)
+            putStringSet(KEY_OFF, state.off.map { it.wire }.toSet())
+            putStringSet(KEY_OFFERED, state.offered.map { it.wire }.toSet())
         }
         _state.value = state
     }
@@ -72,5 +79,7 @@ class TvPinStore @Inject constructor(@ApplicationContext context: Context) {
         const val KEY_REQUIRED = "required"
         const val KEY_FAILURES = "failures"
         const val KEY_LAST_FAILURE = "last_failure"
+        const val KEY_OFF = "off"
+        const val KEY_OFFERED = "offered"
     }
 }

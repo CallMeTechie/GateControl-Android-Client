@@ -8,6 +8,7 @@ import com.gatecontrol.android.network.ApiClientProvider
 import com.gatecontrol.android.network.RdpRoute
 import com.gatecontrol.android.network.RdpRouteStatus
 import com.gatecontrol.android.network.RdpRoutesResponse
+import com.gatecontrol.android.rdp.RdpConnectFailure
 import com.gatecontrol.android.rdp.RdpManager
 import com.gatecontrol.android.rdp.RdpProgress
 import com.gatecontrol.android.rdp.RdpSession
@@ -503,6 +504,43 @@ class RdpViewModelTest {
         val state = viewModel.connectState.value
         assertTrue(state is ConnectState.Error)
         assertEquals("TCP check failed", (state as ConnectState.Error).message)
+    }
+
+    @Test
+    fun `connect keeps the failure of a refused PC for the sheet`() = runTest {
+        coEvery { apiClient.getRdpRoutes() } returns RdpRoutesResponse(
+            ok = true,
+            routes = listOf(onlineRoute)
+        )
+        viewModel.loadRoutes()
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        coEvery {
+            rdpManager.connect(
+                route = any(),
+                apiClient = apiClient,
+                isVpnConnected = true,
+                userPassword = null,
+                forceMaintenanceBypass = false,
+                onProgress = any()
+            )
+        } returns RdpManager.ConnectResult.Error(
+            message = "Server refused the connection: HTTP 504 (firewall_timeout)",
+            step = RdpProgress.CREDENTIALS,
+            failure = RdpConnectFailure.FIREWALL_TIMEOUT
+        )
+
+        viewModel.connect(onlineRoute.id)
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        val state = viewModel.connectState.value as ConnectState.Error
+        assertEquals(RdpConnectFailure.FIREWALL_TIMEOUT, state.failure)
+    }
+
+    @Test
+    fun `every refusal of a PC has its own text`() {
+        val texts = RdpConnectFailure.entries.map { connectFailureText(it) }
+        assertEquals(texts.size, texts.toSet().size)
     }
 
     @Test

@@ -118,6 +118,8 @@ dependencies {
     implementation(project(":core:notizen-api"))
     // Mail: the inbox of the accounts chosen on the TV, reading, answering through drafts, the AI's answers
     implementation(project(":core:mail-api"))
+    // Nachrichten › Chats: the messenger's API, answers, realtime events and bridge rules (always `?bridged=1`)
+    implementation(project(":core:chat-api"))
     implementation(project(":core:tunnel"))
     // Medien: Jellyfin, SMB and WebDAV shares, shared with the phone app later
     implementation(project(":core:media"))

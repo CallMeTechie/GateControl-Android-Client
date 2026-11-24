@@ -18,8 +18,8 @@ android {
         applicationId = "com.gatecontrol.client"
         minSdk = 31
         targetSdk = 36
-        versionCode = 24801
-        versionName = "1.148.1"
+        versionCode = 24802
+        versionName = "1.148.2"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
@@ -145,6 +145,7 @@ dependencies {
     implementation(project(":core:familie-api"))
     implementation(project(":core:notizen-api"))
     implementation(project(":core:mail-api"))
+    implementation(project(":core:chat-api"))
     implementation(project(":core:gatedrop"))
     implementation(project(":core:tunnel"))
     implementation(project(":core:designsystem"))
