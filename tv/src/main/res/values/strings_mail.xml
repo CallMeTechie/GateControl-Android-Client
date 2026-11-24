@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Mail (stage 3f): the tab „Mail“, answering, Einstellungen › Mail -->
+    <string name="tv_mail_title">Mail</string>
+    <string name="tv_mail_inbox">Inbox</string>
+    <string name="tv_mail_none_chosen">No mail account shows on this TV yet. Choose them in Settings › Mail.</string>
+    <string name="tv_mail_missing">Mail is not available for this login.</string>
+    <string name="tv_mail_empty">No mails in the inbox.</string>
+    <string name="tv_mail_pick">Choose a mail on the left.</string>
+    <string name="tv_mail_message_missing">This mail cannot be loaded.</string>
+    <string name="tv_mail_no_subject">(no subject)</string>
+    <string name="tv_mail_no_text">This mail has no text.</string>
+    <string name="tv_mail_unread_one">unread</string>
+    <string name="tv_mail_to">To: %1$s</string>
+    <string name="tv_mail_short">In short</string>
+    <string name="tv_mail_attachments">Attachments</string>
+    <string name="tv_mail_attachment_blocked">blocked by the virus scan</string>
+    <string name="tv_mail_attachment_phone">on the phone</string>
+    <string name="tv_mail_attachment_loading">Loading the attachment…</string>
+    <string name="tv_mail_attachment_failed">The attachment could not be opened.</string>
+    <string name="tv_mail_reply">Reply</string>
+    <string name="tv_mail_reply_all">Reply all</string>
+    <string name="tv_mail_forward">Forward</string>
+    <string name="tv_mail_archive">Archive</string>
+    <string name="tv_mail_delete">Delete</string>
+    <string name="tv_mail_html">HTML view</string>
+    <string name="tv_mail_html_note">The mail as it was made. External pictures stay blocked, as on the phone; links do not open on the TV.</string>
+    <string name="tv_mail_key_open">Read and answer</string>
+    <string name="tv_mail_key_scroll">Scroll</string>
+    <string name="tv_mail_preparing">Preparing the draft…</string>
+    <string name="tv_mail_compose_reply">Reply to %1$s</string>
+    <string name="tv_mail_compose_reply_all">Reply to all</string>
+    <string name="tv_mail_compose_forward">Forward to %1$s</string>
+    <string name="tv_mail_compose_meta">to %1$s · %2$s</string>
+    <string name="tv_mail_compose_label">Your answer</string>
+    <string name="tv_mail_compose_quote">The quoted mail goes below the text.</string>
+    <string name="tv_mail_forward_title">Forward to whom?</string>
+    <string name="tv_mail_forward_hint">Only people Mail knows: your contacts, people of this GateControl and those you wrote with lately. No addresses are typed on the TV.</string>
+    <string name="tv_mail_forward_search">Search by name</string>
+    <string name="tv_mail_forward_find">Search</string>
+    <string name="tv_mail_forward_none">Nobody found.</string>
+    <string name="tv_mail_sending">Sending the mail…</string>
+    <string name="tv_mail_note_sent">Sent.</string>
+    <string name="tv_mail_note_archived">Archived.</string>
+    <string name="tv_mail_note_deleted">Deleted.</string>
+    <string name="tv_mail_note_back">Back in the inbox.</string>
+    <string name="tv_mail_note_stopped">Sending stopped – the draft is open again.</string>
+    <string name="tv_mail_note_too_late">Too late – the mail is already out.</string>
+    <string name="tv_mail_note_refused">Mail refused that.</string>
+    <string name="tv_mail_note_offline">No connection – nothing was changed.</string>
+    <string name="tv_mail_settings">Mail</string>
+    <string name="tv_mail_settings_accounts">Mail accounts on this TV</string>
+    <string name="tv_mail_settings_desc">Mail belongs to one person and the TV is the family\'s: only the accounts switched on here show on this TV. None by default.</string>
+    <string name="tv_mail_settings_none">This login has no mail accounts.</string>
+    <plurals name="tv_mail_unread">
+        <item quantity="one">%d unread</item>
+        <item quantity="other">%d unread</item>
+    </plurals>
+    <plurals name="tv_mail_forward_attachments">
+        <item quantity="one">%d attachment goes along</item>
+        <item quantity="other">%d attachments go along</item>
+    </plurals>
+</resources>

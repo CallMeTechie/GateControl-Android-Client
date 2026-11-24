@@ -116,6 +116,8 @@ dependencies {
     implementation(project(":core:familie-api"))
     // Notizen: Mein Tag, lists and notebooks (area „Privat“), ticking off, the server's quick entry
     implementation(project(":core:notizen-api"))
+    // Mail: the inbox of the accounts chosen on the TV, reading, answering through drafts, the AI's answers
+    implementation(project(":core:mail-api"))
     implementation(project(":core:tunnel"))
     // Medien: Jellyfin, SMB and WebDAV shares, shared with the phone app later
     implementation(project(":core:media"))

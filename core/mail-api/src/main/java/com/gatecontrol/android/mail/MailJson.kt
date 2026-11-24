@@ -117,8 +117,8 @@ object MailJson {
             ),
             microsoft = MMicrosoft(
                 clientId = ms?.str("clientId")?.trim()?.takeIf { it.isNotEmpty() && it.length <= 200 },
-                authority = ms?.str("authority")?.trimEnd('/')?.takeIf { it.startsWith("https://") } ?: MailMicrosoft.DEFAULT_AUTHORITY,
-                scopes = ms?.arr("scopes")?.strings()?.filter { it.isNotBlank() }?.takeIf { it.isNotEmpty() } ?: MailMicrosoft.DEFAULT_SCOPES,
+                authority = ms?.str("authority")?.trimEnd('/')?.takeIf { it.startsWith("https://") } ?: MMicrosoft.DEFAULT_AUTHORITY,
+                scopes = ms?.arr("scopes")?.strings()?.filter { it.isNotBlank() }?.takeIf { it.isNotEmpty() } ?: MMicrosoft.DEFAULT_SCOPES,
                 adminConsentUrl = ms?.str("adminConsentUrl")?.trim()?.takeIf { it.startsWith("https://") && it.length <= 2000 },
             ),
             accounts = o.arr("accounts")?.objects()?.mapNotNull(::account).orEmpty(),
@@ -174,9 +174,20 @@ object MailJson {
                 val mime = av.str("mime")?.lowercase()?.substringBefore(';')?.trim()?.takeIf { PICTURE_MIME.matches(it) } ?: return@let null
                 MAvatar(media, mime)
             },
-            calendar = MailPimJson.pimSide(o.obj("calendar")),
-            contacts = MailPimJson.pimSide(o.obj("contacts")),
+            calendar = pimSide(o.obj("calendar")),
+            contacts = pimSide(o.obj("contacts")),
             missingScopes = o.arr("missingScopes")?.strings()?.filter { it.isNotBlank() }.orEmpty(),
+        )
+    }
+
+    /** `Account.calendar` / `Account.contacts` (null from older servers). */
+    fun pimSide(o: JsonObject?): MPimSide? {
+        o ?: return null
+        return MPimSide(
+            sync = o.bool("sync") ?: true,
+            state = o.str("state") ?: MPimSide.STATE_OK,
+            readOnly = o.bool("readOnly") ?: false,
+            server = o.str("server")?.trim()?.takeIf { it.isNotEmpty() },
         )
     }
 
@@ -412,7 +423,7 @@ object MailJson {
             attachments = o.arr("attachments")?.objects()?.mapNotNull(::attachment).orEmpty(),
             unsubscribe = unsub,
             bodyMissing = o.bool("bodyMissing") ?: false,
-            invite = o.obj("invite")?.let(MailPimJson::invitation),
+            inviteJson = o.obj("invite"),
         )
     }
 

@@ -1,5 +1,12 @@
 package com.gatecontrol.android.ui.mail.contacts
 
+import com.gatecontrol.android.mail.cards
+import com.gatecontrol.android.mail.createGroup
+import com.gatecontrol.android.mail.duplicates
+import com.gatecontrol.android.mail.exportVcf
+import com.gatecontrol.android.mail.importVcf
+import com.gatecontrol.android.mail.patchAddressbook
+import com.gatecontrol.android.mail.patchOwn
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.gatecontrol.android.mail.MBooks

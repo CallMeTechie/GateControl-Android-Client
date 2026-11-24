@@ -50,12 +50,12 @@ class MailJsonTest {
     fun `me - without features it is no answer, defaults fill the rest`() {
         assertNull(MailJson.me(obj("""{"accounts":[]}""")))
         val me = MailJson.me(obj("""{"features":["mail"]}"""))!!
-        assertEquals(MailMicrosoft.DEFAULT_AUTHORITY, me.microsoft.authority)
-        assertEquals(MailMicrosoft.DEFAULT_SCOPES, me.microsoft.scopes)
+        assertEquals(MMicrosoft.DEFAULT_AUTHORITY, me.microsoft.authority)
+        assertEquals(MMicrosoft.DEFAULT_SCOPES, me.microsoft.scopes)
         assertEquals(MSettings.DEFAULT, me.settings)
         assertTrue(me.accounts.isEmpty())
         // an http authority is not taken
-        assertEquals(MailMicrosoft.DEFAULT_AUTHORITY, MailJson.me(obj("""{"features":[],"microsoft":{"authority":"http://evil"}}"""))!!.microsoft.authority)
+        assertEquals(MMicrosoft.DEFAULT_AUTHORITY, MailJson.me(obj("""{"features":[],"microsoft":{"authority":"http://evil"}}"""))!!.microsoft.authority)
     }
 
     @Test

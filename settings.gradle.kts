@@ -33,6 +33,8 @@ include(":core:gatedrop")
 include(":core:familie-api")
 // Notizen & Aufgaben (API, answers, models, the note's Markdown): phone app and GateControl TV
 include(":core:notizen-api")
+// GateControl Mail (accounts, lists, reading, drafts and sending, AI): phone app and GateControl TV
+include(":core:mail-api")
 include(":core:tunnel")
 // Media of the own NAS (Jellyfin, SMB and WebDAV shares): shared by GateControl TV and, later, the phone app
 include(":core:media")

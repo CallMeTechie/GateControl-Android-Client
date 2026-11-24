@@ -1,5 +1,10 @@
 package com.gatecontrol.android.ui.mail.contacts
 
+import com.gatecontrol.android.mail.duplicates
+import com.gatecontrol.android.mail.ignoreDuplicates
+import com.gatecontrol.android.mail.merge
+import com.gatecontrol.android.mail.merges
+import com.gatecontrol.android.mail.undoMerge
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement

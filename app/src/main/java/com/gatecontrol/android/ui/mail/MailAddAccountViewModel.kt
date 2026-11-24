@@ -1,5 +1,7 @@
 package com.gatecontrol.android.ui.mail
 
+import com.gatecontrol.android.mail.addMicrosoft
+import com.gatecontrol.android.mail.reloginMicrosoft
 import android.content.Context
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel

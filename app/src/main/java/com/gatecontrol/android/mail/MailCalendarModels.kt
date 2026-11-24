@@ -6,25 +6,6 @@ package com.gatecontrol.android.mail
  * Gson tree, never by reflection.
  */
 
-/** `Account.calendar` / `Account.contacts`: the account's calendar or address book side. */
-data class MPimSide(
-    val sync: Boolean,
-    /** ok | syncing | auth_failed | unreachable | consent_required | none | off */
-    val state: String,
-    val readOnly: Boolean,
-    val server: String?,
-) {
-    companion object {
-        const val STATE_OK = "ok"
-        const val STATE_SYNCING = "syncing"
-        const val STATE_AUTH_FAILED = "auth_failed"
-        const val STATE_UNREACHABLE = "unreachable"
-        const val STATE_CONSENT = "consent_required"
-        const val STATE_NONE = "none"
-        const val STATE_OFF = "off"
-    }
-}
-
 data class MCalendar(
     val id: Long,
     /** local | graph | caldav | ics */

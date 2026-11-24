@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Mail (stage 3f): the tab „Mail“, answering, Einstellungen › Mail -->
+    <string name="tv_mail_title">Mail</string>
+    <string name="tv_mail_inbox">Posteingang</string>
+    <string name="tv_mail_none_chosen">An diesem TV ist noch kein Mail-Konto freigegeben. Auswahl unter Einstellungen › Mail.</string>
+    <string name="tv_mail_missing">Mail ist für diese Anmeldung nicht verfügbar.</string>
+    <string name="tv_mail_empty">Keine Mails im Posteingang.</string>
+    <string name="tv_mail_pick">Links eine Mail wählen.</string>
+    <string name="tv_mail_message_missing">Diese Mail lässt sich nicht laden.</string>
+    <string name="tv_mail_no_subject">(kein Betreff)</string>
+    <string name="tv_mail_no_text">Diese Mail hat keinen Text.</string>
+    <string name="tv_mail_unread_one">ungelesen</string>
+    <string name="tv_mail_to">An: %1$s</string>
+    <string name="tv_mail_short">Kurz gesagt</string>
+    <string name="tv_mail_attachments">Anhänge</string>
+    <string name="tv_mail_attachment_blocked">vom Virenscan gesperrt</string>
+    <string name="tv_mail_attachment_phone">am Handy</string>
+    <string name="tv_mail_attachment_loading">Anhang wird geladen …</string>
+    <string name="tv_mail_attachment_failed">Der Anhang ließ sich nicht öffnen.</string>
+    <string name="tv_mail_reply">Antworten</string>
+    <string name="tv_mail_reply_all">Allen antworten</string>
+    <string name="tv_mail_forward">Weiterleiten</string>
+    <string name="tv_mail_archive">Archivieren</string>
+    <string name="tv_mail_delete">Löschen</string>
+    <string name="tv_mail_html">HTML-Ansicht</string>
+    <string name="tv_mail_html_note">Die Mail, wie sie gestaltet wurde. Externe Bilder bleiben gesperrt wie am Handy, Links öffnen sich am TV nicht.</string>
+    <string name="tv_mail_key_open">Lesen und antworten</string>
+    <string name="tv_mail_key_scroll">Blättern</string>
+    <string name="tv_mail_preparing">Entwurf wird vorbereitet …</string>
+    <string name="tv_mail_compose_reply">Antwort an %1$s</string>
+    <string name="tv_mail_compose_reply_all">Antwort an alle</string>
+    <string name="tv_mail_compose_forward">Weiterleiten an %1$s</string>
+    <string name="tv_mail_compose_meta">an %1$s · %2$s</string>
+    <string name="tv_mail_compose_label">Deine Antwort</string>
+    <string name="tv_mail_compose_quote">Die zitierte Mail kommt unter den Text.</string>
+    <string name="tv_mail_forward_title">An wen weiterleiten?</string>
+    <string name="tv_mail_forward_hint">Nur Personen, die Mail kennt: deine Kontakte, Personen dieses GateControl und mit wem du zuletzt geschrieben hast. Adressen werden am TV nicht eingetippt.</string>
+    <string name="tv_mail_forward_search">Name suchen</string>
+    <string name="tv_mail_forward_find">Suchen</string>
+    <string name="tv_mail_forward_none">Niemand gefunden.</string>
+    <string name="tv_mail_sending">Mail wird gesendet …</string>
+    <string name="tv_mail_note_sent">Gesendet.</string>
+    <string name="tv_mail_note_archived">Archiviert.</string>
+    <string name="tv_mail_note_deleted">Gelöscht.</string>
+    <string name="tv_mail_note_back">Wieder im Posteingang.</string>
+    <string name="tv_mail_note_stopped">Senden gestoppt – der Entwurf ist wieder offen.</string>
+    <string name="tv_mail_note_too_late">Zu spät – die Mail ist schon raus.</string>
+    <string name="tv_mail_note_refused">Mail hat das abgelehnt.</string>
+    <string name="tv_mail_note_offline">Keine Verbindung – nichts wurde geändert.</string>
+    <string name="tv_mail_settings">Mail</string>
+    <string name="tv_mail_settings_accounts">Mail-Konten an diesem TV</string>
+    <string name="tv_mail_settings_desc">Mail gehört einer Person, der TV der Familie: nur die hier eingeschalteten Konten erscheinen an diesem TV. Standardmäßig keine.</string>
+    <string name="tv_mail_settings_none">Diese Anmeldung hat keine Mail-Konten.</string>
+    <plurals name="tv_mail_unread">
+        <item quantity="one">%d ungelesen</item>
+        <item quantity="other">%d ungelesen</item>
+    </plurals>
+    <plurals name="tv_mail_forward_attachments">
+        <item quantity="one">%d Anhang geht mit</item>
+        <item quantity="other">%d Anhänge gehen mit</item>
+    </plurals>
+</resources>
