@@ -90,6 +90,8 @@ fun SettingsScreen(
     onOpenPrinting: (() -> Unit)? = null,
     /** "Leiste und Seiten" (functions as tabs or as pages beside Start). */
     onNavigateToPages: (() -> Unit)? = null,
+    /** Medien (stage 4): "Medien von der NAS einrichten" (true: no source yet) or Medien › Quellen; null hides the group. */
+    onNavigateToMedia: ((setup: Boolean) -> Unit)? = null,
     /** "TV koppeln" (GateControl TV through the server); null hides the row. */
     onNavigateToTvPair: (() -> Unit)? = null,
     /** Page shown next to the list on wide screens; its row is highlighted. */
@@ -315,6 +317,19 @@ fun SettingsScreen(
                     trailing = { GcChevron() },
                     selected = selectedPane == SettingsPane.Shared,
                 )
+            }
+        }
+
+        // --- Medien of the own NAS (stage 4): set up, or the sources ---------------
+        if (onNavigateToMedia != null) {
+            val mediaViewModel: com.gatecontrol.android.ui.media.MediaAvailabilityViewModel = hiltViewModel()
+            val mediaCount by mediaViewModel.count.collectAsStateWithLifecycle()
+            SettingsGroup(stringResource(R.string.media_tab)) {
+                if (mediaCount == 0) {
+                    com.gatecontrol.android.ui.media.MediaSetupRow(onClick = { onNavigateToMedia(true) })
+                } else {
+                    com.gatecontrol.android.ui.media.MediaSourcesRow(mediaCount, onClick = { onNavigateToMedia(false) })
+                }
             }
         }
 

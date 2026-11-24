@@ -111,6 +111,17 @@ data class MediaPage(val items: List<MediaTitle>, val total: Int, val start: Int
     val next: Int? get() = (start + items.size).takeIf { items.isNotEmpty() && it < total }
 }
 
+/**
+ * How "Filme" or "Serien" are listed (the phone's chips): A–Z, recently added or by year, only the unwatched ones,
+ * one genre.
+ */
+data class MediaOrder(val sort: Sort = Sort.NAME, val unplayed: Boolean = false, val genre: String? = null) {
+    enum class Sort { NAME, ADDED, YEAR }
+
+    /** A–Z of everything: the library's own pages ([MediaLibrary.movies], [MediaLibrary.series]). */
+    val plain: Boolean get() = sort == Sort.NAME && !unplayed && genre == null
+}
+
 /** A stream in a media file (ffprobe's view, as Jellyfin lists it). */
 data class MediaStream(
     /** Jellyfin's stream index (for AudioStreamIndex / SubtitleStreamIndex). */
@@ -269,6 +280,30 @@ interface MediaLibrary {
     suspend fun episodes(seriesId: String, seasonId: String? = null): MediaResult<List<MediaTitle>>
     suspend fun detail(itemId: String): MediaResult<MediaDetail>
 
+    /**
+     * "Filme" ([movies]) or "Serien" in [order], page by page. Here: the whole list ordered on the device (a share has
+     * its index there); Jellyfin asks the server.
+     */
+    suspend fun list(movies: Boolean, start: Int, limit: Int, order: MediaOrder): MediaResult<MediaPage> {
+        if (order.plain) return if (movies) movies(start, limit) else series(start, limit)
+        return (if (movies) movies(0, ALL) else series(0, ALL)).map { all ->
+            val items = MediaLogic.ordered(all.items, order)
+            MediaPage(items.drop(start).take(limit), items.size, start)
+        }
+    }
+
+    /** Films and series whose name holds [text] (the search over all sources); here from the whole lists. */
+    suspend fun search(text: String, limit: Int): MediaResult<List<MediaTitle>> {
+        val movies = movies(0, ALL)
+        if (movies !is MediaResult.Ok) return movies.map { emptyList() }
+        val series = series(0, ALL).valueOrNull()?.items.orEmpty()
+        return MediaResult.Ok(MediaLogic.search(movies.value.items + series, text).take(limit))
+    }
+
+    /** The genres of "Filme" ([movies]) or "Serien" for the chip "Genre", A–Z. */
+    suspend fun genres(movies: Boolean): MediaResult<List<String>> =
+        (if (movies) movies(0, ALL) else series(0, ALL)).map { MediaLogic.genres(it.items) }
+
     /** How [play] is sent (the server decides with the device profile and the bit rate). */
     suspend fun play(play: MediaPlay): MediaResult<MediaPlan>
 
@@ -294,4 +329,9 @@ interface MediaLibrary {
 
     /** The library is no longer used (the network or the access changed): its connection may go. */
     fun close() {}
+
+    companion object {
+        /** "All of it" for a list kept on the device (a share's index). */
+        const val ALL = 2_000
+    }
 }

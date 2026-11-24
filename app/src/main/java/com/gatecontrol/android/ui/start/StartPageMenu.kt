@@ -140,6 +140,7 @@ fun featureLabel(id: String): Int? = when (id) {
     StartPages.MAIL -> R.string.mail_tab
     StartPages.VAULT -> R.string.vault_tab
     StartPages.DRIVE -> R.string.drive_tab
+    StartPages.MEDIA -> R.string.media_tab
     StartPages.NOTIZEN -> R.string.notizen_tab
     StartPages.NETWORK -> R.string.nav_network
     StartPages.FAMILIE -> R.string.nav_familie
@@ -155,6 +156,7 @@ fun startPageIcon(id: String): ImageVector = when (id) {
     StartPages.MAIL -> GcIcons.Mail
     StartPages.VAULT -> GcIcons.Vault
     StartPages.DRIVE -> GcIcons.Cloud
+    StartPages.MEDIA -> GcIcons.Film
     StartPages.NOTIZEN -> com.gatecontrol.android.ui.notizen.NotizenTabIcon
     StartPages.NETWORK -> GcIcons.Globe
     StartPages.FAMILIE -> GcIcons.Family

@@ -116,6 +116,65 @@ object MediaLogic {
         return out
     }
 
+    /** The titles [order] lets through (only unwatched ones, one genre). */
+    fun filtered(items: List<MediaTitle>, order: MediaOrder): List<MediaTitle> = items.filter { t ->
+        (!order.unplayed || unwatched(t)) && (order.genre == null || t.genres.any { it.equals(order.genre, ignoreCase = true) })
+    }
+
+    /** Not watched yet: a film or episode not played, a series with episodes left. */
+    fun unwatched(t: MediaTitle): Boolean = if (t.kind == MediaTitle.Kind.SERIES || t.kind == MediaTitle.Kind.SEASON) {
+        t.unplayed?.let { it > 0 } ?: !t.played
+    } else {
+        !t.played
+    }
+
+    /** The order of [order]: A–Z (as Jellyfin sorts), newest first, or the latest year first; then A–Z. */
+    fun comparator(order: MediaOrder): Comparator<MediaTitle> {
+        val byName = compareBy<MediaTitle> { ShareNames.sortKey(it.name) }
+        return when (order.sort) {
+            MediaOrder.Sort.NAME -> byName
+            MediaOrder.Sort.ADDED -> compareByDescending<MediaTitle> { it.addedAt ?: 0L }.then(byName)
+            MediaOrder.Sort.YEAR -> compareByDescending<MediaTitle> { it.year ?: 0 }.then(byName)
+        }
+    }
+
+    /** [items] filtered and sorted by [order]. */
+    fun ordered(items: List<MediaTitle>, order: MediaOrder): List<MediaTitle> = filtered(items, order).sortedWith(comparator(order))
+
+    /**
+     * A grid of Jellyfin (its pages in the server's [order]) with [shares]' titles in their places; while Jellyfin has
+     * more pages ([jellyfinComplete] false) a share's title after the last one loaded waits for the next page.
+     */
+    fun merged(jellyfin: List<MediaTitle>, jellyfinComplete: Boolean, shares: List<MediaTitle>, order: MediaOrder): List<MediaTitle> {
+        if (!jellyfinComplete && jellyfin.isEmpty()) return emptyList()
+        val cmp = comparator(order)
+        val last = jellyfin.lastOrNull()
+        val waiting = ordered(shares, order).filter { jellyfinComplete || last == null || cmp.compare(it, last) <= 0 }
+        val out = ArrayList<MediaTitle>(jellyfin.size + waiting.size)
+        var i = 0
+        for (j in jellyfin) {
+            while (i < waiting.size && cmp.compare(waiting[i], j) < 0) out += waiting[i++]
+            out += j
+        }
+        while (i < waiting.size) out += waiting[i++]
+        return out
+    }
+
+    /**
+     * The titles whose name (or series' name) holds [text], letters and digits only and without case; the ones that
+     * start with it first. Blank: none.
+     */
+    fun search(items: List<MediaTitle>, text: String): List<MediaTitle> {
+        val q = ShareNames.key(text)
+        if (q.isEmpty()) return emptyList()
+        return items.filter { ShareNames.key(it.name).contains(q) || ShareNames.key(it.seriesName.orEmpty()).contains(q) }
+            .sortedWith(compareBy<MediaTitle> { if (ShareNames.key(it.name).startsWith(q)) 0 else 1 }.thenBy { ShareNames.sortKey(it.name) })
+    }
+
+    /** The genres of [items] once each, A–Z. */
+    fun genres(items: List<MediaTitle>): List<String> =
+        items.flatMap { it.genres }.map { it.trim() }.filter { it.isNotEmpty() }.distinctBy { it.lowercase(Locale.ROOT) }.sortedBy { it.lowercase(Locale.ROOT) }
+
     /** Away and measured: "18 Mbit/s"; else null. */
     fun bandwidth(link: MediaLink): String? = link.bps?.takeIf { link.atHome == false }?.let { MediaQuality.label(it) }
 

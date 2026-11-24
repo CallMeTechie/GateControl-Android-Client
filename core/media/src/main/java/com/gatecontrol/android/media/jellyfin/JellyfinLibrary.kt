@@ -3,6 +3,7 @@ package com.gatecontrol.android.media.jellyfin
 import com.gatecontrol.android.media.MediaClientInfo
 import com.gatecontrol.android.media.MediaDetail
 import com.gatecontrol.android.media.MediaLibrary
+import com.gatecontrol.android.media.MediaOrder
 import com.gatecontrol.android.media.MediaPage
 import com.gatecontrol.android.media.MediaPlan
 import com.gatecontrol.android.media.MediaPlay
@@ -16,6 +17,7 @@ import com.gatecontrol.android.media.MediaTitle
 import com.gatecontrol.android.media.MediaVersion
 import com.gatecontrol.android.media.PlayMethod
 import com.gatecontrol.android.media.jellyfin.JellyfinJson.bool
+import com.gatecontrol.android.media.jellyfin.JellyfinJson.objects
 import com.gatecontrol.android.media.jellyfin.JellyfinJson.str
 import com.gatecontrol.android.media.map
 import com.google.gson.JsonObject
@@ -55,15 +57,17 @@ class JellyfinLibrary(
 
     override suspend fun series(start: Int, limit: Int): MediaResult<MediaPage> = page("Series", start, limit)
 
-    private suspend fun page(type: String, start: Int, limit: Int): MediaResult<MediaPage> =
+    private suspend fun page(type: String, start: Int, limit: Int, order: MediaOrder = MediaOrder()): MediaResult<MediaPage> =
         client.get(
             "Items",
             mapOf(
                 "userId" to user,
                 "includeItemTypes" to type,
                 "recursive" to true,
-                "sortBy" to "SortName",
-                "sortOrder" to "Ascending",
+                "sortBy" to sortBy(order.sort),
+                "sortOrder" to sortOrder(order.sort),
+                "filters" to (if (order.unplayed) "IsUnplayed" else null),
+                "genres" to order.genre,
                 "startIndex" to start,
                 "limit" to limit,
                 "fields" to "$FIELDS,ChildCount",
@@ -74,6 +78,38 @@ class JellyfinLibrary(
         ).map { e ->
             val items = JellyfinJson.items(e, source.id)
             MediaPage(items, JellyfinJson.total(e) ?: (start + items.size), start)
+        }
+
+    /** The server sorts and filters ("Zuletzt hinzugefügt", "Jahr", "Ungesehen", a genre) and pages. */
+    override suspend fun list(movies: Boolean, start: Int, limit: Int, order: MediaOrder): MediaResult<MediaPage> =
+        page(if (movies) "Movie" else "Series", start, limit, order)
+
+    /** The server's own search over films and series. */
+    override suspend fun search(text: String, limit: Int): MediaResult<List<MediaTitle>> {
+        val term = text.trim()
+        if (term.isEmpty()) return MediaResult.Ok(emptyList())
+        return client.get(
+            "Items",
+            mapOf(
+                "userId" to user,
+                "searchTerm" to term,
+                "includeItemTypes" to "Movie,Series",
+                "recursive" to true,
+                "limit" to limit,
+                "fields" to "$FIELDS,ChildCount",
+                "enableUserData" to true,
+                "enableImageTypes" to IMAGES,
+            ),
+        ).map { JellyfinJson.items(it, source.id) }
+    }
+
+    override suspend fun genres(movies: Boolean): MediaResult<List<String>> =
+        client.get(
+            "Genres",
+            mapOf("userId" to user, "includeItemTypes" to if (movies) "Movie" else "Series", "recursive" to true, "sortBy" to "SortName"),
+        ).map { e ->
+            val names = e?.takeIf { it.isJsonObject }?.asJsonObject?.objects("Items").orEmpty().mapNotNull { it.str("Name")?.trim()?.ifEmpty { null } }
+            names.distinctBy { it.lowercase(java.util.Locale.ROOT) }
         }
 
     override suspend fun seasons(seriesId: String): MediaResult<List<MediaTitle>> =
@@ -255,6 +291,14 @@ class JellyfinLibrary(
     }
 
     companion object {
+        fun sortBy(sort: MediaOrder.Sort): String = when (sort) {
+            MediaOrder.Sort.NAME -> "SortName"
+            MediaOrder.Sort.ADDED -> "DateCreated,SortName"
+            MediaOrder.Sort.YEAR -> "ProductionYear,SortName"
+        }
+
+        fun sortOrder(sort: MediaOrder.Sort): String = if (sort == MediaOrder.Sort.NAME) "Ascending" else "Descending,Ascending"
+
         const val FIELDS = "PrimaryImageAspectRatio,DateCreated,Genres,OfficialRating"
         const val IMAGES = "Primary,Backdrop,Thumb"
 

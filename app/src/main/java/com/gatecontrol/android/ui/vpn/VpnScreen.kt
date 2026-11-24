@@ -129,6 +129,8 @@ fun VpnScreen(
      * sheets and results of the quick actions for all of them.
      */
     onArrange: () -> Unit = {},
+    /** Medien's card "Weiterschauen" (stage 4): below the connection, above the quick actions; it hides itself. */
+    mediaCard: @Composable () -> Unit = {},
     locationViewModel: LocationShareViewModel = hiltViewModel(),
     avatarViewModel: MyAvatarViewModel = hiltViewModel(),
 ) {
@@ -592,7 +594,7 @@ fun VpnScreen(
                 hinge = layout.horizontalHinge,
                 onLongPress = openEdit,
                 top = { headerSection(); tilesSection() },
-                bottom = { bannerSection(); cardsSection(true) },
+                bottom = { bannerSection(); mediaCard(); cardsSection(true) },
             )
             layout.twoPane -> Column(Modifier.fillMaxSize().padding(top = 20.dp)) {
                 Box(Modifier.padding(horizontal = 24.dp)) { headerSection() }
@@ -600,7 +602,7 @@ fun VpnScreen(
                     listWidth = 420.dp,
                     divider = false,
                     list = {
-                        HomeColumn(onLongPress = openEdit) { bannerSection(); tilesSection(); cardsSection(false) }
+                        HomeColumn(onLongPress = openEdit) { bannerSection(); mediaCard(); tilesSection(); cardsSection(false) }
                     },
                     detail = {
                         HomeColumn(onLongPress = openEdit) { usageCard() }
@@ -610,6 +612,7 @@ fun VpnScreen(
             else -> HomeColumn(Modifier.padding(top = 20.dp), onLongPress = openEdit) {
                 headerSection()
                 bannerSection()
+                mediaCard()
                 tilesSection()
                 cardsSection(true)
             }

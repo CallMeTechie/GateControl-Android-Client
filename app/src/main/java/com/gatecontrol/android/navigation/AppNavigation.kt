@@ -192,9 +192,13 @@ fun AppNavigation(
     val allPages by pagesViewModel.pages.collectAsStateWithLifecycle()
     val pagesAccess by pagesViewModel.access.collectAsStateWithLifecycle()
     val hideBarSetting by pagesViewModel.hideBar.collectAsStateWithLifecycle()
+    // Medien (stage 4): a tab once a source of the own NAS is set up (question 21)
+    val mediaAvailability: com.gatecontrol.android.ui.media.MediaAvailabilityViewModel = hiltViewModel()
+    val hasMedia by mediaAvailability.any.collectAsStateWithLifecycle()
     val tabRoutes = MainTabs.routes(
         network = MainTabs.hasNetwork(services = hasServicesPermission, rdp = hasRdpPermission, dns = hasDnsProtect),
         plugins = plugins,
+        media = hasMedia,
     )
     // Mail's calendar and contacts: pages without a tab, while the server offers them
     val mailMe by pagesViewModel.mailMe.collectAsStateWithLifecycle()
@@ -317,6 +321,7 @@ fun AppNavigation(
             Screen.Chats.route -> TabItem(route, Screen.Chats.create(), R.string.nav_chats, Icons.AutoMirrored.Outlined.Chat, chatBadge)
             Screen.Vault.route -> TabItem(route, Screen.Vault.route, R.string.vault_tab, GcIcons.Vault)
             Screen.Drive.route -> TabItem(route, Screen.Drive.route, R.string.drive_tab, GcIcons.Cloud)
+            MediaRoutes.TAB -> TabItem(route, MediaRoutes.TAB, R.string.media_tab, GcIcons.Film)
             Screen.Mail.route -> TabItem(route, Screen.Mail.route, R.string.mail_tab, GcIcons.Mail)
             NotizenRoutes.TAB -> TabItem(route, NotizenRoutes.TAB, R.string.notizen_tab, com.gatecontrol.android.ui.notizen.NotizenTabIcon)
             else -> TabItem(route, Screen.Vpn.route, R.string.nav_start, GcIcons.Shield)
@@ -352,6 +357,10 @@ fun AppNavigation(
         { navController.navigate(Screen.Door.create()) { launchSingleTop = true } }
     } else {
         null
+    }
+    /** "Medien von der NAS einrichten" ([setup], no source yet) or Medien › Quellen. */
+    val openMediaSetup: (Boolean) -> Unit = { setup ->
+        navController.navigate(if (setup) MediaRoutes.add() else MediaRoutes.SOURCES) { launchSingleTop = true }
     }
     val isTabSelected: (TabItem) -> Boolean = { tab ->
         navBackStackEntry?.destination?.hierarchy?.any { it.route == tab.route } == true
@@ -450,6 +459,7 @@ fun AppNavigation(
             )
             StartPages.VAULT -> VaultHome(navController)
             StartPages.DRIVE -> DriveHome(navController, onShown = {})
+            StartPages.MEDIA -> MediaHome(navController)
             StartPages.MAIL -> MailHome(navController)
             StartPages.NOTIZEN -> NotizenHome(navController, notizenHave)
             StartPages.CALENDAR -> MailHome(navController, com.gatecontrol.android.ui.mail.MailDrawerFoot.CALENDAR)
@@ -509,6 +519,8 @@ fun AppNavigation(
             }
         },
     ) { innerPadding ->
+        // Medien: the pages' "Abspielen" to the player (stage 4c) or the note that it comes with the next update
+        com.gatecontrol.android.ui.media.MediaPlayHost()
         Row(Modifier.padding(innerPadding).fillMaxSize()) {
         if (showBottomBar && layout.useRail) {
             GcNavRail(
@@ -636,6 +648,10 @@ fun AppNavigation(
                             onOpenStoryComposer = { navController.navigate(Screen.ChatStoryCompose.create()) { launchSingleTop = true } },
                             onOpenOwnStories = { navController.navigate(Screen.ChatStoryView.create(0L)) { launchSingleTop = true } },
                             onArrange = onArrange,
+                            mediaCard = {
+                                val media = remember(navController) { MediaNavigation(navController) }
+                                com.gatecontrol.android.ui.media.MediaStartCard(onDetail = media.detail, onAll = { navigateToTab(MediaRoutes.TAB) })
+                            },
                         )
                     },
                 )
@@ -705,6 +721,7 @@ fun AppNavigation(
                                 onNavigateToConnection = { paneKey = SettingsPane.Connection.key },
                                 onNavigateToShared = if (plugins.gatedrop) { { paneKey = SettingsPane.Shared.key } } else null,
                                 onNavigateToDrive = if (plugins.drive) { { navController.navigate(Screen.DriveSettings.route) { launchSingleTop = true } } } else null,
+                                onNavigateToMedia = openMediaSetup,
                                 onOpenPrinting = if (plugins.print) { { com.gatecontrol.android.ui.print.PrintInfoActivity.open(context) } } else null,
                                 onNavigateToPages = { paneKey = SettingsPane.Pages.key },
                                 onNavigateToTvPair = { navController.navigate(Screen.TvPair.create()) { launchSingleTop = true } },
@@ -741,6 +758,7 @@ fun AppNavigation(
                         onNavigateToConnection = { navController.navigate(Screen.ConnectionDetails.route) { launchSingleTop = true } },
                         onNavigateToShared = if (plugins.gatedrop) { { navController.navigate(Screen.Shared.create()) { launchSingleTop = true } } } else null,
                         onNavigateToDrive = if (plugins.drive) { { navController.navigate(Screen.DriveSettings.route) { launchSingleTop = true } } } else null,
+                        onNavigateToMedia = openMediaSetup,
                         onOpenPrinting = if (plugins.print) { { com.gatecontrol.android.ui.print.PrintInfoActivity.open(context) } } else null,
                         onNavigateToPages = { navController.navigate(Screen.SettingsPages.route) { launchSingleTop = true } },
                         onNavigateToTvPair = { navController.navigate(Screen.TvPair.create()) { launchSingleTop = true } },
@@ -1373,6 +1391,9 @@ fun AppNavigation(
             }
             notizenRoutes(navController, notizenHave) {
                 if (StartPages.NOTIZEN in pinnedNow) RedirectToPage(StartPages.NOTIZEN, NotizenRoutes.TAB) else NotizenHome(navController, notizenHave)
+            }
+            mediaRoutes(navController, navigateToTab) {
+                if (StartPages.MEDIA in pinnedNow) RedirectToPage(StartPages.MEDIA, MediaRoutes.TAB) else MediaHome(navController)
             }
             driveRoutes(navController, navigateToTab) { entry ->
                 if (StartPages.DRIVE in pinnedNow) {
@@ -2069,6 +2090,8 @@ private class DriveNavigation(private val navController: NavHostController) {
 @Composable
 private fun DriveHome(navController: NavHostController, onShown: (Long?) -> Unit) {
     val nav = remember(navController) { DriveNavigation(navController) }
+    val mediaAvailability: com.gatecontrol.android.ui.media.MediaAvailabilityViewModel = hiltViewModel()
+    val hasMedia by mediaAvailability.any.collectAsStateWithLifecycle()
     GcContentWidth {
         com.gatecontrol.android.ui.drive.DriveHomeScreen(
             com.gatecontrol.android.ui.drive.DriveNav(
@@ -2099,6 +2122,7 @@ private fun DriveHome(navController: NavHostController, onShown: (Long?) -> Unit
                 },
                 // Mail › "Zum Ablegen" (only where Mail's routes are there)
                 mailFiling = { runCatching { navController.navigate(Screen.MailFiling.route) } },
+                mediaSetup = if (hasMedia) null else { { nav.go(MediaRoutes.add()) } },
             ),
         )
     }
