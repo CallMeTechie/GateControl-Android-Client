@@ -361,7 +361,7 @@ private fun SourceCard(
                     val status = when {
                         !s.enabled -> stringResource(R.string.notizen_source_off_admin)
                         !s.available -> stringResource(R.string.notizen_source_missing)
-                        s.error != null -> stringResource(R.string.notizen_source_error, s.error)
+                        s.error != null -> stringResource(R.string.notizen_source_error, s.error!!)
                         else -> null
                     }
                     status?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error) }

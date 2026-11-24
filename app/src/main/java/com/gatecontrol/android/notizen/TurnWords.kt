@@ -14,8 +14,8 @@ import java.util.regex.Pattern
  * `\d` is `[0-9]`, so the JVM (unit tests) and Android's ICU engine read them the same as V8.
  */
 object TurnWords {
-    const val ROTATE = "rotate"
-    const val FIRST = "first"
+    const val ROTATE = NotizenJson.TURN_ROTATE
+    const val FIRST = NotizenJson.TURN_FIRST
 
     /** [people]: the person [QuickParse] took and every further „@Name“ that names someone, in the order written. */
     data class Result(val title: String, val people: List<QuickParse.Ref>, val turn: String?, val stars: Int?)

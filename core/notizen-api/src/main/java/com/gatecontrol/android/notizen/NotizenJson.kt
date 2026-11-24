@@ -12,6 +12,9 @@ import com.google.gson.JsonObject
  */
 object NotizenJson {
     const val CODE_INVALID = "invalid_answer"
+    /** `turn` of a task (plugin 1.6.0, `taskTurns`): reihum, wer zuerst. */
+    const val TURN_ROTATE = "rotate"
+    const val TURN_FIRST = "first"
     private val CODE = Regex("^[a-z_]{1,40}$")
     private val DATE = Regex("^\\d{4}-\\d{2}-\\d{2}$")
     private val TIME = Regex("^\\d{2}:\\d{2}$")
@@ -23,14 +26,14 @@ object NotizenJson {
 
     // ── helpers ─────────────────────────────────────────────
 
-    internal fun JsonObject.el(k: String): JsonElement? = get(k)?.takeIf { !it.isJsonNull }
-    internal fun JsonObject.obj(k: String): JsonObject? = el(k)?.takeIf { it.isJsonObject }?.asJsonObject
-    internal fun JsonObject.arr(k: String): JsonArray? = el(k)?.takeIf { it.isJsonArray }?.asJsonArray
-    internal fun JsonObject.str(k: String): String? = el(k)?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isString }?.asString
-    internal fun JsonObject.num(k: String): Double? = el(k)?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isNumber }?.asDouble
-    internal fun JsonObject.long(k: String): Long? = num(k)?.takeIf { it % 1.0 == 0.0 }?.toLong()
-    internal fun JsonObject.int(k: String): Int? = long(k)?.takeIf { it in Int.MIN_VALUE..Int.MAX_VALUE }?.toInt()
-    internal fun JsonObject.bool(k: String): Boolean? = el(k)?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isBoolean }?.asBoolean
+    fun JsonObject.el(k: String): JsonElement? = get(k)?.takeIf { !it.isJsonNull }
+    fun JsonObject.obj(k: String): JsonObject? = el(k)?.takeIf { it.isJsonObject }?.asJsonObject
+    fun JsonObject.arr(k: String): JsonArray? = el(k)?.takeIf { it.isJsonArray }?.asJsonArray
+    fun JsonObject.str(k: String): String? = el(k)?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isString }?.asString
+    fun JsonObject.num(k: String): Double? = el(k)?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isNumber }?.asDouble
+    fun JsonObject.long(k: String): Long? = num(k)?.takeIf { it % 1.0 == 0.0 }?.toLong()
+    fun JsonObject.int(k: String): Int? = long(k)?.takeIf { it in Int.MIN_VALUE..Int.MAX_VALUE }?.toInt()
+    fun JsonObject.bool(k: String): Boolean? = el(k)?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isBoolean }?.asBoolean
     private fun JsonObject.id(k: String): Long? = long(k)?.takeIf { it > 0 }
     private fun JsonObject.text(k: String, max: Int): String? = str(k)?.take(max)
     private fun <T> JsonArray?.each(f: (JsonObject) -> T?): List<T> = this?.mapNotNull { e -> (e as? JsonObject)?.let { runCatching { f(it) }.getOrNull() } }.orEmpty()
@@ -201,6 +204,13 @@ object NotizenJson {
     /** `notified` of `POST shopping/lists/<uid>/assign`. */
     fun delivery(o: JsonObject): NDelivery = o.obj("notified").let { n -> NDelivery(n?.bool("ok"), n?.text("code", 40)) }
 
+    /** `parsed` of `POST parse`: null without a title. */
+    fun parsedLine(o: JsonObject): NParsedLine? {
+        val p = o.obj("parsed") ?: return null
+        val title = p.text("title", 500)?.trim()?.takeIf { it.isNotEmpty() } ?: return null
+        return NParsedLine(title, date(p.str("date"))?.let { NDue(it, time(p.str("time"))) }, p.bool("important") ?: false)
+    }
+
     /** `POST parse { text, area }`. */
     fun parseBody(text: String, area: String, listId: Long? = null) = JsonObject().apply {
         addProperty("text", text.take(1000))
@@ -369,7 +379,7 @@ object NotizenJson {
     }
 
     /** `turn` of a task or of `POST parse`: `rotate` | `first`, else none. */
-    fun turn(v: String?): String? = v?.takeIf { it == TurnWords.ROTATE || it == TurnWords.FIRST }
+    fun turn(v: String?): String? = v?.takeIf { it == TURN_ROTATE || it == TURN_FIRST }
 
     fun item(o: JsonObject?): NItem? {
         if (o == null) return null

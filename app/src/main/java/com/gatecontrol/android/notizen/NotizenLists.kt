@@ -110,7 +110,7 @@ object NotizenLists {
     fun canTick(task: NTask, list: NList?, meId: Long?): Boolean = when {
         !task.canComplete -> false
         list == null || list.canEdit -> true
-        else -> task.assignee?.id != null && task.assignee.id == meId
+        else -> task.assignee?.id != null && task.assignee!!.id == meId
     }
 
     // ── the filter of a shared list ─────────────────────────
@@ -124,7 +124,7 @@ object NotizenLists {
 
     fun matches(task: NTask, filter: Filter, meId: Long?): Boolean = when (filter) {
         Filter.All -> true
-        Filter.Mine -> task.assignee?.id != null && task.assignee.id == meId
+        Filter.Mine -> task.assignee?.id != null && task.assignee!!.id == meId
         Filter.Nobody -> task.assignee?.id == null
         is Filter.Person -> task.assignee?.id == filter.id
     }

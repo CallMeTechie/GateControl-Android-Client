@@ -71,6 +71,8 @@ enum class TvDestination(@param:StringRes val label: Int, val icon: ImageVector)
     Drive(R.string.tv_nav_drive, TvIcons.Drive),
     Media(R.string.tv_nav_media, TvIcons.Media),
     GateDrop(R.string.tv_nav_gatedrop, TvIcons.GateDrop),
+    /** Notizen (stage 3c): Mein Tag, Demnächst, lists and notebooks of the area „Privat“. */
+    Notes(R.string.tv_nav_notes, TvIcons.Notes),
     /** Zuhause (stage 3b): waste collection, the calendar of Familie and Alltag, shopping. */
     Home(R.string.tv_nav_home, TvIcons.Family),
     Settings(R.string.tv_nav_settings, TvIcons.Settings),
@@ -112,6 +114,7 @@ fun TvHome(
     mediaPage: (@Composable () -> Unit)? = null,
     gatedropPage: (@Composable () -> Unit)? = null,
     homePage: (@Composable () -> Unit)? = null,
+    notesPage: (@Composable () -> Unit)? = null,
     /** Asked before a page opens (the TV PIN of Einstellungen); calls `open` when it may. */
     onOpen: (TvDestination, open: () -> Unit) -> Unit = { _, open -> open() },
     /** Another part of the app asks for a page (OK on a camera of the start page). */
@@ -136,6 +139,8 @@ fun TvHome(
                 mediaPage()
             } else if (current == TvDestination.GateDrop && gatedropPage != null) {
                 gatedropPage()
+            } else if (current == TvDestination.Notes && notesPage != null) {
+                notesPage()
             } else if (current == TvDestination.Home && homePage != null) {
                 homePage()
             } else if (current == TvDestination.Settings && settingsPage != null) {

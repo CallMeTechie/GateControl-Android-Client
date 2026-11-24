@@ -47,8 +47,8 @@ object NotizenOutbox {
     const val SNOOZE = "snooze"
     const val MOVE = "move"
     /** Plugin 1.5.0: „Später“ at a place (`POST tasks/<id>/place/later`) and „Nicht hier“ (`…/place/skip { fence }`). */
-    const val PLACE_LATER = "place/later"
-    const val PLACE_SKIP = "place/skip"
+    const val PLACE_LATER = NotizenApi.PLACE_LATER
+    const val PLACE_SKIP = NotizenApi.PLACE_SKIP
     const val LIST = "list"
     const val NOTEBOOK = "notebook"
     const val NOTE = "note"

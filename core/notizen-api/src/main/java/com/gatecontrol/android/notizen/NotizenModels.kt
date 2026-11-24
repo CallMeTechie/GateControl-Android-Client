@@ -16,7 +16,7 @@ sealed class NResult<out T> {
     fun valueOrNull(): T? = (this as? Ok)?.value
 }
 
-internal fun <T> NResult<*>.notOk(): NResult<T> = when (this) {
+fun <T> NResult<*>.notOk(): NResult<T> = when (this) {
     is NResult.Ok -> NResult.Failed(NotizenJson.CODE_INVALID, 0)
     is NResult.Failed -> this
     NResult.Offline -> NResult.Offline
@@ -197,6 +197,13 @@ data class NAttached(val id: Long, val uid: String, val name: String, val icon: 
  */
 data class NAttach(val via: String, val word: String?, val list: NAttached?, val lists: List<NAttached>)
 
+/**
+ * The line as the server's quick entry reads it (`parsed` of `POST parse`, `ui/quickparse.js`): the title without the
+ * words for the day and time, [due] (`morgen 17 Uhr` → tomorrow, 17:00), important. GateControl TV shows it before
+ * saving; the phone reads the line itself ([NParseAttach]).
+ */
+data class NParsedLine(val title: String, val due: NDue?, val important: Boolean)
+
 /** The answer of `POST parse` as far as the app uses it: the suggestion (the line itself is read on the phone). */
 data class NParseAttach(val attach: NAttach?)
 
@@ -288,7 +295,7 @@ data class NTask(
     val attachedList: NAttached? = null,
     /** Plugin 1.5.0 (`places`): the place this task hangs on (null: none, or an older plugin). */
     val place: NPlace? = null,
-    /** Plugin 1.6.0 (`taskTurns`): [TurnWords.ROTATE] (reihum: [assignee] is on), [TurnWords.FIRST] (wer zuerst: for all of [people]) or null. */
+    /** Plugin 1.6.0 (`taskTurns`): [NotizenJson.TURN_ROTATE] (reihum: [assignee] is on), [NotizenJson.TURN_FIRST] (wer zuerst: for all of [people]) or null. */
     val turn: String? = null,
     /** Plugin 1.6.0: the people of [turn], in their order (empty without a turn). */
     val people: List<NPerson> = emptyList(),

@@ -332,7 +332,7 @@ internal fun NEntryRow(
                     val shown = dueText != null && (deadline != null || ctx.showDay || due?.time != null)
                     val reminder = task != null && !task.done && task.reminder != null
                     if (reminder) NRowMark(GcIcons.Bell, stringResource(R.string.notizen_mark_reminder), lead = shown)
-                    val inCalendar = task != null && ctx.calendar && task.calendar?.synced == true && task.calendar.mine
+                    val inCalendar = task != null && ctx.calendar && task.calendar?.synced == true && task.calendar!!.mine
                     if (inCalendar) NRowMark(GcIcons.Calendar, stringResource(R.string.notizen_mark_calendar), lead = shown || reminder)
                     if (item != null) {
                         item.subtitle?.let { meta.add(it) }

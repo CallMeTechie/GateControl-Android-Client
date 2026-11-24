@@ -9,9 +9,10 @@ import javax.crypto.spec.PBEKeySpec
 /**
  * Functions of GateControl TV that may ask for the TV PIN (decision TV 5: the PIN is not required; per function the
  * settings say "mit PIN" or "ohne PIN"). A TV in the living room is shared: the PIN keeps children and guests away
- * from the door and the settings. Drive and the vault come with stage 2.
+ * from the door and the settings. Drive and the vault come with stage 2, Notizen with stage 3c. [holds]: once the PIN
+ * was entered, the function stays open for a while ([TvPinHold]) instead of asking each time.
  */
-enum class TvPinFunction(val wire: String) {
+enum class TvPinFunction(val wire: String, val holds: Boolean = false) {
     /** Tür öffnen, auf- und zusperren (quick action of the door plugin, the doorbell's "Tür öffnen"). */
     DOOR("door"),
 
@@ -22,11 +23,14 @@ enum class TvPinFunction(val wire: String) {
     DRIVE("drive"),
 
     /** Tresor (Drive's vault folders): not on the TV yet. */
-    VAULT("vault");
+    VAULT("vault"),
+
+    /** Opening Notizen (Mein Tag, lists, notebooks); open for [TvPinHold.HOLD_MS] after the PIN. */
+    NOTES("notes", holds = true);
 
     companion object {
         /** Shown in the settings now (the vault once it exists on the TV). */
-        val AVAILABLE = listOf(DOOR, SETTINGS, DRIVE)
+        val AVAILABLE = listOf(DOOR, SETTINGS, DRIVE, NOTES)
 
         fun fromWire(raw: String?): TvPinFunction? = entries.firstOrNull { it.wire == raw }
     }
@@ -155,4 +159,24 @@ object TvPinRules {
         on -> state.copy(required = state.required + function)
         else -> state.copy(required = state.required - function)
     }
+}
+
+/**
+ * How long a function with [TvPinFunction.holds] stays open after the PIN: [HOLD_MS] since the last key of the remote,
+ * and never past the photo frame or the screen saver (GateControl leaves the front: everything locks again). Pure,
+ * unit-tested; the times are the device's elapsed realtime.
+ */
+object TvPinHold {
+    const val HOLD_MS = 10 * 60_000L
+
+    /** [function] is open at [now] by [until] (its end per function). */
+    fun isOpen(until: Map<TvPinFunction, Long>, function: TvPinFunction, now: Long): Boolean = (until[function] ?: 0L) > now
+
+    /** The PIN was entered for [function] at [now]: open until [HOLD_MS] later (a function without hold stays closed). */
+    fun open(until: Map<TvPinFunction, Long>, function: TvPinFunction, now: Long): Map<TvPinFunction, Long> =
+        if (function.holds) until + (function to now + HOLD_MS) else until
+
+    /** A key at [now]: whatever is still open stays open [HOLD_MS] from now; what ran out is dropped. */
+    fun touch(until: Map<TvPinFunction, Long>, now: Long): Map<TvPinFunction, Long> =
+        until.filterValues { it > now }.mapValues { now + HOLD_MS }
 }

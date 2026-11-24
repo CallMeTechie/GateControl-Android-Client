@@ -433,7 +433,7 @@ fun NotizenTaskScreen(nav: NotizenNav, vm: NotizenTaskViewModel = hiltViewModel(
                 item {
                     NCard(Modifier.padding(top = 12.dp)) {
                         DetailRow(GcIcons.Sun, stringResource(R.string.notizen_in_my_day), "", null) { GcSwitch(d.task.myDay, { vm.setMyDay(it) }) }
-                        DetailRow(GcIcons.Calendar, stringResource(R.string.notizen_due), NotizenFormat.due(d.task.due?.copy(time = d.task.due.time), today, lang, words) ?: stringResource(R.string.notizen_none), if (ro) null else ({ dialog = "due" }))
+                        DetailRow(GcIcons.Calendar, stringResource(R.string.notizen_due), NotizenFormat.due(d.task.due?.copy(time = d.task.due!!.time), today, lang, words) ?: stringResource(R.string.notizen_none), if (ro) null else ({ dialog = "due" }))
                         val remind = NotizenFormat.remindParts(d.task.remindAt)
                         DetailRow(GcIcons.Bell, stringResource(R.string.notizen_reminder), NotizenFormat.due(remind, today, lang, words) ?: stringResource(R.string.notizen_none), if (ro) null else ({ dialog = "remind" }))
                         DetailRow(GcIcons.Refresh, stringResource(R.string.notizen_repeat), NRepeat.describe(d.task.repeat, lang), if (ro) null else ({ dialog = "repeat" }))
@@ -588,7 +588,7 @@ private fun SourceLine(src: NItem, nav: NotizenNav) {
                 stringResource(R.string.notizen_open_in, src.sourceLabel),
                 style = MaterialTheme.typography.titleSmall,
                 color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable(role = Role.Button) { nav.openSource(src.open) }.padding(6.dp),
+                modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable(role = Role.Button) { nav.openSource(src.open!!) }.padding(6.dp),
             )
         }
     }
@@ -906,7 +906,7 @@ internal fun PlaceNotes(
             }
             else -> Unit
         }
-        if (place.nearby && place.label != null) Text(stringResource(R.string.notizen_pl_nearby_hint, place.label), style = small, color = x.muted)
+        if (place.nearby && place.label != null) Text(stringResource(R.string.notizen_pl_nearby_hint, place.label!!), style = small, color = x.muted)
         if (place.any && !me.placeSearch) Text(stringResource(R.string.notizen_pl_needs_search, place.name), style = small, color = x.muted)
         // only where this phone is the one to watch the place
         if (place.watch && state != ready) {

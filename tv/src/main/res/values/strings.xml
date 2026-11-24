@@ -543,4 +543,65 @@
         <item quantity="one">%1$d open · %2$s</item>
         <item quantity="other">%1$d open · %2$s</item>
     </plurals>
+    <string name="tv_nav_notes">Notes</string>
+    <string name="tv_notes_myday">My Day</string>
+    <string name="tv_notes_planned">Upcoming</string>
+    <string name="tv_notes_lists">Lists</string>
+    <string name="tv_notes_notebooks">Notebooks</string>
+    <string name="tv_notes_missing">Notes and tasks are not available.</string>
+    <string name="tv_notes_counts">%1$s, %2$s</string>
+    <string name="tv_notes_myday_empty">Nothing for today.</string>
+    <string name="tv_notes_empty">No tasks here.</string>
+    <string name="tv_notes_saved">Task saved</string>
+    <string name="tv_notes_moved">Moved to tomorrow</string>
+    <string name="tv_notes_refused">Not possible here: you may only view this.</string>
+    <string name="tv_notes_offline_change">No connection – nothing was changed.</string>
+    <string name="tv_notes_yesterday">yesterday</string>
+    <string name="tv_notes_overdue">overdue · %1$s</string>
+    <string name="tv_notes_overdue_plain">overdue</string>
+    <string name="tv_notes_reminder">Reminder</string>
+    <string name="tv_notes_repeats">repeats · %1$s</string>
+    <string name="tv_notes_progress">%1$d of %2$d sub tasks</string>
+    <string name="tv_notes_important">important</string>
+    <string name="tv_notes_add">Add task</string>
+    <string name="tv_notes_add_label">New task</string>
+    <string name="tv_notes_add_example">e.g. pick up winter tyres tomorrow 5 pm</string>
+    <string name="tv_notes_add_check">Next</string>
+    <string name="tv_notes_add_reading">The server reads the line …</string>
+    <string name="tv_notes_add_saving">Saving …</string>
+    <string name="tv_notes_add_preview">This is saved</string>
+    <string name="tv_notes_add_edit">Edit</string>
+    <string name="tv_notes_add_no_day">no day – in My Day</string>
+    <string name="tv_notes_subtasks">Sub tasks · %1$d of %2$d done</string>
+    <string name="tv_notes_tomorrow">Move to tomorrow</string>
+    <string name="tv_notes_tick">Tick off</string>
+    <string name="tv_notes_reopen">Open again</string>
+    <string name="tv_notes_untitled">Untitled</string>
+    <string name="tv_notes_note">Note</string>
+    <string name="tv_notes_note_missing">The note cannot be opened on the TV.</string>
+    <string name="tv_notes_note_empty">The note has no text.</string>
+    <string name="tv_notes_no_notes">No notes in this notebook.</string>
+    <string name="tv_notes_key_tick">Tick off</string>
+    <string name="tv_notes_key_menu">Details · Move</string>
+    <string name="tv_notes_key_read">Read</string>
+    <string name="tv_notes_card">Tasks</string>
+    <string name="tv_notes_card_none">nothing open today</string>
+    <string name="tv_pin_fn_notes">Notes (open for 10 min after the PIN)</string>
+    <string name="tv_pin_for_notes">TV PIN for Notes</string>
+    <plurals name="tv_notes_done">
+        <item quantity="one">%1$d done</item>
+        <item quantity="other">%1$d done</item>
+    </plurals>
+    <plurals name="tv_notes_count">
+        <item quantity="one">%1$d note</item>
+        <item quantity="other">%1$d notes</item>
+    </plurals>
+    <plurals name="tv_notes_card_today">
+        <item quantity="one">%1$d today</item>
+        <item quantity="other">%1$d today</item>
+    </plurals>
+    <plurals name="tv_notes_card_overdue">
+        <item quantity="one">%1$d overdue</item>
+        <item quantity="other">%1$d overdue</item>
+    </plurals>
 </resources>
