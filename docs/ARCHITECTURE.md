@@ -63,6 +63,7 @@ app
 ├── core:quickactions → core:common, core:data, core:network, core:door
 ├── core:drive-api  → core:common, core:data, core:network
 ├── core:gatedrop   → core:common, core:data, core:network
+├── core:familie-api → core:common, core:data, core:network (Termine, Alltag/Müll, Einkauf mit Outbox, Agenda)
 └── core:rdp        → core:common, core:network
 
 tv (GateControl TV) → alle core-Module außer core:rdp

@@ -220,7 +220,7 @@ class NotizenApi @Inject constructor(
         get("shopping", if (since != null) mapOf("since" to since) else emptyMap()) { com.gatecontrol.android.familie.FamilieJson.shopping(it) }
 
     /** `POST shopping/ops { ops }`: at most 200, in order, safe to send again. */
-    suspend fun shoppingOps(ops: List<com.gatecontrol.android.familie.shopping.ShoppingOp>): NResult<com.gatecontrol.android.familie.FamilieJson.OpsResult> =
+    suspend fun shoppingOps(ops: List<com.gatecontrol.android.familie.shopping.ShoppingOp>): NResult<com.gatecontrol.android.familie.shopping.ShoppingOpsResult> =
         post("shopping/ops", com.gatecontrol.android.familie.FamilieJson.opsBody(ops)) { com.gatecontrol.android.familie.FamilieJson.opsResult(it) }
 
     /** „Ich gehe einkaufen“ for the family list [uid] (`familyShopping`). */

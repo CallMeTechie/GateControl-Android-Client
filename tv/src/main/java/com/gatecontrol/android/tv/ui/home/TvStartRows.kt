@@ -67,6 +67,14 @@ import com.gatecontrol.android.tv.home.TvSetpoint
 import com.gatecontrol.android.tv.home.TvTile
 import com.gatecontrol.android.tv.ui.theme.GateControlTvTheme
 import com.gatecontrol.android.tv.ui.theme.TV_FOCUS_SCALE
+import com.gatecontrol.android.tv.ui.zuhause.dayWord
+import com.gatecontrol.android.tv.ui.zuhause.entrySubtitle
+import com.gatecontrol.android.tv.ui.zuhause.entryTitle
+import com.gatecontrol.android.tv.ui.zuhause.shortDate
+import com.gatecontrol.android.tv.zuhause.TvHomeToday
+import com.gatecontrol.android.tv.zuhause.TvWaste
+import com.gatecontrol.android.familie.AgendaEntry
+import java.time.LocalDate
 
 /** What the start page shows once paired. */
 data class TvStartUi(
@@ -85,11 +93,14 @@ data class TvStartUi(
     val media: List<com.gatecontrol.android.media.MediaTitle> = emptyList(),
     val mediaSource: String? = null,
     val mediaPictures: Map<String, Bitmap> = emptyMap(),
+    /** "Heute zu Hause": the next bin, the next date, the open shopping (null: the row is off or has nothing). */
+    val home: TvHomeToday? = null,
+    val today: LocalDate = LocalDate.now(),
 )
 
 /**
  * The rows of the start page (mockup "1 · Start"): Schnellaktionen as tiles from the server's start layout, the
- * cameras with their newest still, "Weiterschauen" of the media source, "Zuletzt in Drive", the GateDrop inbox. D-pad: ◀ ▶ within a row, ▲ ▼ between rows,
+ * cameras with their newest still, "Heute zu Hause" (next bin, next date, open shopping), "Weiterschauen" of the media source, "Zuletzt in Drive", the GateDrop inbox. D-pad: ◀ ▶ within a row, ▲ ▼ between rows,
  * OK runs. A heating's tile: OK on its "Ziel" opens the target, ◀ ▶ set it in steps, OK or Zurück send it.
  */
 @Composable
@@ -106,6 +117,8 @@ fun TvStartRows(
     dropCover: suspend (TvDropEntry) -> Bitmap? = { null },
     /** "Weiterschauen": OK plays on, ☰ the details (Medien). */
     media: com.gatecontrol.android.tv.ui.media.TvMediaActions? = null,
+    /** OK on a card of "Heute zu Hause": the page Zuhause. */
+    onHome: () -> Unit = {},
 ) {
     val colors = GateControlTvTheme.colors
     Column(modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
@@ -139,6 +152,17 @@ fun TvStartRows(
                 itemsIndexed(ui.cameras, key = { _, c -> c.id }) { _, cam ->
                     CameraCard(cam, ui.previews[cam.id], onClick = { onCamera(cam) })
                 }
+            }
+        }
+        ui.home?.takeIf { it.waste != null || it.next != null || it.list != null }?.let { home ->
+            RowTitle(stringResource(R.string.tv_row_home_today), null)
+            LazyRow(
+                contentPadding = PaddingValues(start = 2.dp, top = 9.dp, end = 30.dp, bottom = 14.dp),
+                horizontalArrangement = Arrangement.spacedBy(11.dp),
+            ) {
+                home.waste?.let { w -> item(key = "waste") { WasteCard(w, ui.today, onHome) } }
+                home.next?.let { e -> item(key = "next") { DateCard(e, ui.today, onHome) } }
+                home.list?.let { l -> item(key = "shopping") { ShoppingCard(l.name, home.open, onHome) } }
             }
         }
         if (ui.media.isNotEmpty() && media != null) {
@@ -197,7 +221,7 @@ private fun RowTitle(title: String, extra: String?) {
     }
 }
 
-/** A focusable card with the TV focus (ring, glow, zoom). [on]: a switched-on device (green). */
+/** A focusable card with the TV focus (ring, glow, zoom). [on]: a switched-on device (green); [warn]: due (yellow). */
 @Composable
 internal fun TvCard(
     width: Dp,
@@ -205,6 +229,7 @@ internal fun TvCard(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     on: Boolean = false,
+    warn: Boolean = false,
     description: String? = null,
     content: @Composable () -> Unit,
 ) {
@@ -215,18 +240,70 @@ internal fun TvCard(
         modifier = modifier.size(width, height).then(if (description != null) Modifier.semantics { contentDescription = description } else Modifier),
         shape = ClickableSurfaceDefaults.shape(shape),
         colors = ClickableSurfaceDefaults.colors(
-            containerColor = if (on) colors.accentBg else colors.panel,
+            containerColor = if (on) colors.accentBg else if (warn) colors.warnBg else colors.panel,
             contentColor = colors.text,
-            focusedContainerColor = if (on) colors.accentBg else colors.panel2,
+            focusedContainerColor = if (on) colors.accentBg else if (warn) colors.warnBg else colors.panel2,
             focusedContentColor = colors.text,
         ),
         border = ClickableSurfaceDefaults.border(
-            border = Border(BorderStroke(1.dp, if (on) colors.accent.copy(alpha = 0.5f) else colors.line), shape = shape),
+            border = Border(
+                BorderStroke(1.dp, if (on) colors.accent.copy(alpha = 0.5f) else if (warn) colors.warn.copy(alpha = 0.55f) else colors.line),
+                shape = shape,
+            ),
             focusedBorder = Border(BorderStroke(2.dp, colors.focus), shape = shape),
         ),
         glow = ClickableSurfaceDefaults.glow(focusedGlow = Glow(elevationColor = colors.focusGlow, elevation = 16.dp)),
         scale = ClickableSurfaceDefaults.scale(focusedScale = TV_FOCUS_SCALE),
     ) { content() }
+}
+
+private val HomeCardWidth = 168.dp
+
+/** A card of "Heute zu Hause": icon, title, one line below. */
+@Composable
+private fun HomeCard(icon: androidx.compose.ui.graphics.vector.ImageVector, title: String, sub: String, onClick: () -> Unit, warn: Boolean = false) {
+    val colors = GateControlTvTheme.colors
+    TvCard(HomeCardWidth, TileHeight, onClick = onClick, warn = warn, description = "$title, $sub") {
+        Column(Modifier.fillMaxSize().padding(9.dp), verticalArrangement = Arrangement.SpaceBetween) {
+            Icon(icon, contentDescription = null, tint = if (warn) colors.warn else colors.muted, modifier = Modifier.size(16.dp))
+            Column {
+                Text(title, style = MaterialTheme.typography.labelMedium, color = colors.text, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(sub, style = MaterialTheme.typography.bodySmall, color = if (warn) colors.warn else colors.muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+        }
+    }
+}
+
+/** The next bin: "Gelbe Tonne", "morgen früh rausstellen" (yellow from the evening before), else its day. */
+@Composable
+private fun WasteCard(w: TvWaste, today: LocalDate, onClick: () -> Unit) {
+    val sub = when {
+        w.date == today -> stringResource(R.string.tv_home_card_waste_today)
+        w.soon -> stringResource(R.string.tv_home_card_waste_tomorrow)
+        else -> dayWord(w.date, today) ?: shortDate(w.date)
+    }
+    HomeCard(TvIcons.Trash, w.kind, sub, onClick, warn = w.soon)
+}
+
+/** The next date: "18:30 Elternabend", "heute · Familie". */
+@Composable
+private fun DateCard(e: AgendaEntry, today: LocalDate, onClick: () -> Unit) {
+    val date = runCatching { LocalDate.parse(e.date) }.getOrNull()
+    val title = listOfNotNull(e.time, entryTitle(e)).joinToString(" ")
+    val source = entrySubtitle(e)
+    val sub = when (date) {
+        today -> stringResource(R.string.tv_home_card_today, source)
+        today.plusDays(1) -> stringResource(R.string.tv_home_card_tomorrow, source)
+        null -> source
+        else -> "${shortDate(date)} · $source"
+    }
+    HomeCard(TvIcons.Calendar, title, sub, onClick)
+}
+
+/** The open shopping: "Einkauf", "7 offen · Wocheneinkauf". */
+@Composable
+private fun ShoppingCard(list: String, open: Int, onClick: () -> Unit) {
+    HomeCard(TvIcons.Cart, stringResource(R.string.tv_home_shopping), pluralStringResource(R.plurals.tv_home_card_open, open, open, list), onClick)
 }
 
 private val TileWidth = 118.dp

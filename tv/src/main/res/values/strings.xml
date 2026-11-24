@@ -8,7 +8,6 @@
     <string name="tv_nav_cameras">Cameras</string>
     <string name="tv_nav_drive">Drive</string>
     <string name="tv_nav_gatedrop">GateDrop</string>
-    <string name="tv_nav_family">Family</string>
     <string name="tv_nav_settings">Settings</string>
 
     <!-- Start page: placeholder rows until pairing (stage 1) -->
@@ -474,5 +473,74 @@
     <plurals name="tv_media_series_seasons">
         <item quantity="one">Series · %1$d season</item>
         <item quantity="other">Series · %1$d seasons</item>
+    </plurals>
+
+    <!-- Zuhause (stage 3b): waste collection, calendar of Familie and Alltag, shopping; start row, voice test -->
+    <string name="tv_nav_home">Home</string>
+    <string name="tv_row_home_today">At home today</string>
+    <string name="tv_home_waste">Waste collection</string>
+    <string name="tv_home_waste_source">Alltag</string>
+    <string name="tv_home_waste_none">No collection in the next weeks.</string>
+    <string name="tv_home_waste_missing">The Alltag plugin is not available.</string>
+    <string name="tv_home_today">today</string>
+    <string name="tv_home_tomorrow">tomorrow</string>
+    <string name="tv_home_every_week">weekly</string>
+    <string name="tv_home_every_two_weeks">every 2 weeks</string>
+    <string name="tv_home_every_month">monthly</string>
+    <string name="tv_home_every_days">every %1$d days</string>
+    <string name="tv_home_calendar">Calendar</string>
+    <string name="tv_home_calendar_source">Familie and Alltag · 7 days</string>
+    <string name="tv_home_day_today">Today · %1$s</string>
+    <string name="tv_home_day_tomorrow">Tomorrow · %1$s</string>
+    <string name="tv_home_all_day">all day</string>
+    <string name="tv_home_birthday">Birthday</string>
+    <string name="tv_home_familie">Familie</string>
+    <string name="tv_home_calendar_empty">Nothing in the next 7 days.</string>
+    <string name="tv_home_calendar_missing">Familie and Alltag are not available.</string>
+    <string name="tv_home_offline">No connection – the last state shows.</string>
+    <string name="tv_home_loading">Loading…</string>
+    <string name="tv_home_shopping">Shopping</string>
+    <string name="tv_home_add">Add something</string>
+    <string name="tv_home_add_label">New entry</string>
+    <string name="tv_home_add_send">Add</string>
+    <string name="tv_home_voice_hint">OK for the keyboard, then hold the microphone button and speak.</string>
+    <string name="tv_home_other_list">Other list</string>
+    <string name="tv_home_choose_list">Choose a list</string>
+    <string name="tv_home_checked">“%1$s” ticked</string>
+    <string name="tv_home_undo">Undo</string>
+    <string name="tv_home_done_by">done by %1$s</string>
+    <string name="tv_home_done">done</string>
+    <string name="tv_home_list_empty">Nothing on the list.</string>
+    <string name="tv_home_no_lists">No shopping list yet. Create one in the app.</string>
+    <string name="tv_home_shopping_missing">Shopping lists are not available.</string>
+    <string name="tv_home_key_ok">Tick / open</string>
+    <string name="tv_home_key_column">Column</string>
+    <string name="tv_home_card_waste_tomorrow">put out tomorrow morning</string>
+    <string name="tv_home_card_waste_today">collected today</string>
+    <string name="tv_home_card_no_date">No dates this week</string>
+    <string name="tv_home_card_today">today · %1$s</string>
+    <string name="tv_home_card_tomorrow">tomorrow · %1$s</string>
+    <string name="tv_set_start">Start page</string>
+    <string name="tv_set_start_desc">The rows of the start page. Quick actions always show.</string>
+    <string name="tv_dictation">Test voice input</string>
+    <string name="tv_dictation_desc">Try whether dictation works on this TV. Nothing is sent or saved.</string>
+    <string name="tv_dictation_compose">Field 1 (Compose)</string>
+    <string name="tv_dictation_classic">Field 2 (classic Android field)</string>
+    <string name="tv_dictation_result">What arrived</string>
+    <string name="tv_dictation_empty">Nothing yet</string>
+    <string name="tv_dictation_privacy">Dictation is a feature of Fire OS and Alexa: Amazon processes what you say, not GateControl.</string>
+    <string name="tv_dictation_clear">Clear</string>
+    <string name="tv_dictation_close">Close</string>
+    <plurals name="tv_home_open">
+        <item quantity="one">%1$d open</item>
+        <item quantity="other">%1$d open</item>
+    </plurals>
+    <plurals name="tv_home_pending">
+        <item quantity="one">%1$d change waits to be sent</item>
+        <item quantity="other">%1$d changes wait to be sent</item>
+    </plurals>
+    <plurals name="tv_home_card_open">
+        <item quantity="one">%1$d open · %2$s</item>
+        <item quantity="other">%1$d open · %2$s</item>
     </plurals>
 </resources>

@@ -79,6 +79,12 @@ import com.gatecontrol.android.tv.ui.settings.TvSettingsPage
 import com.gatecontrol.android.tv.ui.settings.TvUpdateUi
 import com.gatecontrol.android.tv.ui.theme.GateControlTvTheme
 import com.gatecontrol.android.tv.update.TvUpdateViewModel
+import com.gatecontrol.android.tv.ui.settings.TvStartRowOptions
+import com.gatecontrol.android.tv.ui.settings.TvVoiceTestOption
+import com.gatecontrol.android.tv.ui.zuhause.TvZuhauseActions
+import com.gatecontrol.android.tv.ui.zuhause.TvZuhausePage
+import com.gatecontrol.android.tv.zuhause.TvZuhause
+import com.gatecontrol.android.tv.zuhause.TvZuhauseViewModel
 import dagger.hilt.android.AndroidEntryPoint
 import timber.log.Timber
 import javax.inject.Inject
@@ -98,6 +104,7 @@ class TvActivity : ComponentActivity() {
     private val prefs: TvPrefsViewModel by viewModels()
     private val drive: TvDriveViewModel by viewModels()
     private val mediaVm: TvMediaViewModel by viewModels()
+    private val zuhause: TvZuhauseViewModel by viewModels()
 
     @Inject lateinit var pairingApi: TvPairingApi
     @Inject lateinit var supervisor: TvSupervisor
@@ -105,6 +112,7 @@ class TvActivity : ComponentActivity() {
     @Inject lateinit var selection: TvMediaSelection
     @Inject lateinit var frameSource: TvFrameSource
     @Inject lateinit var media: TvMedia
+    @Inject lateinit var zuhauseData: TvZuhause
 
     private val vpnConsent = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         main.onConsent(result.resultCode == RESULT_OK)
@@ -320,6 +328,17 @@ class TvActivity : ComponentActivity() {
         val mediaLink by mediaVm.link.collectAsStateWithLifecycle()
         val mediaPictures by mediaVm.pictures.collectAsStateWithLifecycle()
         val mediaActions = remember { mediaActions(showMedia = { requested = TvDestination.Media }) }
+        val homeUi by zuhause.ui.collectAsStateWithLifecycle()
+        val rowsOff by prefs.startRows.collectAsStateWithLifecycle()
+        val homeActions = remember {
+            TvZuhauseActions(
+                onStart = { zuhause.refresh(force = true) },
+                onToggle = zuhause::toggle,
+                onUndo = zuhause::undo,
+                onAdd = zuhause::add,
+                onChooseList = zuhause::chooseList,
+            )
+        }
         // the photo frame when nothing happened for a while (only while GateControl is in front)
         // (only with photos shared: GET frame is asked first — a screen saver never shows just a hint)
         LaunchedEffect(frame) {
@@ -341,6 +360,7 @@ class TvActivity : ComponentActivity() {
             startPage = {
                 DisposableEffect(Unit) {
                     home.setVisible(true)
+                    if (TvStartRow.HOME_TODAY !in rowsOff) zuhause.refresh()
                     drive.loadRecent()
                     mediaVm.refreshResume()
                     onDispose { home.setVisible(false) }
@@ -349,16 +369,19 @@ class TvActivity : ComponentActivity() {
                 val driveOpen = !pinState.needsPin(TvPinFunction.DRIVE)
                 TvStartRows(
                     ui = TvStartUi(
-                        tiles, busy, cameras, previews, notice,
+                        tiles, busy, if (TvStartRow.CAMERAS in rowsOff) emptyList() else cameras, previews, notice,
                         loading = load is QuickActionsLoad.Loading || load is QuickActionsLoad.Idle,
-                        drive = if (driveOpen) recent else emptyList(),
+                        drive = if (driveOpen && TvStartRow.DRIVE !in rowsOff) recent else emptyList(),
                         drivePreviews = drivePreviews,
-                        drops = dropEntries,
-                        media = mediaUi.resume,
+                        drops = if (TvStartRow.GATEDROP in rowsOff) emptyList() else dropEntries,
+                        media = if (TvStartRow.MEDIA in rowsOff) emptyList() else mediaUi.resume,
                         mediaSource = (mediaUi.source ?: mediaUi.shares.firstOrNull())?.let { TvMediaLogic.sourceLabel(it, getString(R.string.tv_media_share)) },
                         mediaPictures = mediaPictures,
+                        home = if (TvStartRow.HOME_TODAY in rowsOff) null else homeUi.home,
+                        today = homeUi.today,
                     ),
                     media = mediaActions,
+                    onHome = { requested = TvDestination.Home },
                     onDrop = { dropOpen = it },
                     dropCover = ::dropCover,
                     onDrive = { node ->
@@ -423,6 +446,7 @@ class TvActivity : ComponentActivity() {
                     onStart = gatedrop::poll,
                 )
             },
+            homePage = { TvZuhausePage(homeUi, homeActions) },
             onOpen = { destination, open ->
                 val function = when (destination) {
                     TvDestination.Settings -> TvPinFunction.SETTINGS
@@ -447,6 +471,7 @@ class TvActivity : ComponentActivity() {
                         main.unpair {
                             gatedrop.clear()
                             media.clear()
+                            zuhauseData.clear()
                             pairing.reset()
                         }
                     },
@@ -459,6 +484,8 @@ class TvActivity : ComponentActivity() {
                         val frameStatus by prefs.frameStatus.collectAsStateWithLifecycle()
                         TvFrameOptions(frame, frameStatus, prefs.frameServer(), prefs::setFrame, ::startFrame, prefs::refreshFrame)
                     },
+                    startRows = { TvStartRowOptions(rowsOff, prefs::setStartRow) },
+                    voiceTest = { TvVoiceTestOption() },
                 )
             },
         )

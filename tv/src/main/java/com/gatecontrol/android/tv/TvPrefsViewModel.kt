@@ -53,6 +53,11 @@ class TvPrefsViewModel @Inject constructor(
     val pin: StateFlow<TvPinState> = pins.state
     val frame: StateFlow<TvFrameSettings> = settings.frame
 
+    /** Startseite: the rows switched off. */
+    val startRows: StateFlow<Set<TvStartRow>> = settings.startRows
+
+    fun setStartRow(row: TvStartRow, on: Boolean) = settings.setStartRow(row, on)
+
     /** What the photo frame can show (the last `GET frame`). */
     val frameStatus: StateFlow<TvFrameStatus> = frameSource.status
 

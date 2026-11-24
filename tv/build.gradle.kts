@@ -112,6 +112,8 @@ dependencies {
     implementation(project(":core:quickactions"))
     implementation(project(":core:drive-api"))
     implementation(project(":core:gatedrop"))
+    // Zuhause: waste collection, the calendar of Familie and Alltag, the shopping lists (offline, outbox)
+    implementation(project(":core:familie-api"))
     implementation(project(":core:tunnel"))
     // Medien: Jellyfin, SMB and WebDAV shares, shared with the phone app later
     implementation(project(":core:media"))

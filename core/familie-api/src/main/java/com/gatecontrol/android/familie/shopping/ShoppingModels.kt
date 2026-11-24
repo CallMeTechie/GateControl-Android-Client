@@ -115,3 +115,14 @@ data class ShoppingData(
     /** Epoch ms of the last successful sync (0 = never). */
     val lastSyncMs: Long = 0,
 )
+
+/**
+ * The answer of `POST shopping/ops`: how many ops the server applied, the refused ones (index, code), its clock.
+ * [completed] (the hub only): the tasks „alles abgehakt“ just completed.
+ */
+data class ShoppingOpsResult(
+    val applied: Int,
+    val rejected: List<Pair<Int, String>>,
+    val serverTime: String?,
+    val completed: List<ShoppingCompleted> = emptyList(),
+)

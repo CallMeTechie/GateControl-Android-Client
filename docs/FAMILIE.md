@@ -42,10 +42,11 @@ every other call of the app.
 |---|---|
 | `core/network` `ApiClient` | `getClientPlugins`, `pluginGet/Post/Patch/Delete` (raw JSON, path built by the app) |
 | `core/notify` | `PushMessage.dataJson` (the message's `data` object as text), `PushPresenter.onNew()` hook (first arrival of a message, also when its topic is muted) |
-| `familie/FamilieApi.kt` | one method per B3 endpoint, `FamilieResult` (Ok / Failed(code, http) / Offline / NotConfigured), never throws |
-| `familie/FamilieJson.kt` | parsers (lenient booleans, strict ids, plain capped text) and request bodies |
+| `core/familie-api` | shared with GateControl TV: `FamilieResult` (Ok / Failed(code, http) / Offline / NotConfigured), `FamiliePluginCalls` (the plugin bridge, never throws), `FamilieHomeApi` (shopping, dates, Alltag `app/events`), `FamilieJsonBase` (readers, shopping, dates, Alltag), `Agenda`, `FamilieStorage`, `shopping/` (`ShoppingModels`, `ShoppingLogic`, `ShoppingStore` + `ShoppingSyncEngine`) |
+| `familie/FamilieApi.kt` | one method per B3 endpoint (shopping, dates and Alltag passed on to `FamilieHomeApi`), never throws |
+| `familie/FamilieJson.kt` | parsers (lenient booleans, strict ids, plain capped text) and request bodies, on top of `FamilieJsonBase` |
 | `familie/FamilieRepository.kt` | `GET me` cached in `files/familie/profile.json` (offline start, background work), push events for open screens, SOS state |
-| `familie/shopping/` | offline shopping lists: `ShoppingLogic` (view = server snapshot + outbox, merge), `ShoppingStore` + `ShoppingSyncEngine` (shared with the hub's lists), `ShoppingRepository`, `ShoppingSyncWorker` |
+| `familie/shopping/` | offline shopping lists of the phone: `ShoppingRepository`, `ShoppingSyncWorker` (the logic, store and sync engine are in `core/familie-api`, shared with the hub's lists and the TV) |
 | `familie/push/` | `FamiliePush` (parse `data.familie`, routing, buttons), `FamiliePushHandler`, `FamilieActionReceiver`, `FamilieLocateActivity`, `FamilieOpenActivity`, `FamilieLocalNotifier` |
 | `familie/locate/` | `LocateAnswerer` (fix + answer/fail), `FamiliePermissions` (pure permission decisions) |
 | `familie/places/` | `GeofenceRegistrar`, `GeofenceReceiver`, `PlaceTriggerWorker` |

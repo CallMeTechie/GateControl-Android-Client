@@ -2,6 +2,7 @@ package com.gatecontrol.android.familie
 
 import android.content.Context
 import android.util.AtomicFile
+import com.gatecontrol.android.common.LoginOwner
 import com.gatecontrol.android.data.SetupRepository
 import com.google.gson.Gson
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -25,7 +26,7 @@ class FamilieStorage @Inject constructor(
     private val dir: File get() = File(context.filesDir, "familie").apply { mkdirs() }
 
     /** Login (server + token) the stored data belongs to. */
-    fun ownerKey(): String = PluginDirectory.ownerKey(setupRepository.getServerUrl(), setupRepository.getApiToken())
+    fun ownerKey(): String = LoginOwner.key(setupRepository.getServerUrl(), setupRepository.getApiToken())
 
     @Synchronized
     fun <T> read(name: String, type: Type): T? = try {
