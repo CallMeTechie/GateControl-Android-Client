@@ -65,6 +65,7 @@
     <string name="rdp_credential_none">Manual login</string>
     <string name="rdp_progress_vpn">Checking VPN&#8230;</string>
     <string name="rdp_progress_tcp">Checking host&#8230;</string>
+    <string name="rdp_progress_host_access">Waiting for the PC&#8230;</string>
     <string name="rdp_progress_creds">Loading credentials&#8230;</string>
     <string name="rdp_progress_launch">Launching client&#8230;</string>
     <string name="rdp_progress_session">Starting session&#8230;</string>
@@ -91,6 +92,12 @@
     <string name="rdp_session_connecting">Connecting to the remote desktop&#8230;</string>
     <string name="rdp_session_failed_title">Connection failed</string>
     <string name="rdp_session_failed_message">The remote desktop did not set up the connection. Check that the PC is on and in the VPN, that Remote Desktop is allowed there and that user name and password are right.</string>
+    <string name="rdp_session_timeout_message">No picture came from the remote desktop within 30 seconds. Check that the PC is on and reachable in the VPN, and that its firewall allows Remote Desktop (for a PC with Fernzugriff: that the GateControl app there is connected).</string>
+    <string name="rdp_error_firewall_timeout">The PC did not open access in time – is it on and is the GateControl app there connected?</string>
+    <string name="rdp_error_firewall_refused">The PC refused access or could not open it. Check on the PC that remote access is switched on in the GateControl app, then try again.</string>
+    <string name="rdp_error_code_required">This PC needs a code – it is shown in the Windows app under Settings › Security.</string>
+    <string name="rdp_error_host_offline">The PC is not ready – is it on and is the GateControl app there connected?</string>
+    <string name="rdp_error_no_vpn">The server does not know this device\'s VPN address yet. Connect the VPN and try again.</string>
 
     <!-- Settings -->
     <string name="settings_title">Settings</string>

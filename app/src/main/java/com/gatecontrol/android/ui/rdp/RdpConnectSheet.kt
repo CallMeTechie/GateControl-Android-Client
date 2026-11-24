@@ -1,5 +1,6 @@
 package com.gatecontrol.android.ui.rdp
 
+import androidx.annotation.StringRes
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -43,6 +44,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import com.gatecontrol.android.R
 import com.gatecontrol.android.network.RdpRoute
+import com.gatecontrol.android.rdp.RdpConnectFailure
 import com.gatecontrol.android.rdp.RdpProgress
 import com.gatecontrol.android.ui.components.GcOutlineButton
 import com.gatecontrol.android.ui.components.GcPrimaryButton
@@ -95,7 +97,7 @@ fun RdpConnectSheet(
                 onDisconnect = onDisconnect
             )
             is ConnectState.Error -> ErrorView(
-                message = state.message,
+                message = state.failure?.let { stringResource(connectFailureText(it)) } ?: state.message,
                 onRetry = { onConnect(null, false) },
                 onClose = onDismiss
             )
@@ -236,9 +238,10 @@ private fun ConnectingView(
         val steps = listOf(
             RdpProgress.VPN_CHECK to stringResource(R.string.rdp_progress_vpn),
             RdpProgress.TCP_CHECK to stringResource(R.string.rdp_progress_tcp),
+            RdpProgress.HOST_ACCESS to stringResource(R.string.rdp_progress_host_access),
             RdpProgress.CREDENTIALS to stringResource(R.string.rdp_progress_creds),
-            RdpProgress.CLIENT_LAUNCH to stringResource(R.string.rdp_progress_launch),
             RdpProgress.SESSION_START to stringResource(R.string.rdp_progress_session),
+            RdpProgress.CLIENT_LAUNCH to stringResource(R.string.rdp_progress_launch),
             RdpProgress.SERVICE_START to stringResource(R.string.rdp_progress_service),
             RdpProgress.COMPLETE to stringResource(R.string.rdp_progress_done)
         )
@@ -492,6 +495,16 @@ private fun ConnectedView(
 // ---------------------------------------------------------------------------
 // Error view
 // ---------------------------------------------------------------------------
+
+/** The app's words for a refusal of /connect (a PC registered with Fernzugriff). */
+@StringRes
+internal fun connectFailureText(failure: RdpConnectFailure): Int = when (failure) {
+    RdpConnectFailure.FIREWALL_TIMEOUT -> R.string.rdp_error_firewall_timeout
+    RdpConnectFailure.FIREWALL_REFUSED -> R.string.rdp_error_firewall_refused
+    RdpConnectFailure.CODE_REQUIRED -> R.string.rdp_error_code_required
+    RdpConnectFailure.HOST_OFFLINE -> R.string.rdp_error_host_offline
+    RdpConnectFailure.NO_VPN -> R.string.rdp_error_no_vpn
+}
 
 @Composable
 private fun ErrorView(

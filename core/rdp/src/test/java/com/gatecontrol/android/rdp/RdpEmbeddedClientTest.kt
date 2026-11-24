@@ -155,6 +155,12 @@ class RdpEmbeddedClientTest {
     // Helpers
     // -------------------------------------------------------------------------
 
+    @Test
+    fun `collectExtras carries the server session id for the end report`() {
+        val extras = client.collectExtras(buildFullParams().copy(serverSessionId = 42))
+        assertEquals(42, extras[RdpEmbeddedClient.EXTRA_SESSION_ID])
+    }
+
     private fun buildFullParams() = RdpConnectionParams(
         host = "192.168.1.100",
         port = 3389,

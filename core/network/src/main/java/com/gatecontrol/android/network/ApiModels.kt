@@ -341,8 +341,9 @@ data class RdpHeartbeatRequest(
     val sessionId: Int
 )
 
+/** [sessionId] null: the server ends this caller's latest active session of the route. */
 data class RdpEndSessionRequest(
-    val sessionId: Int,
+    val sessionId: Int?,
     val endReason: String
 )
 

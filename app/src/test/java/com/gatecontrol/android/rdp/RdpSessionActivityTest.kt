@@ -62,6 +62,13 @@ class RdpSessionActivityTest {
     }
 
     @Test
+    fun `parseConnectionParams reads the server session id the window reports the end with`() {
+        val intent = buildIntent()
+        every { intent.getIntExtra(RdpEmbeddedClient.EXTRA_SESSION_ID, 0) } returns 42
+        assertEquals(42, RdpSessionActivity.parseConnectionParams(intent)!!.serverSessionId)
+    }
+
+    @Test
     fun `parseConnectionParams returns null when host is missing`() {
         val intent = buildIntent(host = null)
         val params = RdpSessionActivity.parseConnectionParams(intent)

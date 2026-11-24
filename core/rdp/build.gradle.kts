@@ -40,6 +40,9 @@ dependencies {
     implementation(project(":core:common"))
     implementation(project(":core:data"))
     implementation(project(":core:network"))
+    // retrofit2.HttpException: the status and error body of a refused /connect
+    implementation(libs.retrofit)
+    implementation(libs.okhttp)
 
     implementation(libs.core.ktx)
     implementation(libs.hilt.android)
