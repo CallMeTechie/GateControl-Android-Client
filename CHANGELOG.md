@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.148.0] - 2026-11-24
+
+### Features
+- Stufe 3c Notizen und Aufgaben (#284)
+
+---
+
 ## [1.147.0] - 2026-11-24
 
 ### Features
