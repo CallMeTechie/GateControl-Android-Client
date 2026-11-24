@@ -3,21 +3,17 @@ package com.gatecontrol.android.tv.media
 import android.content.Context
 import android.content.res.Resources
 import androidx.annotation.OptIn
-import androidx.core.net.toUri
-import androidx.media3.common.C
-import androidx.media3.common.MediaItem
-import androidx.media3.common.MimeTypes
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.DataSource
-import androidx.media3.datasource.okhttp.OkHttpDataSource
-import com.gatecontrol.android.media.MediaAddress
 import com.gatecontrol.android.media.MediaAudioFate
+import com.gatecontrol.android.media.MediaHub
 import com.gatecontrol.android.media.MediaLibrary
 import com.gatecontrol.android.media.MediaPlan
 import com.gatecontrol.android.media.MediaPlay
 import com.gatecontrol.android.media.MediaProgress
 import com.gatecontrol.android.media.MediaQuality
 import com.gatecontrol.android.media.MediaQualitySetting
+import com.gatecontrol.android.media.MediaQueue
 import com.gatecontrol.android.media.MediaResult
 import com.gatecontrol.android.media.MediaSource
 import com.gatecontrol.android.media.MediaStream
@@ -26,12 +22,13 @@ import com.gatecontrol.android.media.MediaTracks
 import com.gatecontrol.android.media.MediaVersion
 import com.gatecontrol.android.media.PlayMethod
 import com.gatecontrol.android.media.jellyfin.JellyfinDeviceCaps
+import com.gatecontrol.android.media.player.PlaybackEvent
+import com.gatecontrol.android.media.player.MediaPlayers
 import com.gatecontrol.android.tv.R
 import com.gatecontrol.android.tv.ui.drive.TvChoice
 import com.gatecontrol.android.tv.ui.drive.TvChoiceKind
 import com.gatecontrol.android.tv.ui.drive.TvChoices
 import com.gatecontrol.android.tv.ui.drive.TvOpen
-import com.gatecontrol.android.tv.ui.drive.TvPlayEvent
 import com.gatecontrol.android.tv.ui.drive.TvVideoSource
 import java.util.Locale
 
@@ -42,8 +39,8 @@ import java.util.Locale
  * Jellyfin and "Nächste Folge in 10 s".
  */
 class TvMediaVideos(
-    private val queue: TvMediaQueue,
-    private val media: TvMedia,
+    private val queue: MediaQueue,
+    private val media: MediaHub,
     private val res: Resources,
 ) : TvVideoSource {
 
@@ -91,10 +88,9 @@ class TvMediaVideos(
 
     @OptIn(UnstableApi::class)
     override fun factory(context: Context): DataSource.Factory? {
-        val lib = library ?: return null
+        if (library == null) return null
         // a share's file through its own connection (SMB, or WebDAV with its access), read at the player's place
-        if (share) return TvShareDataSource.Factory { library?.files() }
-        return OkHttpDataSource.Factory(media.http(MediaAddress.host(source!!.address))).setDefaultRequestProperties(lib.headers())
+        return MediaPlayers.dataSource(media, source!!)
     }
 
     /** Where Jellyfin has it (or the detail page's "Von vorn"); only for the first title of the queue. */
@@ -138,26 +134,12 @@ class TvMediaVideos(
         text[i] = plan.subtitleIndex ?: s
         if (share) {
             val via = if (lib.files()?.kind == com.gatecontrol.android.media.MediaSourceKind.WEBDAV) "WebDAV" else "SMB"
-            return TvOpen.Ready(MediaItem.Builder().setUri(plan.url).setMediaId(key(i)).build(), info = res.getString(R.string.tv_media_info_share, via))
-        }
-        val builder = MediaItem.Builder().setUri(plan.url).setMediaId(key(i))
-        if (plan.hls) builder.setMimeType(MimeTypes.APPLICATION_M3U8)
-        if (plan.sideSubtitles.isNotEmpty()) {
-            builder.setSubtitleConfigurations(
-                plan.sideSubtitles.map { sub ->
-                    MediaItem.SubtitleConfiguration.Builder(sub.url.toUri())
-                        .setMimeType(sub.mime)
-                        .setLanguage(sub.language)
-                        .setLabel(sub.label)
-                        .setSelectionFlags(C.SELECTION_FLAG_DEFAULT)
-                        .build()
-                },
-            )
+            return TvOpen.Ready(MediaPlayers.item(plan, key(i)), info = res.getString(R.string.tv_media_info_share, via))
         }
         val direct = plan.method == PlayMethod.DIRECT_PLAY
         val subtitle = text[i]
         return TvOpen.Ready(
-            item = builder.build(),
+            item = MediaPlayers.item(plan, key(i)),
             info = info(plan),
             // played directly the file brings all its tracks: the chosen ones by their place
             audioOrdinal = if (direct) MediaTracks.ordinal(plan.version, plan.audioIndex) else null,
@@ -273,15 +255,15 @@ class TvMediaVideos(
         media.store.setTrackChoice(seriesId, MediaTracks.choiceOf(version, audio[i], text[i]))
     }
 
-    override fun report(i: Int, event: TvPlayEvent, positionMs: Long, paused: Boolean, durationMs: Long) {
+    override fun report(i: Int, event: PlaybackEvent, positionMs: Long, paused: Boolean, durationMs: Long) {
         val lib = library ?: return
         val plan = plans[i] ?: return
         val p = MediaProgress(plan, positionMs.coerceAtLeast(0), paused, durationMs.coerceAtLeast(0))
         media.later {
             when (event) {
-                TvPlayEvent.START -> lib.started(p)
-                TvPlayEvent.PROGRESS -> lib.progress(p)
-                TvPlayEvent.STOP -> lib.stopped(p)
+                PlaybackEvent.START -> lib.started(p)
+                PlaybackEvent.PROGRESS -> lib.progress(p)
+                PlaybackEvent.STOP -> lib.stopped(p)
             }
         }
     }

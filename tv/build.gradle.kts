@@ -121,8 +121,10 @@ dependencies {
     // Nachrichten › Chats: the messenger's API, answers, realtime events and bridge rules (always `?bridged=1`)
     implementation(project(":core:chat-api"))
     implementation(project(":core:tunnel"))
-    // Medien: Jellyfin, SMB and WebDAV shares, shared with the phone app later
+    // Medien: Jellyfin, SMB and WebDAV shares and their hub, shared with the phone app later
     implementation(project(":core:media"))
+    // the player's Media3 parts (a share's data source, tracks, progress, Jellyfin's header, the HDMI sink's profile)
+    implementation(project(":core:media-player"))
     // the photo frame reads Drive's `GET frame` itself (JsonObject of the plugin bridge)
     implementation(libs.retrofit.gson)
 

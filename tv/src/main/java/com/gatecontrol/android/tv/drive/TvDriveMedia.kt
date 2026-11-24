@@ -115,7 +115,7 @@ class TvMediaSelection @Inject constructor() {
 
     /** Films and episodes of a media source (Medien) instead of Drive's or GateDrop's files. */
     @Volatile
-    var media: com.gatecontrol.android.tv.media.TvMediaQueue? = null
+    var media: com.gatecontrol.android.media.MediaQueue? = null
         private set
 
     /** Pictures of another source (a chat's photos, stage 3e) instead of Drive's or GateDrop's files. */
@@ -133,7 +133,7 @@ class TvMediaSelection @Inject constructor() {
         this.at = at.coerceIn(0, (source.count - 1).coerceAtLeast(0))
     }
 
-    fun setMedia(queue: com.gatecontrol.android.tv.media.TvMediaQueue) {
+    fun setMedia(queue: com.gatecontrol.android.media.MediaQueue) {
         photos = null
         items = emptyList()
         document = false

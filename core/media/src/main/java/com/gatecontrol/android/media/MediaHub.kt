@@ -1,22 +1,9 @@
-package com.gatecontrol.android.tv.media
+package com.gatecontrol.android.media
 
-import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
-import androidx.annotation.OptIn
-import androidx.media3.common.AudioAttributes
-import androidx.media3.common.C
-import androidx.media3.common.util.UnstableApi
-import androidx.media3.exoplayer.audio.AudioCapabilities
 import com.gatecontrol.android.homecache.HomeCacheLan
-import com.gatecontrol.android.media.MediaAddress
-import com.gatecontrol.android.media.MediaClientInfo
-import com.gatecontrol.android.media.MediaLibrary
-import com.gatecontrol.android.media.MediaQualitySetting
-import com.gatecontrol.android.media.MediaResult
-import com.gatecontrol.android.media.MediaSource
-import com.gatecontrol.android.media.MediaSourceKind
-import com.gatecontrol.android.media.MediaSourceStore
+import com.gatecontrol.android.media.jellyfin.JellyfinAuthorize
 import com.gatecontrol.android.media.jellyfin.JellyfinDeviceCaps
 import com.gatecontrol.android.media.jellyfin.JellyfinDiscovery
 import com.gatecontrol.android.media.jellyfin.JellyfinLibrary
@@ -26,11 +13,6 @@ import com.gatecontrol.android.media.share.ShareFs
 import com.gatecontrol.android.media.share.ShareLibrary
 import com.gatecontrol.android.media.share.SmbFs
 import com.gatecontrol.android.media.share.WebDavFs
-import com.gatecontrol.android.tv.R
-import com.gatecontrol.android.tv.BuildConfig
-import com.gatecontrol.android.tv.TvSettings
-import com.gatecontrol.android.tv.pair.TvPairingApi
-import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -51,24 +33,23 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
- * Where the TV is for its media: at home (the server's home-network check, as the home cache) or away, and the
+ * Where the device is for its media: at home (the server's home-network check, as the home cache) or away, and the
  * bandwidth from the NAS measured just now ("Unterwegs · 18 Mbit/s"). [atHome] null: not known yet.
  */
-data class TvMediaLink(val atHome: Boolean? = null, val bps: Long? = null, val measuredAt: Long = 0)
+data class MediaLink(val atHome: Boolean? = null, val bps: Long? = null, val measuredAt: Long = 0)
 
 /**
- * The media of GateControl TV (stage 2, "Medien"): the stored sources, one [MediaLibrary] per source (a share set up
- * as SMB and as WebDAV is one: at home SMB, away WebDAV), the connection (at home straight through the Wi-Fi, also
- * while the tunnel is up; away through the tunnel), the bandwidth, what the HDMI sink plays, the posters and the
- * progress reports (which outlive the player). Shared by the page, the start page's "Weiterschauen" and the player.
+ * The media of the own NAS for an app (GateControl TV, later the phone app): the stored sources, one [MediaLibrary]
+ * per source (a share set up as SMB and as WebDAV is one: at home SMB, away WebDAV), the connection (at home straight
+ * through the Wi-Fi, also while the tunnel is up; away through the tunnel), the bandwidth, what the device plays
+ * ([MediaDevice.caps]), the posters and the progress reports (which outlive the player). Shared by the pages, the
+ * start page's "Weiterschauen" and the player. No UI state: the pages keep theirs ([MediaBrowse], [MediaSetup]).
  */
 @Singleton
-class TvMedia @Inject constructor(
-    @ApplicationContext private val context: Context,
+class MediaHub @Inject constructor(
     val store: MediaSourceStore,
     private val homeLan: HomeCacheLan,
-    private val settings: TvSettings,
-    private val pairing: TvPairingApi,
+    private val device: MediaDevice,
 ) {
     /** Reports and other work that must finish after a page or the player is gone. */
     val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -86,17 +67,17 @@ class TvMedia @Inject constructor(
     /** Per source (a pair under its SMB source): the libraries by their access and network, made once each. */
     private val libraries = ConcurrentHashMap<String, Pair<String, MediaLibrary>>()
 
-    private val _link = MutableStateFlow(TvMediaLink())
-    val link: StateFlow<TvMediaLink> = _link.asStateFlow()
+    private val _link = MutableStateFlow(MediaLink())
+    val link: StateFlow<MediaLink> = _link.asStateFlow()
 
     private val _current = MutableStateFlow<String?>(null)
 
     /** The Jellyfin server the page shows ("▲ Quelle wechseln"); the first one when none was chosen. Shares show always. */
     val current: StateFlow<String?> = _current.asStateFlow()
 
-    val quality: StateFlow<MediaQualitySetting> get() = settings.mediaQuality
+    val quality: StateFlow<MediaQualitySetting> get() = device.quality
 
-    fun setQuality(value: MediaQualitySetting) = settings.setMediaQuality(value)
+    fun setQuality(value: MediaQualitySetting) = device.setQuality(value)
 
     fun currentSource(): MediaSource? {
         val list = store.sources.value.filter { it.kind == MediaSourceKind.JELLYFIN }
@@ -104,14 +85,14 @@ class TvMedia @Inject constructor(
     }
 
     /** The shares the page shows, a pair once (as its SMB source). */
-    fun shares(): List<MediaSource> = TvMediaLogic.shares(store.sources.value)
+    fun shares(): List<MediaSource> = MediaLogic.shares(store.sources.value)
 
     fun select(id: String) {
         _current.value = id
     }
 
     val info: MediaClientInfo by lazy {
-        MediaClientInfo(client = "GateControl TV", device = pairing.deviceName(), deviceId = store.deviceId, version = BuildConfig.VERSION_NAME)
+        MediaClientInfo(client = device.clientName, device = device.deviceName, deviceId = store.deviceId, version = device.version)
     }
 
     /** OkHttp to [host]: at home bound to the Wi-Fi (straight through the LAN), away the system's way (the tunnel). */
@@ -144,11 +125,11 @@ class TvMedia @Inject constructor(
         val webdav = listOfNotNull(source, partner).firstOrNull { it.kind == MediaSourceKind.WEBDAV }
         val primary = smb ?: source
         val atHome = _link.value.atHome
-        val use = TvMediaLogic.shareFor(smb, webdav, atHome) ?: source
+        val use = MediaLogic.shareFor(smb, webdav, atHome) ?: source
         val key = "${use.id}:${use.address}:${use.userName}:${use.password.hashCode()}:$atHome"
         val group = "share:${primary.id}"
         libraries[group]?.let { (k, lib) -> if (k == key) return lib }
-        val lib = ShareLibrary(primary, shareFs(use), store, primary.id, seasonName = { context.getString(R.string.tv_media_season, it) })
+        val lib = ShareLibrary(primary, shareFs(use), store, primary.id, seasonName = device::seasonName)
         libraries.put(group, key to lib)?.second?.let { old -> retired.put(group, old)?.let { gone -> scope.launch { gone.close() } } }
         return lib
     }
@@ -206,7 +187,7 @@ class TvMedia @Inject constructor(
         val now = System.currentTimeMillis()
         val old = _link.value
         if (home) {
-            _link.value = TvMediaLink(atHome = true, bps = null, measuredAt = now)
+            _link.value = MediaLink(atHome = true, bps = null, measuredAt = now)
             return@withLock
         }
         val fresh = old.atHome == false && old.bps != null && now - old.measuredAt < MEASURE_EVERY_MS
@@ -214,21 +195,20 @@ class TvMedia @Inject constructor(
         _link.value = old.copy(atHome = false)
         // a share has no bandwidth test: it plays the original in any case
         val bps = source?.takeIf { it.kind == MediaSourceKind.JELLYFIN && it.token != null }?.let { library(it).measure() }
-        _link.value = TvMediaLink(atHome = false, bps = bps ?: old.bps.takeIf { old.atHome == false }, measuredAt = now)
+        _link.value = MediaLink(atHome = false, bps = bps ?: old.bps.takeIf { old.atHome == false }, measuredAt = now)
     }
 
-    /** What the TV plays itself: the HDMI sink's sound formats (DTS and Dolby to the AV receiver). */
-    @OptIn(UnstableApi::class)
-    fun caps(): JellyfinDeviceCaps {
-        val audio = runCatching { AudioCapabilities.getCapabilities(context, AudioAttributes.DEFAULT, null) }.getOrNull()
-        val pass = buildSet {
-            if (audio?.supportsEncoding(C.ENCODING_AC3) == true) add("ac3")
-            if (audio?.supportsEncoding(C.ENCODING_E_AC3) == true) add("eac3")
-            if (audio?.supportsEncoding(C.ENCODING_DTS) == true) add("dts")
-            if (audio?.supportsEncoding(C.ENCODING_DOLBY_TRUEHD) == true) add("truehd")
-        }
-        val channels = audio?.maxChannelCount?.takeIf { it > 0 }?.coerceAtMost(8) ?: 6
-        return JellyfinDeviceCaps(passthrough = pass, maxAudioChannels = channels.coerceAtLeast(2))
+    /** What this device plays itself (the device profile for Jellyfin). */
+    fun caps(): JellyfinDeviceCaps = device.caps()
+
+    /**
+     * "Gerät anmelden": confirms the Quick Connect code another device shows (a TV, a PC) with [source]'s access, so
+     * it signs in without the Jellyfin app. Jellyfin 10.8 or newer, Quick Connect switched on.
+     */
+    suspend fun authorize(source: MediaSource, code: String): JellyfinAuthorize {
+        if (source.kind != MediaSourceKind.JELLYFIN || source.token == null) return JellyfinAuthorize.SIGNED_OUT
+        val lib = library(source) as? JellyfinLibrary ?: return JellyfinAuthorize.FAILED
+        return lib.authorize(code)
     }
 
     /** Jellyfin servers that answer in the home network (the Wi-Fi's broadcast, not through the tunnel). */
@@ -239,7 +219,7 @@ class TvMedia @Inject constructor(
         return JellyfinDiscovery.discover(targets, bind = { socket -> network?.bindSocket(socket) })
     }
 
-    /** A poster or backdrop of [url] (with [headers]); null when it cannot be loaded. 16-bit colour: memory of a stick. */
+    /** A poster or backdrop of [url] (with [headers]); null when it cannot be loaded. 16-bit colour: half the memory (a TV stick has little). */
     suspend fun picture(url: String, headers: Map<String, String>, host: String?): Bitmap? = withContext(Dispatchers.IO) {
         try {
             val request = Request.Builder().url(url).apply { headers.forEach { (k, v) -> header(k, v) } }.build()
@@ -279,7 +259,7 @@ class TvMedia @Inject constructor(
         scope.launch { runCatching { block() } }
     }
 
-    /** Unpaired: the sources are gone with the encrypted storage. */
+    /** Unpaired (or signed out of the app): the sources are gone with the encrypted storage. */
     fun clear() {
         store.forgetAll()
         val open = libraries.values.map { it.second } + retired.values

@@ -2,10 +2,13 @@ package com.gatecontrol.android.tv.media
 
 import android.app.Application
 import com.gatecontrol.android.media.MediaDetail
+import com.gatecontrol.android.media.MediaHub
 import com.gatecontrol.android.media.MediaLibrary
+import com.gatecontrol.android.media.MediaLink
 import com.gatecontrol.android.media.MediaPlan
 import com.gatecontrol.android.media.MediaPlay
 import com.gatecontrol.android.media.MediaQualitySetting
+import com.gatecontrol.android.media.MediaQueue
 import com.gatecontrol.android.media.MediaResult
 import com.gatecontrol.android.media.MediaSideSubtitle
 import com.gatecontrol.android.media.MediaSource
@@ -17,12 +20,13 @@ import com.gatecontrol.android.media.MediaTrackChoice
 import com.gatecontrol.android.media.MediaVersion
 import com.gatecontrol.android.media.PlayMethod
 import com.gatecontrol.android.media.jellyfin.JellyfinDeviceCaps
+import com.gatecontrol.android.media.player.PlaybackEvent
+import com.gatecontrol.android.media.player.ShareDataSource
 import com.gatecontrol.android.media.share.ShareFs
 import com.gatecontrol.android.media.share.ShareInput
 import com.gatecontrol.android.media.share.ShareUri
 import com.gatecontrol.android.tv.ui.drive.TvChoiceKind
 import com.gatecontrol.android.tv.ui.drive.TvOpen
-import com.gatecontrol.android.tv.ui.drive.TvPlayEvent
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
@@ -71,10 +75,10 @@ class TvMediaVideosTest {
     }
     private val lib = mockk<MediaLibrary>(relaxed = true)
     private val quality = MutableStateFlow(MediaQualitySetting.AUTO)
-    private val media = mockk<TvMedia>(relaxed = true) {
+    private val media = mockk<MediaHub>(relaxed = true) {
         every { store } returns this@TvMediaVideosTest.store
         every { library(any()) } returns lib
-        every { link } returns MutableStateFlow(TvMediaLink(atHome = false, bps = 18_000_000))
+        every { link } returns MutableStateFlow(MediaLink(atHome = false, bps = 18_000_000))
         every { quality } returns this@TvMediaVideosTest.quality
         every { caps() } returns JellyfinDeviceCaps(passthrough = setOf("dts"))
         every { later(any()) } answers { runBlocking { firstArg<suspend () -> Unit>().invoke() } }
@@ -97,7 +101,7 @@ class TvMediaVideosTest {
         }
     }
 
-    private fun videos(queue: TvMediaQueue = TvMediaQueue("s1", episodes, 0)) = TvMediaVideos(queue, media, res)
+    private fun videos(queue: MediaQueue = MediaQueue("s1", episodes, 0)) = TvMediaVideos(queue, media, res)
 
     @Test
     fun `away a 4K file is asked converted, played directly it says so`() = runBlocking {
@@ -126,7 +130,7 @@ class TvMediaVideosTest {
     @Test
     fun `the detail page's original and choice for the first title`() = runBlocking {
         answer(PlayMethod.DIRECT_PLAY)
-        videos(TvMediaQueue("s1", episodes, 0, audioIndex = 2, subtitleIndex = 3, original = true)).open(0)
+        videos(MediaQueue("s1", episodes, 0, audioIndex = 2, subtitleIndex = 3, original = true)).open(0)
         val p = asked.single()
         assertEquals(com.gatecontrol.android.media.MediaQuality.ORIGINAL_BPS, p.maxBitrate)
         assertEquals(2, p.audioIndex)
@@ -175,7 +179,7 @@ class TvMediaVideosTest {
     @Test
     fun `a subtitle beside the video is not chosen by place`() = runBlocking {
         answer(PlayMethod.DIRECT_PLAY, side = listOf(MediaSideSubtitle(3, "http://192.168.1.20:8096/s.srt", "application/x-subrip", "ger", "Deutsch")))
-        val open = videos(TvMediaQueue("s1", episodes, 0, subtitleIndex = 3)).open(0) as TvOpen.Ready
+        val open = videos(MediaQueue("s1", episodes, 0, subtitleIndex = 3)).open(0) as TvOpen.Ready
         assertNull(open.textOrdinal)
         assertFalse(open.textOff)
         assertEquals(1, open.item.localConfiguration?.subtitleConfigurations?.size)
@@ -190,12 +194,12 @@ class TvMediaVideosTest {
 
         answer(PlayMethod.DIRECT_PLAY)
         val v = videos()
-        v.report(0, TvPlayEvent.START, 0, false)
+        v.report(0, PlaybackEvent.START, 0, false)
         coVerify(exactly = 0) { lib.started(any()) }
         v.open(0)
-        v.report(0, TvPlayEvent.START, 0, false)
-        v.report(0, TvPlayEvent.PROGRESS, 42_000, true)
-        v.report(0, TvPlayEvent.STOP, 60_000, false)
+        v.report(0, PlaybackEvent.START, 0, false)
+        v.report(0, PlaybackEvent.PROGRESS, 42_000, true)
+        v.report(0, PlaybackEvent.STOP, 60_000, false)
         coVerify { lib.started(match { it.positionMs == 0L }) }
         coVerify { lib.progress(match { it.positionMs == 42_000L && it.paused }) }
         coVerify { lib.stopped(match { it.positionMs == 60_000L }) }
@@ -204,10 +208,10 @@ class TvMediaVideosTest {
     @Test
     fun `a film counts down nothing, starts where Jellyfin has it`() {
         val film = MediaTitle("m1", "s1", MediaTitle.Kind.MOVIE, "Kobaltnacht", runtimeMs = 6_480_000, positionMs = 2_530_000)
-        val v = videos(TvMediaQueue("s1", listOf(film), 0))
+        val v = videos(MediaQueue("s1", listOf(film), 0))
         assertEquals(0, v.nextCountdownSeconds)
         assertEquals(2_530_000L, v.startAt(0))
-        assertEquals(0L, videos(TvMediaQueue("s1", listOf(film), 0, startMs = 0)).startAt(0))
+        assertEquals(0L, videos(MediaQueue("s1", listOf(film), 0, startMs = 0)).startAt(0))
     }
 
     private val share = MediaSource("smb1", MediaSourceKind.SMB, "nas", "smb://nas/filme", userName = "kino", password = "pw")
@@ -230,19 +234,19 @@ class TvMediaVideosTest {
             MediaPlan(film.id, ShareUri.of("Filme/Kobaltnacht.mkv"), PlayMethod.DIRECT_PLAY, shareVersion, null, hls = false, audioIndex = null, subtitleIndex = null),
         )
         every { lib.files() } returns shareFs
-        val v = TvMediaVideos(TvMediaQueue("smb1", listOf(film), 0), media, res)
+        val v = TvMediaVideos(MediaQueue("smb1", listOf(film), 0), media, res)
         val open = v.open(0) as TvOpen.Ready
         assertEquals("Directly from the share (SMB)", open.info)
         assertEquals("gcshare://share/Filme/Kobaltnacht.mkv", open.item.localConfiguration?.uri.toString())
         // the file's own sound tracks and subtitles in the player's panel, no quality
         assertNull(v.choices(0))
         assertEquals(42_000L, v.startAt(0))
-        assertTrue(v.factory(RuntimeEnvironment.getApplication()) is TvShareDataSource.Factory)
-        v.report(0, TvPlayEvent.PROGRESS, 50_000, false, durationMs = 6_480_000)
+        assertTrue(v.factory(RuntimeEnvironment.getApplication()) is ShareDataSource.Factory)
+        v.report(0, PlaybackEvent.PROGRESS, 50_000, false, durationMs = 6_480_000)
         coVerify { lib.progress(match { it.positionMs == 50_000L && it.durationMs == 6_480_000L }) }
 
         // the player reads the file through the share from its place
-        val ds = TvShareDataSource { shareFs }
+        val ds = ShareDataSource { shareFs }
         val length = ds.open(androidx.media3.datasource.DataSpec.Builder().setUri(open.item.localConfiguration!!.uri).setPosition(90).build())
         assertEquals(10L, length)
         val buf = ByteArray(32)
@@ -251,6 +255,6 @@ class TvMediaVideosTest {
         assertEquals(androidx.media3.common.C.RESULT_END_OF_INPUT, ds.read(buf, 0, 32))
         ds.close()
         // another URL is not a share's file
-        assertTrue(runCatching { TvShareDataSource { shareFs }.open(androidx.media3.datasource.DataSpec(android.net.Uri.parse("https://192.168.1.20/a.mkv"))) }.isFailure)
+        assertTrue(runCatching { ShareDataSource { shareFs }.open(androidx.media3.datasource.DataSpec(android.net.Uri.parse("https://192.168.1.20/a.mkv"))) }.isFailure)
     }
 }

@@ -33,7 +33,7 @@ class TvMediaActivity : ComponentActivity() {
     @Inject lateinit var selection: TvMediaSelection
     @Inject lateinit var media: TvDriveMedia
     @Inject lateinit var gatedrop: TvGateDrop
-    @Inject lateinit var mediaLibrary: com.gatecontrol.android.tv.media.TvMedia
+    @Inject lateinit var mediaLibrary: com.gatecontrol.android.media.MediaHub
     @Inject lateinit var pinUnlocks: com.gatecontrol.android.tv.security.TvPinUnlocks
 
     override fun onCreate(savedInstanceState: Bundle?) {

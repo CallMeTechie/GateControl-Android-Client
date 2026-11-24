@@ -16,6 +16,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.gatecontrol.android.media.MediaHub
+import com.gatecontrol.android.media.MediaLogic
 import com.gatecontrol.android.quickactions.QuickActionsLoad
 import com.gatecontrol.android.tunnel.TunnelState
 import com.gatecontrol.android.tv.doorbell.TvForeground
@@ -51,8 +53,6 @@ import com.gatecontrol.android.tv.frame.TvFrameStatus
 import com.gatecontrol.android.tv.ui.settings.TvFrameOptions
 import com.gatecontrol.android.tv.home.TvHomeViewModel
 import com.gatecontrol.android.media.MediaTitle
-import com.gatecontrol.android.tv.media.TvMedia
-import com.gatecontrol.android.tv.media.TvMediaLogic
 import com.gatecontrol.android.tv.media.TvMediaViewModel
 import com.gatecontrol.android.tv.ui.media.TvMediaActions
 import com.gatecontrol.android.tv.ui.media.TvMediaPage
@@ -147,7 +147,7 @@ class TvActivity : ComponentActivity() {
     @Inject lateinit var gatedrop: TvGateDrop
     @Inject lateinit var selection: TvMediaSelection
     @Inject lateinit var frameSource: TvFrameSource
-    @Inject lateinit var media: TvMedia
+    @Inject lateinit var media: MediaHub
     @Inject lateinit var zuhauseData: TvZuhause
     @Inject lateinit var notesData: TvNotizen
     @Inject lateinit var pinUnlocks: TvPinUnlocks
@@ -551,7 +551,7 @@ class TvActivity : ComponentActivity() {
                         drivePreviews = drivePreviews,
                         drops = if (TvStartRow.GATEDROP in rowsOff) emptyList() else dropEntries,
                         media = if (TvStartRow.MEDIA in rowsOff) emptyList() else mediaUi.resume,
-                        mediaSource = (mediaUi.source ?: mediaUi.shares.firstOrNull())?.let { TvMediaLogic.sourceLabel(it, getString(R.string.tv_media_share)) },
+                        mediaSource = (mediaUi.source ?: mediaUi.shares.firstOrNull())?.let { MediaLogic.sourceLabel(it, getString(R.string.tv_media_share)) },
                         mediaPictures = mediaPictures,
                         home = if (TvStartRow.HOME_TODAY in rowsOff) null else homeUi.home,
                         today = homeUi.today,

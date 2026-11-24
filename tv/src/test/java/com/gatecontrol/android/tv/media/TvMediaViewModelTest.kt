@@ -1,8 +1,12 @@
 package com.gatecontrol.android.tv.media
 
+import com.gatecontrol.android.media.MediaAddProblem
 import com.gatecontrol.android.media.MediaDetail
+import com.gatecontrol.android.media.MediaHub
 import com.gatecontrol.android.media.MediaLibrary
+import com.gatecontrol.android.media.MediaLink
 import com.gatecontrol.android.media.MediaPage
+import com.gatecontrol.android.media.MediaProblem
 import com.gatecontrol.android.media.MediaResult
 import com.gatecontrol.android.media.MediaSource
 import com.gatecontrol.android.media.MediaSourceKind
@@ -51,11 +55,11 @@ class TvMediaViewModelTest {
     private val lib = mockk<MediaLibrary>(relaxed = true)
     private val signIn = mockk<JellyfinSignIn>()
     private var shown: MediaSource? = source
-    private val media = mockk<TvMedia>(relaxed = true) {
+    private val media = mockk<MediaHub>(relaxed = true) {
         every { store } returns this@TvMediaViewModelTest.store
         every { currentSource() } answers { shown }
         every { library(any()) } returns lib
-        every { link } returns MutableStateFlow(TvMediaLink(atHome = false, bps = 18_000_000))
+        every { link } returns MutableStateFlow(MediaLink(atHome = false, bps = 18_000_000))
         every { signIn(any()) } returns signIn
         every { shares() } answers { shownShares }
     }
@@ -99,7 +103,7 @@ class TvMediaViewModelTest {
         val vm = TvMediaViewModel(media, selection)
         vm.refresh()
         advanceUntilIdle()
-        assertEquals(TvMediaProblem.SIGNED_OUT, vm.ui.value.problem)
+        assertEquals(MediaProblem.SIGNED_OUT, vm.ui.value.problem)
         verify { store.dropToken("s1") }
     }
 
@@ -145,7 +149,7 @@ class TvMediaViewModelTest {
         assertEquals(TvAddStep.ADDRESS, vm.add.value?.step)
         vm.setAddress("nonsense address")
         vm.check()
-        assertEquals(TvAddProblem.BAD_ADDRESS, vm.add.value?.problem)
+        assertEquals(MediaAddProblem.BAD_ADDRESS, vm.add.value?.problem)
         vm.setAddress("192.168.1.20")
         vm.check()
         advanceUntilIdle()
@@ -171,7 +175,7 @@ class TvMediaViewModelTest {
         vm.setAddress("192.168.1.21:8096")
         vm.check()
         advanceUntilIdle()
-        assertEquals(TvAddProblem.OLD_SERVER, vm.add.value?.problem)
+        assertEquals(MediaAddProblem.OLD_SERVER, vm.add.value?.problem)
         assertNull(vm.add.value?.server)
 
         coEvery { signIn.server() } returns MediaResult.Ok(JellyfinServerInfo("DS918+", "10.10.3", "srv1"))
@@ -182,7 +186,7 @@ class TvMediaViewModelTest {
         vm.toLogin()
         vm.signIn(" anna ", "falsch")
         advanceUntilIdle()
-        assertEquals(TvAddProblem.WRONG_LOGIN, vm.add.value?.problem)
+        assertEquals(MediaAddProblem.WRONG_LOGIN, vm.add.value?.problem)
         assertFalse(vm.add.value!!.done)
     }
 
@@ -255,11 +259,11 @@ class TvMediaViewModelTest {
         // a host on the internet is no SMB share
         vm.setAddress("smb://media.example.test/filme")
         vm.connectShare("kino", "geheim")
-        assertEquals(TvAddProblem.BAD_ADDRESS, vm.add.value?.problem)
+        assertEquals(MediaAddProblem.BAD_ADDRESS, vm.add.value?.problem)
         vm.setAddress("\\\\nas\\filme")
         vm.connectShare(" kino ", "falsch")
         advanceUntilIdle()
-        assertEquals(TvAddProblem.WRONG_LOGIN, vm.add.value?.problem)
+        assertEquals(MediaAddProblem.WRONG_LOGIN, vm.add.value?.problem)
         vm.connectShare("kino", "geheim")
         advanceUntilIdle()
         assertTrue(vm.add.value!!.done)

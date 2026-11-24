@@ -1,4 +1,4 @@
-package com.gatecontrol.android.tv.player
+package com.gatecontrol.android.media.player
 
 import androidx.media3.common.C
 import androidx.media3.common.Format
@@ -12,7 +12,7 @@ import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import java.util.Locale
 
-class TvTracksTest {
+class PlayerTracksTest {
 
     private fun audio(lang: String?, channels: Int, label: String? = null) =
         Format.Builder().setSampleMimeType(MimeTypes.AUDIO_AAC).setLanguage(lang).setChannelCount(channels).setLabel(label).build()
@@ -35,7 +35,7 @@ class TvTracksTest {
 
     @Test
     fun `the panel lists the playable sound tracks and the subtitles`() {
-        val menu = TvTracks.menu(TvTracks.of(tracks))
+        val menu = PlayerTracks.menu(PlayerTracks.of(tracks))
         assertEquals(listOf("de", "en"), menu.audio.map { it.language })
         assertEquals(2, menu.text.size)
         assertTrue(menu.audio.first().selected)
@@ -46,31 +46,31 @@ class TvTracksTest {
     @Test
     fun `one sound track and no subtitles need no panel`() {
         val only = Tracks(listOf(group(audio("de", 2), selected = true)))
-        assertFalse(TvTracks.menu(TvTracks.of(only)).any)
+        assertFalse(PlayerTracks.menu(PlayerTracks.of(only)).any)
     }
 
     @Test
     fun `names in the panel`() {
-        val menu = TvTracks.menu(TvTracks.of(tracks))
-        assertEquals("Deutsch · 5.1", TvTracks.name(menu.audio[0], 1, "Spur", Locale.GERMAN))
-        assertEquals("Englisch · Stereo", TvTracks.name(menu.audio[1], 2, "Spur", Locale.GERMAN))
-        assertEquals("Deutsch", TvTracks.name(menu.text[0], 1, "Untertitel", Locale.GERMAN))
-        assertEquals("Untertitel 2", TvTracks.name(menu.text[1], 2, "Untertitel", Locale.GERMAN))
-        val labeled = TvTrack(TvTrack.Kind.AUDIO, 0, 0, "Kommentar", "de", 0, false)
-        assertEquals("Kommentar", TvTracks.name(labeled, 1, "Spur", Locale.GERMAN))
+        val menu = PlayerTracks.menu(PlayerTracks.of(tracks))
+        assertEquals("Deutsch · 5.1", PlayerTracks.name(menu.audio[0], 1, "Spur", Locale.GERMAN))
+        assertEquals("Englisch · Stereo", PlayerTracks.name(menu.audio[1], 2, "Spur", Locale.GERMAN))
+        assertEquals("Deutsch", PlayerTracks.name(menu.text[0], 1, "Untertitel", Locale.GERMAN))
+        assertEquals("Untertitel 2", PlayerTracks.name(menu.text[1], 2, "Untertitel", Locale.GERMAN))
+        val labeled = PlayerTrack(PlayerTrack.Kind.AUDIO, 0, 0, "Kommentar", "de", 0, false)
+        assertEquals("Kommentar", PlayerTracks.name(labeled, 1, "Spur", Locale.GERMAN))
     }
 
     @Test
     fun `choosing a subtitle switches subtitles on, off switches them off`() {
-        val menu = TvTracks.menu(TvTracks.of(tracks))
-        val off = TvTracks.subtitlesOff(TrackSelectionParameters.DEFAULT)
+        val menu = PlayerTracks.menu(PlayerTracks.of(tracks))
+        val off = PlayerTracks.subtitlesOff(TrackSelectionParameters.DEFAULT)
         assertTrue(C.TRACK_TYPE_TEXT in off.disabledTrackTypes)
-        val on = TvTracks.choose(off, tracks, menu.text[0])
+        val on = PlayerTracks.choose(off, tracks, menu.text[0])
         assertFalse(C.TRACK_TYPE_TEXT in on.disabledTrackTypes)
         assertEquals(1, on.overrides.size)
         assertEquals(tracks.groups[4].mediaTrackGroup, on.overrides.keys.single())
         // a track that is not there changes nothing
-        val gone = TvTrack(TvTrack.Kind.TEXT, 42, 0, null, null, 0, false)
-        assertEquals(off, TvTracks.choose(off, tracks, gone))
+        val gone = PlayerTrack(PlayerTrack.Kind.TEXT, 42, 0, null, null, 0, false)
+        assertEquals(off, PlayerTracks.choose(off, tracks, gone))
     }
 }

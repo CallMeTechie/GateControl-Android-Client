@@ -1,4 +1,4 @@
-package com.gatecontrol.android.tv.media
+package com.gatecontrol.android.media.player
 
 import android.net.Uri
 import androidx.annotation.OptIn
@@ -20,7 +20,7 @@ import java.io.IOException
  * is, nothing converted. [files]: asked at each open (a pair changes from SMB to WebDAV with the network).
  */
 @OptIn(UnstableApi::class)
-class TvShareDataSource(private val files: () -> ShareFs?) : BaseDataSource(true) {
+class ShareDataSource(private val files: () -> ShareFs?) : BaseDataSource(true) {
 
     private var uri: Uri? = null
     private var input: ShareInput? = null
@@ -83,6 +83,6 @@ class TvShareDataSource(private val files: () -> ShareFs?) : BaseDataSource(true
     }
 
     class Factory(private val files: () -> ShareFs?) : DataSource.Factory {
-        override fun createDataSource(): DataSource = TvShareDataSource(files)
+        override fun createDataSource(): DataSource = ShareDataSource(files)
     }
 }

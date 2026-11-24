@@ -77,7 +77,7 @@ object MediaTracks {
         val normalized = if (codec == "dca") "dts" else codec
         return when {
             normalized in pass -> MediaAudioFate.PASSTHROUGH
-            normalized in JellyfinProfile.DECODED_AUDIO -> MediaAudioFate.DECODED
+            normalized in JellyfinProfile.decodedAudio(caps) -> MediaAudioFate.DECODED
             else -> MediaAudioFate.CONVERTED
         }
     }
