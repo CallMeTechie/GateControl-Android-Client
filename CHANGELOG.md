@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.151.0] - 2026-11-24
+
+### Features
+- share the media core of GateControl TV (stage 4a) (#290)
+
+---
+
 ## [1.150.0] - 2026-11-24
 
 ### Features
