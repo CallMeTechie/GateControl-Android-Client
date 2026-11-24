@@ -319,6 +319,30 @@ class TvGateDrop @Inject constructor(
         else -> null
     }
 
+    /**
+     * „Am Handy weiterschreiben“: the person's own devices only (a draft is no message to others), online first; null
+     * when GateDrop does not answer.
+     */
+    suspend fun ownDevices(): List<TvDropTarget>? = when (val r = api.targets()) {
+        is GdResult.Ok -> TvDropLogic.ownDevices(r.value).also { _available.value = true }
+        is GdResult.Failed -> {
+            if (r.http == 404 || r.http == 403) _available.value = false
+            null
+        }
+        else -> null
+    }
+
+    /** A text (a draft begun on the TV, its link to the chat or mail on the last line) to the own device [to]. */
+    suspend fun sendText(text: String, to: TvDropTarget): TvDropSend {
+        if (!to.device) return TvDropSend.Failed("not_allowed")
+        val clean = GateDropJson.text(text) ?: return TvDropSend.Failed("empty")
+        return when (val s = api.send(emptyList(), clean, null, null, GdRecipients(devices = listOf(to.id)))) {
+            is GdResult.Ok -> TvDropSend.Done(to.name)
+            is GdResult.Failed -> TvDropSend.Failed(s.code)
+            else -> TvDropSend.Failed("offline")
+        }
+    }
+
     /** A Drive file to [to]: loaded into the cache, uploaded to GateDrop, sent; the copy goes right after. */
     suspend fun sendDrive(node: DNode, to: TvDropTarget): TvDropSend = withContext(Dispatchers.IO) {
         if (node.isDir || node.encrypted || node.blocked) return@withContext TvDropSend.Failed("not_allowed")

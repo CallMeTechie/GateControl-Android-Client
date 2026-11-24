@@ -21,8 +21,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardActions
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -42,7 +40,6 @@ import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -61,7 +58,8 @@ import com.gatecontrol.android.tv.ui.components.TvButtonStyle
 import com.gatecontrol.android.tv.ui.components.TvDialog
 import com.gatecontrol.android.tv.ui.components.TvOptionRow
 import com.gatecontrol.android.tv.ui.components.TvRowEnd
-import com.gatecontrol.android.tv.ui.components.TvTextInput
+import com.gatecontrol.android.tv.ui.input.TvDictationHint
+import com.gatecontrol.android.tv.ui.input.TvInputField
 import com.gatecontrol.android.tv.ui.drive.requestSoon
 import com.gatecontrol.android.tv.ui.home.TvIcons
 import com.gatecontrol.android.tv.ui.theme.GateControlTvTheme
@@ -370,18 +368,15 @@ private fun ShoppingColumn(ui: TvZuhauseUi, actions: TvZuhauseActions, onChoose:
                 item(key = "add") {
                     if (adding) {
                         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                            TvTextInput(
+                            TvInputField(
                                 value = text,
-                                onValueChange = { text = it.take(120) },
+                                onValueChange = { text = it },
                                 label = stringResource(R.string.tv_home_add_label),
-                                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
-                                keyboardActions = KeyboardActions(onDone = { submit() }),
+                                maxLength = 120,
+                                onDone = ::submit,
                                 fieldModifier = Modifier.focusRequester(field),
                             )
-                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                Icon(TvIcons.Mic, contentDescription = null, tint = colors.muted, modifier = Modifier.size(14.dp))
-                                Text(stringResource(R.string.tv_home_voice_hint), style = MaterialTheme.typography.bodySmall, color = colors.muted)
-                            }
+                            TvDictationHint(stringResource(R.string.tv_home_voice_hint))
                             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 TvButton(stringResource(R.string.tv_home_add_send), onClick = ::submit, style = TvButtonStyle.Primary, enabled = text.isNotBlank())
                                 TvButton(stringResource(R.string.tv_cancel), onClick = {

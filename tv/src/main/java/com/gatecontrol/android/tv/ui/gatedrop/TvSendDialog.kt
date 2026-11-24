@@ -40,6 +40,8 @@ fun TvSendDialog(
     targets: suspend () -> List<TvDropTarget>?,
     send: suspend (TvDropTarget) -> TvDropSend,
     onDismiss: () -> Unit,
+    /** Instead of „„[name]“ senden an“ (e.g. „Am Handy weiterschreiben“). */
+    title: String? = null,
 ) {
     val colors = GateControlTvTheme.colors
     val scope = rememberCoroutineScope()
@@ -53,7 +55,7 @@ fun TvSendDialog(
     }
     LaunchedEffect(list, state) { first.requestSoon() }
     TvDialog(onDismiss = { if (state != TvDropSend.Busy) onDismiss() }) {
-        Text(stringResource(R.string.tv_send_title, name), style = MaterialTheme.typography.headlineSmall, color = colors.text)
+        Text(title ?: stringResource(R.string.tv_send_title, name), style = MaterialTheme.typography.headlineSmall, color = colors.text)
         when (val s = state) {
             TvDropSend.Busy -> Text(stringResource(R.string.tv_send_busy), style = MaterialTheme.typography.bodyMedium, color = colors.muted)
             is TvDropSend.Done -> {

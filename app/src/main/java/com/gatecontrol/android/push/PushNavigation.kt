@@ -59,6 +59,12 @@ sealed interface PushNavTarget {
      */
     data class Logbook(val vehicleId: Long? = null) : PushNavTarget
 
+    /**
+     * „Am Handy weiterschreiben“ of GateControl TV: a received GateDrop text whose last line links a chat or a mail
+     * draft — that chat or draft opens with [text] filled in.
+     */
+    data class Continue(val target: com.gatecontrol.android.common.ContinueLink, val text: String) : PushNavTarget
+
     /** GateDrop: the screen "Geteilt" on [tab] (received | sent | links). */
     data class Shared(val tab: String = "received") : PushNavTarget
 

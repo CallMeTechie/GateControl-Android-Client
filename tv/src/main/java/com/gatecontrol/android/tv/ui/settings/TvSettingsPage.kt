@@ -60,6 +60,7 @@ internal enum class TvSettingsCategory(@param:StringRes val label: Int) {
     Notices(R.string.tv_set_notices),
     Security(R.string.tv_set_security),
     Start(R.string.tv_set_start),
+    Input(R.string.tv_set_input),
     Frame(R.string.tv_set_frame),
     Updates(R.string.tv_set_updates),
     Device(R.string.tv_set_device),
@@ -88,6 +89,8 @@ fun TvSettingsPage(
     frame: @Composable () -> Unit = {},
     /** Startseite: which rows show. */
     startRows: @Composable () -> Unit = {},
+    /** Eingabe: own text building blocks, dictation hints and privacy. */
+    input: @Composable () -> Unit = {},
     /** Gerät: "Spracheingabe testen". */
     voiceTest: @Composable () -> Unit = {},
 ) {
@@ -108,6 +111,7 @@ fun TvSettingsPage(
                 TvSettingsCategory.Notices -> notices()
                 TvSettingsCategory.Security -> security()
                 TvSettingsCategory.Start -> startRows()
+                TvSettingsCategory.Input -> input()
                 TvSettingsCategory.Frame -> frame()
                 TvSettingsCategory.Updates -> UpdateOptions(update, onCheckUpdate, onInstallUpdate)
                 TvSettingsCategory.Device -> {

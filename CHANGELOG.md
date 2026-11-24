@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.148.1] - 2026-11-24
+
+### Fixes
+- show a message instead of a blank window when the connection fails (#285)
+
+---
+
 ## [1.148.0] - 2026-11-24
 
 ### Features

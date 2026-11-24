@@ -58,6 +58,8 @@ internal object TvIcons {
     val Check = icon("M5 12.5l4.5 4.5L19 7.5", strokeWidth = 3f)
     val Plus = icon("M12 5v14M5 12h14")
     val Mic = icon("M9 5a3 3 0 0 1 6 0v6a3 3 0 0 1-6 0z", "M5 11a7 7 0 0 0 14 0M12 18v3")
+    /** „Am Handy weiterschreiben“: a phone. */
+    val Phone = icon("M9 2h6a2 2 0 0 1 2 2v16a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2z", "M11 18h2")
 
     private val cache = object : LinkedHashMap<String, ImageVector?>(16, 0.75f, true) {
         override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, ImageVector?>): Boolean = size > 64

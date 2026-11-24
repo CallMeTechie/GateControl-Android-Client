@@ -50,6 +50,7 @@ import com.gatecontrol.android.gatedrop.GateDropLogic
 import com.gatecontrol.android.gatedrop.GateDropNotifier
 import com.gatecontrol.android.gatedrop.GdDelivery
 import com.gatecontrol.android.gatedrop.GdEntry
+import com.gatecontrol.android.common.ContinueLink
 import com.gatecontrol.android.gatedrop.GdLink
 import com.gatecontrol.android.gatedrop.GdReceiveFrom
 import com.gatecontrol.android.gatedrop.GdReceived
@@ -239,6 +240,7 @@ private fun ReceivedList(ui: SharedUi, onSave: (GdReceived) -> Unit, onOpened: (
             val from = e.from ?: stringResource(R.string.gatedrop_someone)
             val sub = stringResource(R.string.gatedrop_from, from, time(ctx, e.at))
             val saving = e.key in ui.saving
+            val cont = if (e.files.isEmpty() && e.link == null) ContinueLink.find(e.text) else null
             when {
                 e.files.isNotEmpty() -> Column {
                     val single = e.files.singleOrNull()
@@ -284,6 +286,21 @@ private fun ReceivedList(ui: SharedUi, onSave: (GdReceived) -> Unit, onOpened: (
                     },
                     trailing = { GcIconButton(Icons.Outlined.ContentCopy, contentDescription = stringResource(R.string.gatedrop_copy), onClick = { copy(ctx, e.link.orEmpty()) }) },
                 )
+                // „Am Handy weiterschreiben“ of GateControl TV: the text opens its chat or mail draft, filled in
+                cont != null -> {
+                    GcListRow(
+                        title = stringResource(R.string.gatedrop_item_continue, cont.text.lineSequence().firstOrNull().orEmpty().take(60)),
+                        description = sub + " · " + stringResource(
+                            if (cont.target is ContinueLink.Chat) R.string.gatedrop_continue_chat else R.string.gatedrop_continue_mail,
+                        ),
+                        leading = { KindSquare("Aa") },
+                        onClick = {
+                            onOpened(e)
+                            com.gatecontrol.android.push.PushNavigation.request(com.gatecontrol.android.push.PushNavTarget.Continue(cont.target, cont.text))
+                        },
+                        trailing = { GcIconButton(Icons.Outlined.ContentCopy, contentDescription = stringResource(R.string.gatedrop_copy), onClick = { copy(ctx, cont.text) }) },
+                    )
+                }
                 else -> GcListRow(
                     title = stringResource(R.string.gatedrop_item_text, e.text?.lineSequence()?.firstOrNull().orEmpty().take(60)),
                     description = sub,

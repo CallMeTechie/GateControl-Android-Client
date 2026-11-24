@@ -10,12 +10,14 @@ import com.gatecontrol.android.tv.doorbell.DoorbellSettings
 import com.gatecontrol.android.tv.frame.TvFrameOrder
 import com.gatecontrol.android.tv.frame.TvFrameSchedule
 import com.gatecontrol.android.tv.frame.TvFrameSettings
+import com.gatecontrol.android.tv.input.TvComposerLogic
 import com.gatecontrol.android.tv.tunnel.TvSplitTunnel
 import com.gatecontrol.android.tv.tunnel.TvSplitTunnelSettings
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import org.json.JSONArray
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -172,6 +174,32 @@ class TvSettings @Inject constructor(@ApplicationContext context: Context) {
         _shoppingList.value = id
     }
 
+    private val _snippets = MutableStateFlow(readSnippets())
+
+    /** Einstellungen › Eingabe: the own text building blocks, in the person's order. */
+    val snippets: StateFlow<List<String>> = _snippets.asStateFlow()
+
+    fun setSnippets(list: List<String>) {
+        val clean = TvComposerLogic.cleanSnippets(list)
+        prefs.edit { putString(KEY_SNIPPETS, JSONArray(clean).toString()) }
+        _snippets.value = clean
+    }
+
+    private fun readSnippets(): List<String> = runCatching {
+        val arr = JSONArray(prefs.getString(KEY_SNIPPETS, null) ?: return emptyList())
+        TvComposerLogic.cleanSnippets((0 until arr.length()).map { arr.optString(it) })
+    }.getOrDefault(emptyList())
+
+    private val _dictationHints = MutableStateFlow(prefs.getBoolean(KEY_DICTATION_HINTS, true))
+
+    /** The hints on the dictation (microphone button, back from Alexa); off for people who only type. */
+    val dictationHints: StateFlow<Boolean> = _dictationHints.asStateFlow()
+
+    fun setDictationHints(on: Boolean) {
+        prefs.edit { putBoolean(KEY_DICTATION_HINTS, on) }
+        _dictationHints.value = on
+    }
+
     /** The server typed in once at the TV (https://host[:port]); kept for a new code after the old one ran out. */
     var pairServer: String?
         get() = prefs.getString(KEY_PAIR_SERVER, null)?.takeIf { it.isNotBlank() }
@@ -199,6 +227,8 @@ class TvSettings @Inject constructor(@ApplicationContext context: Context) {
         private const val KEY_MEDIA_QUALITY = "media_quality"
         private const val KEY_ROWS_OFF = "start_rows_off"
         private const val KEY_SHOPPING_LIST = "zuhause_shopping_list"
+        private const val KEY_SNIPPETS = "input_snippets"
+        private const val KEY_DICTATION_HINTS = "input_dictation_hints"
         private const val MINUTES_PER_DAY = 24 * 60
         const val DEFAULT_AUTOSTART_TUNNEL = true
         const val DEFAULT_OPEN_ON_BOOT = false

@@ -604,4 +604,47 @@
         <item quantity="one">%1$d überfällig</item>
         <item quantity="other">%1$d überfällig</item>
     </plurals>
+    <!-- Stage 3d: input building block -->
+    <string name="tv_set_input">Eingabe</string>
+    <string name="tv_composer_label">Dein Text</string>
+    <string name="tv_composer_send">Senden</string>
+    <string name="tv_composer_count">%1$d Zeichen</string>
+    <string name="tv_composer_back_hint">Zurück in GateControl, der Entwurf ist noch da. Erst OK für die Tastatur, dann die Mikrofontaste halten.</string>
+    <string name="tv_composer_mic_hint">OK öffnet die Tastatur. Dann die Mikrofontaste halten und sprechen, loslassen fügt den Text an.</string>
+    <string name="tv_composer_to_preview">Weiter zur Vorschau</string>
+    <string name="tv_composer_handoff">Am Handy weiterschreiben</string>
+    <string name="tv_composer_handoff_short">Am Handy weiter</string>
+    <string name="tv_composer_handoff_title">Am Handy weiterschreiben auf</string>
+    <string name="tv_composer_discard">Verwerfen</string>
+    <string name="tv_composer_discard_title">Entwurf verwerfen?</string>
+    <string name="tv_composer_discard_text">Was du geschrieben hast, ist dann weg.</string>
+    <string name="tv_composer_snippets">Textbausteine</string>
+    <string name="tv_composer_snippets_none">Noch keine Textbausteine. Eigene legst du unter Einstellungen › Eingabe an.</string>
+    <string name="tv_composer_snippets_more">Ein Baustein lässt sich danach per Sprache ergänzen.</string>
+    <string name="tv_composer_fallback">Diktat geht nicht? Einen Baustein nehmen, am Handy weiterschreiben oder mit der Fire-TV-App am Handy bzw. einer Bluetooth-Tastatur tippen.</string>
+    <string name="tv_composer_snippet_own">Eigener</string>
+    <string name="tv_composer_snippet_ai">KI-Vorschlag</string>
+    <string name="tv_composer_snippet_suggestion">Vorschlag</string>
+    <string name="tv_composer_preview_title">So senden?</string>
+    <string name="tv_composer_sending">Wird gesendet …</string>
+    <string name="tv_composer_failed">Nicht gesendet. Erneut versuchen?</string>
+    <string name="tv_composer_more">Weiter sprechen</string>
+    <string name="tv_composer_edit">Bearbeiten</string>
+    <string name="tv_input_snippets">Eigene Textbausteine</string>
+    <string name="tv_input_snippets_desc">Stehen neben jeder Antwort, OK setzt einen in den Text.</string>
+    <string name="tv_input_snippet_new">Neuer Textbaustein</string>
+    <string name="tv_input_snippet_new_desc">Tippen oder diktieren, dann speichern.</string>
+    <string name="tv_input_snippet_save">Speichern</string>
+    <string name="tv_input_snippet_full">Höchstens %1$d Bausteine.</string>
+    <string name="tv_input_snippet_up">Nach oben</string>
+    <string name="tv_input_snippet_down">Nach unten</string>
+    <string name="tv_input_snippet_delete">Löschen</string>
+    <string name="tv_input_snippet_none">Noch keine eigenen Bausteine.</string>
+    <string name="tv_input_snippet_position">%1$d von %2$d</string>
+    <string name="tv_input_hints_off">Diktat-Hinweise ausblenden</string>
+    <string name="tv_input_hints_off_desc">Für alle, die nur tippen: keine Hinweise zur Mikrofontaste.</string>
+    <string name="tv_input_privacy_title">Datenschutz beim Diktat</string>
+    <string name="tv_input_privacy">Das Diktat ist eine Funktion von Fire OS und Alexa. Was gesprochen wird, verarbeitet Amazon, nicht GateControl. Bei Mails und Chats sollte das bewusst sein. Wer das nicht will, nimmt Textbausteine oder schreibt am Handy weiter.</string>
+    <string name="tv_input_fallback_title">Ohne Diktat</string>
+    <string name="tv_input_fallback">Die Amazon-Fire-TV-App am Handy tippt ins Feld am TV, auch eine mit dem Stick gekoppelte Bluetooth-Tastatur geht.</string>
 </resources>
