@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.149.0] - 2026-11-24
+
+### Features
+- Stufe 3e Nachrichten › Chats (#289)
+
+---
+
 ## [1.148.2] - 2026-11-24
 
 ### Fixes
