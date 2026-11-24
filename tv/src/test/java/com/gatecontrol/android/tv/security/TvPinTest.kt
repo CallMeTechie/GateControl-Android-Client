@@ -110,6 +110,38 @@ class TvPinTest {
     fun `functions keep their stored names`() {
         for (f in TvPinFunction.entries) assertEquals(f, TvPinFunction.fromWire(f.wire))
         assertEquals(null, TvPinFunction.fromWire("other"))
-        assertEquals(listOf(TvPinFunction.DOOR, TvPinFunction.SETTINGS, TvPinFunction.DRIVE), TvPinFunction.AVAILABLE)
+        assertEquals(listOf(TvPinFunction.DOOR, TvPinFunction.SETTINGS, TvPinFunction.DRIVE, TvPinFunction.NOTES), TvPinFunction.AVAILABLE)
+        assertEquals("notes", TvPinFunction.NOTES.wire)
+        // only Notizen stays open after the PIN; the door and the settings ask each time
+        assertEquals(listOf(TvPinFunction.NOTES), TvPinFunction.entries.filter { it.holds })
+    }
+
+    @Test
+    fun `Notizen stays open ten minutes after the last key`() {
+        val opened = TvPinHold.open(emptyMap(), TvPinFunction.NOTES, now = 1_000L)
+        assertTrue(TvPinHold.isOpen(opened, TvPinFunction.NOTES, 1_000L + TvPinHold.HOLD_MS - 1))
+        assertFalse(TvPinHold.isOpen(opened, TvPinFunction.NOTES, 1_000L + TvPinHold.HOLD_MS))
+        // a key keeps it open from then on
+        val touched = TvPinHold.touch(opened, now = 500_000L)
+        assertTrue(TvPinHold.isOpen(touched, TvPinFunction.NOTES, 500_000L + TvPinHold.HOLD_MS - 1))
+        // what ran out stays closed, a key does not open it again
+        assertEquals(emptyMap<TvPinFunction, Long>(), TvPinHold.touch(opened, now = 1_000L + TvPinHold.HOLD_MS))
+        // a function without hold never stays open
+        assertFalse(TvPinHold.isOpen(TvPinHold.open(emptyMap(), TvPinFunction.SETTINGS, 0L), TvPinFunction.SETTINGS, 1L))
+        assertFalse(TvPinHold.isOpen(opened, TvPinFunction.DRIVE, 2_000L))
+    }
+
+    @Test
+    fun `the unlocks close on the frame and the screen saver`() {
+        var now = 0L
+        val unlocks = TvPinUnlocks().apply { clock = { now } }
+        assertFalse(unlocks.isOpen(TvPinFunction.NOTES))
+        unlocks.opened(TvPinFunction.NOTES)
+        now = 9 * 60_000L
+        unlocks.touch()
+        now = 18 * 60_000L
+        assertTrue(unlocks.isOpen(TvPinFunction.NOTES))
+        unlocks.lockAll()
+        assertFalse(unlocks.isOpen(TvPinFunction.NOTES))
     }
 }

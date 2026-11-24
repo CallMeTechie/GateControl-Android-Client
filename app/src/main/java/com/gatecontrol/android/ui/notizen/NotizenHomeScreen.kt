@@ -158,8 +158,8 @@ fun NotizenHomeScreen(nav: NotizenNav, vm: NotizenHomeViewModel = hiltViewModel(
                         view = { name -> closeDrawer(); nav.view(name) },
                         notes = { nb ->
                             closeDrawer()
-                            if (nb?.vault != null && !vm.vault.unlocked(nb.vault.id)) {
-                                nav.vault(nb.vault.id)
+                            if (nb?.vault != null && !vm.vault.unlocked(nb.vault!!.id)) {
+                                nav.vault(nb.vault!!.id)
                             } else {
                                 vm.selectNotebook(nb?.id)
                                 vm.setSegment(NotizenHomeViewModel.SEG_NOTES)
@@ -460,7 +460,7 @@ private fun NotesPane(ui: NotizenHomeViewModel.Ui, vm: NotizenHomeViewModel, nav
                 }
             }
         }
-        if (selected?.vault != null && !vm.vault.unlocked(selected.vault.id)) {
+        if (selected?.vault != null && !vm.vault.unlocked(selected.vault!!.id)) {
             item { LockedRow(selected, vm, nav) }
             return@LazyColumn
         }
@@ -488,7 +488,7 @@ private fun NotesPane(ui: NotizenHomeViewModel.Ui, vm: NotizenHomeViewModel, nav
                 }
                 // the locked Tresor notebooks as rows of their own (mockup: „Versicherungen – Tresor – zum Öffnen entsperren“)
                 if (ui.notebook == null) {
-                    books.filter { it.vault != null && !vm.vault.unlocked(it.vault.id) }.forEach { b ->
+                    books.filter { it.vault != null && !vm.vault.unlocked(it.vault!!.id) }.forEach { b ->
                         Box(Modifier.fillMaxWidth().height(1.dp).background(x.border))
                         LockedRow(b, vm, nav)
                     }
@@ -560,7 +560,7 @@ private fun NoteRow(s: NNoteSummary, nb: NNotebook?, vm: NotizenHomeViewModel, t
         }
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Text(noteTitle(s, nb, vm).orEmpty().ifEmpty { stringResource(R.string.notizen_untitled) }, style = MaterialTheme.typography.titleMedium.copy(fontSize = 15.sp), maxLines = 1, overflow = TextOverflow.Ellipsis)
-            if (!s.snippet.isNullOrBlank()) Text(s.snippet, style = MaterialTheme.typography.bodySmall, color = x.muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            if (!s.snippet.isNullOrBlank()) Text(s.snippet!!, style = MaterialTheme.typography.bodySmall, color = x.muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
             val day = java.time.Instant.ofEpochMilli(s.updatedAt).atZone(java.time.ZoneId.systemDefault()).toLocalDate().toString()
             val meta = listOfNotNull(
                 s.tags.firstOrNull()?.let { "#$it" },

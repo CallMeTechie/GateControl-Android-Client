@@ -85,6 +85,12 @@ import com.gatecontrol.android.tv.ui.zuhause.TvZuhauseActions
 import com.gatecontrol.android.tv.ui.zuhause.TvZuhausePage
 import com.gatecontrol.android.tv.zuhause.TvZuhause
 import com.gatecontrol.android.tv.zuhause.TvZuhauseViewModel
+import com.gatecontrol.android.tv.notizen.TvNotizen
+import com.gatecontrol.android.tv.notizen.TvNotizenViewModel
+import com.gatecontrol.android.tv.security.TvPinHold
+import com.gatecontrol.android.tv.security.TvPinUnlocks
+import com.gatecontrol.android.tv.ui.notizen.TvNotizenActions
+import com.gatecontrol.android.tv.ui.notizen.TvNotizenPage
 import dagger.hilt.android.AndroidEntryPoint
 import timber.log.Timber
 import javax.inject.Inject
@@ -105,6 +111,7 @@ class TvActivity : ComponentActivity() {
     private val drive: TvDriveViewModel by viewModels()
     private val mediaVm: TvMediaViewModel by viewModels()
     private val zuhause: TvZuhauseViewModel by viewModels()
+    private val notes: TvNotizenViewModel by viewModels()
 
     @Inject lateinit var pairingApi: TvPairingApi
     @Inject lateinit var supervisor: TvSupervisor
@@ -113,6 +120,8 @@ class TvActivity : ComponentActivity() {
     @Inject lateinit var frameSource: TvFrameSource
     @Inject lateinit var media: TvMedia
     @Inject lateinit var zuhauseData: TvZuhause
+    @Inject lateinit var notesData: TvNotizen
+    @Inject lateinit var pinUnlocks: TvPinUnlocks
 
     private val vpnConsent = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         main.onConsent(result.resultCode == RESULT_OK)
@@ -147,6 +156,8 @@ class TvActivity : ComponentActivity() {
     }
 
     override fun onStop() {
+        // the photo frame, the screen saver or another app: what the PIN opened closes again
+        pinUnlocks.lockAll()
         pairing.setVisible(false)
         TvForeground.onStop()
         super.onStop()
@@ -209,6 +220,7 @@ class TvActivity : ComponentActivity() {
     override fun onUserInteraction() {
         super.onUserInteraction()
         lastKeyAt = SystemClock.elapsedRealtime()
+        pinUnlocks.touch()
     }
 
     override fun onPause() {
@@ -218,6 +230,7 @@ class TvActivity : ComponentActivity() {
 
     /** By hand: always (the frame itself says when nothing is shared). */
     private fun startFrame() {
+        pinUnlocks.lockAll()
         startActivity(Intent(this, TvFrameActivity::class.java))
     }
 
@@ -330,6 +343,27 @@ class TvActivity : ComponentActivity() {
         val mediaActions = remember { mediaActions(showMedia = { requested = TvDestination.Media }) }
         val homeUi by zuhause.ui.collectAsStateWithLifecycle()
         val rowsOff by prefs.startRows.collectAsStateWithLifecycle()
+        val notesUi by notes.ui.collectAsStateWithLifecycle()
+        val notesActions = remember {
+            TvNotizenActions(
+                onStart = { notes.refresh(force = true) },
+                onChoose = notes::choose,
+                onToggle = notes::toggle,
+                onUndo = notes::undo,
+                onMoveTomorrow = notes::moveTomorrow,
+                detail = notes::detail,
+                onSub = notes::tickSub,
+                note = notes::note,
+                onAdd = notes::startAdd,
+                onRead = notes::read,
+                onSave = notes::save,
+                onCancelAdd = notes::cancelAdd,
+            )
+        }
+        // A page behind the TV PIN; Notizen stays open for a while after it (TvPinHold).
+        val askPin: (TvPinFunction, () -> Unit) -> Unit = { function, open ->
+            if (pinState.needsPin(function) && !(function.holds && pinUnlocks.isOpen(function))) pinFor = function to open else open()
+        }
         val homeActions = remember {
             TvZuhauseActions(
                 onStart = { zuhause.refresh(force = true) },
@@ -360,7 +394,10 @@ class TvActivity : ComponentActivity() {
             startPage = {
                 DisposableEffect(Unit) {
                     home.setVisible(true)
-                    if (TvStartRow.HOME_TODAY !in rowsOff) zuhause.refresh()
+                    if (TvStartRow.HOME_TODAY !in rowsOff) {
+                        zuhause.refresh()
+                        notes.refresh()
+                    }
                     drive.loadRecent()
                     mediaVm.refreshResume()
                     onDispose { home.setVisible(false) }
@@ -379,9 +416,11 @@ class TvActivity : ComponentActivity() {
                         mediaPictures = mediaPictures,
                         home = if (TvStartRow.HOME_TODAY in rowsOff) null else homeUi.home,
                         today = homeUi.today,
+                        tasks = if (TvStartRow.HOME_TODAY in rowsOff) null else notesUi.tasksToday,
                     ),
                     media = mediaActions,
                     onHome = { requested = TvDestination.Home },
+                    onTasks = { askPin(TvPinFunction.NOTES) { requested = TvDestination.Notes } },
                     onDrop = { dropOpen = it },
                     dropCover = ::dropCover,
                     onDrive = { node ->
@@ -447,13 +486,29 @@ class TvActivity : ComponentActivity() {
                 )
             },
             homePage = { TvZuhausePage(homeUi, homeActions) },
+            notesPage = {
+                // back after the frame or the screen saver (or ten minutes without a key): the PIN again
+                val until by pinUnlocks.until.collectAsStateWithLifecycle()
+                val locked = pinState.needsPin(TvPinFunction.NOTES) && !TvPinHold.isOpen(until, TvPinFunction.NOTES, SystemClock.elapsedRealtime())
+                if (locked) {
+                    TvPinDialog(
+                        title = stringResource(R.string.tv_pin_for_notes),
+                        check = prefs::checkPin,
+                        onPassed = { pinUnlocks.opened(TvPinFunction.NOTES) },
+                        onDismiss = { requested = TvDestination.Start },
+                    )
+                } else {
+                    TvNotizenPage(notesUi, notesActions)
+                }
+            },
             onOpen = { destination, open ->
                 val function = when (destination) {
                     TvDestination.Settings -> TvPinFunction.SETTINGS
                     TvDestination.Drive -> TvPinFunction.DRIVE
+                    TvDestination.Notes -> TvPinFunction.NOTES
                     else -> null
                 }
-                if (function != null && pinState.needsPin(function)) pinFor = function to open else open()
+                if (function != null) askPin(function, open) else open()
             },
             requested = requested,
             onRequestedShown = { requested = null },
@@ -472,6 +527,8 @@ class TvActivity : ComponentActivity() {
                             gatedrop.clear()
                             media.clear()
                             zuhauseData.clear()
+                            notesData.clear()
+                            pinUnlocks.lockAll()
                             pairing.reset()
                         }
                     },
@@ -491,10 +548,17 @@ class TvActivity : ComponentActivity() {
         )
         pinFor?.let { (function, open) ->
             TvPinDialog(
-                title = stringResource(if (function == TvPinFunction.DRIVE) R.string.tv_pin_for_drive else R.string.tv_pin_for_settings),
+                title = stringResource(
+                    when (function) {
+                        TvPinFunction.DRIVE -> R.string.tv_pin_for_drive
+                        TvPinFunction.NOTES -> R.string.tv_pin_for_notes
+                        else -> R.string.tv_pin_for_settings
+                    },
+                ),
                 check = prefs::checkPin,
                 onPassed = {
                     pinFor = null
+                    if (function.holds) pinUnlocks.opened(function)
                     open()
                 },
                 onDismiss = { pinFor = null },

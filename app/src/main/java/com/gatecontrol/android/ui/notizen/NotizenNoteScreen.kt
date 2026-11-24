@@ -368,16 +368,16 @@ internal fun MarkdownView(
                 background = if (s.code) x.panel2 else androidx.compose.ui.graphics.Color.Unspecified,
             )
             when {
-                s.url != null -> withLink(LinkAnnotation.Clickable("u", TextLinkStyles(SpanStyle(color = scheme.primary, textDecoration = TextDecoration.Underline))) { onLink(s.url) }) { append(s.text) }
+                s.url != null -> withLink(LinkAnnotation.Clickable("u", TextLinkStyles(SpanStyle(color = scheme.primary, textDecoration = TextDecoration.Underline))) { onLink(s.url!!) }) { append(s.text) }
                 s.task != null -> {
                     val t = note?.tasks?.firstOrNull { it.id == s.task }
                     val label = listOfNotNull(taskWord, t?.due?.let { NotizenFormat.due(it.copy(time = null), today, lang, words) }).joinToString(" · ")
                     append(" ")
-                    withLink(LinkAnnotation.Clickable("t", TextLinkStyles(SpanStyle(color = scheme.primary, background = x.accentBg, fontWeight = FontWeight.SemiBold, textDecoration = if (t?.done == true) TextDecoration.LineThrough else null))) { onTask(s.task) }) {
+                    withLink(LinkAnnotation.Clickable("t", TextLinkStyles(SpanStyle(color = scheme.primary, background = x.accentBg, fontWeight = FontWeight.SemiBold, textDecoration = if (t?.done == true) TextDecoration.LineThrough else null))) { onTask(s.task!!) }) {
                         append(" $label ")
                     }
                 }
-                s.att != null && !s.image -> withLink(LinkAnnotation.Clickable("a", TextLinkStyles(SpanStyle(color = scheme.primary))) { onFile(s.att) }) {
+                s.att != null && !s.image -> withLink(LinkAnnotation.Clickable("a", TextLinkStyles(SpanStyle(color = scheme.primary))) { onFile(s.att!!) }) {
                     append(s.text.ifEmpty { note?.attachments?.firstOrNull { it.id == s.att }?.name ?: fileWord })
                 }
                 s.att != null -> Unit

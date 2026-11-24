@@ -35,11 +35,15 @@ class NotizenApi @Inject constructor(
     private val apiClientProvider: ApiClientProvider,
     private val settingsRepository: SettingsRepository,
 ) {
-    private companion object {
-        const val TIMEOUT_MS = 25_000L
-        const val UPLOAD_TIMEOUT_MS = 30 * 60_000L
-        const val MEDIA_MAX_BYTES = 110L * 1024 * 1024
-        val MEDIA_ID = Regex("^[A-Za-z0-9_.~-]{1,200}$")
+    companion object {
+        private const val TIMEOUT_MS = 25_000L
+        private const val UPLOAD_TIMEOUT_MS = 30 * 60_000L
+        private const val MEDIA_MAX_BYTES = 110L * 1024 * 1024
+        private val MEDIA_ID = Regex("^[A-Za-z0-9_.~-]{1,200}$")
+
+        /** `POST tasks/<id>/place/later` and `…/place/skip` (the words the phone's outbox keeps). */
+        const val PLACE_LATER = "place/later"
+        const val PLACE_SKIP = "place/skip"
     }
 
     suspend fun lang(): String =
@@ -217,11 +221,11 @@ class NotizenApi @Inject constructor(
 
     /** `GET shopping[?since=<serverTime>]`: every list I see; with [since] the entries changed since, with tombstones. */
     suspend fun shopping(since: String?): NResult<com.gatecontrol.android.familie.shopping.ShoppingSnapshot> =
-        get("shopping", if (since != null) mapOf("since" to since) else emptyMap()) { com.gatecontrol.android.familie.FamilieJson.shopping(it) }
+        get("shopping", if (since != null) mapOf("since" to since) else emptyMap()) { com.gatecontrol.android.familie.FamilieHomeJson.shopping(it) }
 
     /** `POST shopping/ops { ops }`: at most 200, in order, safe to send again. */
     suspend fun shoppingOps(ops: List<com.gatecontrol.android.familie.shopping.ShoppingOp>): NResult<com.gatecontrol.android.familie.shopping.ShoppingOpsResult> =
-        post("shopping/ops", com.gatecontrol.android.familie.FamilieJson.opsBody(ops)) { com.gatecontrol.android.familie.FamilieJson.opsResult(it) }
+        post("shopping/ops", com.gatecontrol.android.familie.FamilieHomeJson.opsBody(ops)) { com.gatecontrol.android.familie.FamilieHomeJson.opsResult(it) }
 
     /** „Ich gehe einkaufen“ for the family list [uid] (`familyShopping`). */
     suspend fun shoppingGoing(uid: String): NResult<Unit> {
@@ -238,6 +242,9 @@ class NotizenApi @Inject constructor(
     /** `POST parse { text, area }` → the list the server suggests for the line (`taskList`); null inside: none. */
     suspend fun parseAttach(text: String, area: String): NResult<NParseAttach> =
         post("parse", NotizenJson.parseBody(text, area)) { o -> NParseAttach(NotizenJson.attach(o.get("attach")?.takeIf { it.isJsonObject }?.asJsonObject)) }
+
+    /** `POST parse { text, area }` → the line as the server's quick entry reads it (day, time, title). */
+    suspend fun parseLine(text: String, area: String): NResult<NParsedLine> = post("parse", NotizenJson.parseBody(text, area), parse = NotizenJson::parsedLine)
 
     // ── places (plugin 1.5.0, `places`; an older plugin answers 404 — the app does not call these without the word) ──
 
@@ -275,7 +282,7 @@ class NotizenApi @Inject constructor(
 
     /** `POST tasks/<id>/place/<later|skip>` with a body of its own (also from the outbox). */
     suspend fun placeAction(id: Long, what: String, body: JsonObject): NResult<Unit> {
-        if (what != NotizenOutbox.PLACE_LATER && what != NotizenOutbox.PLACE_SKIP) return NResult.Failed("invalid", 0)
+        if (what != PLACE_LATER && what != PLACE_SKIP) return NResult.Failed("invalid", 0)
         return post("tasks/$id/$what", body, parse = unit)
     }
 

@@ -23,7 +23,7 @@ object NotizenTurns {
     fun line(task: NTask, meId: Long?): Line? = when {
         task.done -> null
         task.turn == TurnWords.FIRST -> Line.First
-        task.turn == TurnWords.ROTATE -> if (task.assignee?.id != null && task.assignee.id == meId) Line.RotateMe else Line.Rotate(task.assignee?.name)
+        task.turn == TurnWords.ROTATE -> if (task.assignee?.id != null && task.assignee!!.id == meId) Line.RotateMe else Line.Rotate(task.assignee?.name)
         else -> null
     }
 
@@ -63,7 +63,7 @@ object NotizenTurns {
 
     /** „Noch nicht fertig“: a parent takes back what was ticked off for someone else in the family's list. */
     fun mayReject(me: NMe?, task: NTask): Boolean =
-        me != null && !me.readOnly && me.familyParent && task.done && (task.family || task.listId == me.familyList) && task.doneBy?.id != null && task.doneBy.id != me.userId
+        me != null && !me.readOnly && me.familyParent && task.done && (task.family || task.listId == me.familyList) && task.doneBy?.id != null && task.doneBy!!.id != me.userId
 
     /**
      * „Annehmen“ / „Ablehnen“ of a task's place show for me. With `placeMine` the server says so ([NPlace.canConsent],

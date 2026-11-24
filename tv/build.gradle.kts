@@ -114,6 +114,8 @@ dependencies {
     implementation(project(":core:gatedrop"))
     // Zuhause: waste collection, the calendar of Familie and Alltag, the shopping lists (offline, outbox)
     implementation(project(":core:familie-api"))
+    // Notizen: Mein Tag, lists and notebooks (area „Privat“), ticking off, the server's quick entry
+    implementation(project(":core:notizen-api"))
     implementation(project(":core:tunnel"))
     // Medien: Jellyfin, SMB and WebDAV shares, shared with the phone app later
     implementation(project(":core:media"))

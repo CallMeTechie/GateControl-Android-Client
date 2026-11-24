@@ -71,6 +71,7 @@ import com.gatecontrol.android.tv.ui.zuhause.dayWord
 import com.gatecontrol.android.tv.ui.zuhause.entrySubtitle
 import com.gatecontrol.android.tv.ui.zuhause.entryTitle
 import com.gatecontrol.android.tv.ui.zuhause.shortDate
+import com.gatecontrol.android.tv.notizen.TvTasksToday
 import com.gatecontrol.android.tv.zuhause.TvHomeToday
 import com.gatecontrol.android.tv.zuhause.TvWaste
 import com.gatecontrol.android.familie.AgendaEntry
@@ -96,6 +97,8 @@ data class TvStartUi(
     /** "Heute zu Hause": the next bin, the next date, the open shopping (null: the row is off or has nothing). */
     val home: TvHomeToday? = null,
     val today: LocalDate = LocalDate.now(),
+    /** "Heute zu Hause": the tasks of Mein Tag ("3 heute · 1 überfällig"; null: the row is off or Notizen is not there). */
+    val tasks: TvTasksToday? = null,
 )
 
 /**
@@ -119,6 +122,8 @@ fun TvStartRows(
     media: com.gatecontrol.android.tv.ui.media.TvMediaActions? = null,
     /** OK on a card of "Heute zu Hause": the page Zuhause. */
     onHome: () -> Unit = {},
+    /** OK on the tasks card of "Heute zu Hause": the page Notizen. */
+    onTasks: () -> Unit = {},
 ) {
     val colors = GateControlTvTheme.colors
     Column(modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
@@ -154,15 +159,17 @@ fun TvStartRows(
                 }
             }
         }
-        ui.home?.takeIf { it.waste != null || it.next != null || it.list != null }?.let { home ->
+        val home = ui.home
+        if (home?.waste != null || home?.next != null || home?.list != null || ui.tasks != null) {
             RowTitle(stringResource(R.string.tv_row_home_today), null)
             LazyRow(
                 contentPadding = PaddingValues(start = 2.dp, top = 9.dp, end = 30.dp, bottom = 14.dp),
                 horizontalArrangement = Arrangement.spacedBy(11.dp),
             ) {
-                home.waste?.let { w -> item(key = "waste") { WasteCard(w, ui.today, onHome) } }
-                home.next?.let { e -> item(key = "next") { DateCard(e, ui.today, onHome) } }
-                home.list?.let { l -> item(key = "shopping") { ShoppingCard(l.name, home.open, onHome) } }
+                home?.waste?.let { w -> item(key = "waste") { WasteCard(w, ui.today, onHome) } }
+                home?.next?.let { e -> item(key = "next") { DateCard(e, ui.today, onHome) } }
+                home?.list?.let { l -> item(key = "shopping") { ShoppingCard(l.name, home.open, onHome) } }
+                ui.tasks?.let { t -> item(key = "tasks") { TasksCard(t, onTasks) } }
             }
         }
         if (ui.media.isNotEmpty() && media != null) {
@@ -304,6 +311,17 @@ private fun DateCard(e: AgendaEntry, today: LocalDate, onClick: () -> Unit) {
 @Composable
 private fun ShoppingCard(list: String, open: Int, onClick: () -> Unit) {
     HomeCard(TvIcons.Cart, stringResource(R.string.tv_home_shopping), pluralStringResource(R.plurals.tv_home_card_open, open, open, list), onClick)
+}
+
+/** The tasks of Mein Tag: "Aufgaben", "3 heute · 1 überfällig". */
+@Composable
+private fun TasksCard(t: TvTasksToday, onClick: () -> Unit) {
+    val sub = when {
+        t.open == 0 -> stringResource(R.string.tv_notes_card_none)
+        t.overdue == 0 -> pluralStringResource(R.plurals.tv_notes_card_today, t.open, t.open)
+        else -> pluralStringResource(R.plurals.tv_notes_card_today, t.open, t.open) + " · " + pluralStringResource(R.plurals.tv_notes_card_overdue, t.overdue, t.overdue)
+    }
+    HomeCard(TvIcons.Notes, stringResource(R.string.tv_notes_card), sub, onClick)
 }
 
 private val TileWidth = 118.dp

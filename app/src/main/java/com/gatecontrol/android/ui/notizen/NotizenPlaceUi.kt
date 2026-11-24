@@ -428,7 +428,7 @@ internal fun PlaceChoiceHost(chooser: PlaceChooser, onPicked: (PlacePicked) -> U
     if (map) {
         val sel = c.selected
         MapPointDialog(
-            initial = if (sel?.lat != null && sel.lon != null) LatLon(sel.lat, sel.lon) else null,
+            initial = if (sel?.lat != null && sel.lon != null) LatLon(sel.lat!!, sel.lon!!) else null,
             title = stringResource(R.string.notizen_pl_map),
             onHere = if (com.gatecontrol.android.location.DeviceLocator.hasPermission(context)) {
                 { (com.gatecontrol.android.location.DeviceLocator.locate(context) as? com.gatecontrol.android.location.LocateResult.Fix)?.location?.let { LatLon(it.latitude, it.longitude) } }
