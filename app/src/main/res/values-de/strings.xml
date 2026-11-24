@@ -88,6 +88,9 @@
     <string name="rdp_cert_reject">Ablehnen</string>
     <string name="rdp_auth_required_title">Authentifizierung erforderlich</string>
     <string name="rdp_auth_required_message">Der Server benötigt Zugangsdaten. Gib sie ein, um fortzufahren.</string>
+    <string name="rdp_session_connecting">Verbinde mit dem Remote-Desktop&#8230;</string>
+    <string name="rdp_session_failed_title">Verbindung fehlgeschlagen</string>
+    <string name="rdp_session_failed_message">Der Remote-Desktop hat die Verbindung nicht aufgebaut. Prüfe, ob der PC eingeschaltet und im VPN ist, ob Remote Desktop dort erlaubt ist und ob Benutzername und Passwort stimmen.</string>
 
     <!-- Settings -->
     <string name="settings_title">Einstellungen</string>

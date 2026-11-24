@@ -40,6 +40,8 @@ class RdpSessionController(
 
     init {
         sessionState.setUIEventListener(listener)
+        // failure and end of the connection (FreeRDP's static EventListener, see RdpConnectionEvents)
+        RdpConnectionEvents.register(sessionState.instance, events)
         Timber.i("RdpSessionController: allocated instance=${sessionState.instance}")
     }
 
@@ -70,6 +72,7 @@ class RdpSessionController(
     fun release() {
         if (released) return
         released = true
+        RdpConnectionEvents.unregister(sessionState.instance)
         try {
             LibFreeRDP.freeInstance(sessionState.instance)
         } catch (t: Throwable) {
