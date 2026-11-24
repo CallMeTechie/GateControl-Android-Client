@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.148.2] - 2026-11-24
+
+### Fixes
+- angemeldete PCs öffnen den Zugang vor der Sitzung, Timeout und Meldungen (#287)
+
+---
+
 ## [1.148.1] - 2026-11-24
 
 ### Fixes
