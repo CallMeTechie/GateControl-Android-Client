@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -50,8 +51,17 @@ fun TvMessagesPage(
     chatsUnread: Int = 0,
     mail: (@Composable () -> Unit)? = null,
     mailUnread: Int = 0,
+    /** The tab to show when the page opens from elsewhere (a mail sender on the start page); null: the last one. */
+    wanted: TvMessagesTab? = null,
+    onWantedShown: () -> Unit = {},
 ) {
-    var tab by rememberSaveable { mutableStateOf(TvMessagesTab.Chats) }
+    var tab by rememberSaveable { mutableStateOf(wanted ?: TvMessagesTab.Chats) }
+    LaunchedEffect(wanted) {
+        if (wanted != null) {
+            tab = wanted
+            onWantedShown()
+        }
+    }
     Column(modifier.fillMaxSize().padding(end = 30.dp, bottom = 12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             for (t in TvMessagesTab.entries) {

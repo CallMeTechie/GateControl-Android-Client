@@ -2,6 +2,7 @@ package com.gatecontrol.android.tv.mail
 
 import com.gatecontrol.android.mail.MAddress
 import com.gatecontrol.android.mail.MBulkUndo
+import com.gatecontrol.android.mail.MChanged
 import com.gatecontrol.android.mail.MResult
 import com.gatecontrol.android.mail.MSend
 import com.gatecontrol.android.mail.MailBulk
@@ -19,6 +20,7 @@ import io.mockk.mockk
 import io.mockk.verify
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -50,7 +52,11 @@ class TvMailViewModelTest {
         ),
     )
     private val chosen = MutableStateFlow(setOf(1L))
-    private val mail = mockk<TvMail>(relaxed = true) { every { data } returns this@TvMailViewModelTest.data }
+    private val changes = MutableSharedFlow<MChanged>(extraBufferCapacity = 4)
+    private val mail = mockk<TvMail>(relaxed = true) {
+        every { data } returns this@TvMailViewModelTest.data
+        every { changes } returns this@TvMailViewModelTest.changes
+    }
     private val settings = mockk<TvMailSettings>(relaxed = true) { every { accounts } returns chosen }
     private val kit = mockk<TvComposerKit>(relaxed = true)
 
@@ -236,5 +242,33 @@ class TvMailViewModelTest {
         vm.setAccount(2, true)
         verify { settings.setAccount(2, true) }
         verify { mail.refreshAsync(true) }
+    }
+
+    @Test
+    fun `a body that was missing loads again when the live event says it is there`() = runTest(dispatcher) {
+        coEvery { mail.message(1) } returnsMany listOf(
+            MResult.Ok(message(1, text = "Anfang").copy(bodyMissing = true)),
+            MResult.Ok(message(1, text = "Der ganze Text")),
+        )
+        val vm = vm()
+        vm.select(summary(1))
+        runCurrent()
+        changes.emit(MChanged(1, 5, messageId = 99))
+        runCurrent()
+        assertEquals("Anfang", vm.ui.value.message?.text)
+        changes.emit(MChanged(1, 5, messageId = 1))
+        runCurrent()
+        assertEquals("Der ganze Text", vm.ui.value.message?.text)
+    }
+
+    @Test
+    fun `start row - senders of unread mails, name and count only`() = runTest(dispatcher) {
+        val vm = vm()
+        runCurrent()
+        val news = vm.ui.value.news
+        assertEquals(1, news.size)
+        assertEquals("Mila", news.single().sender)
+        assertEquals(2, news.single().count)
+        assertEquals(2L, news.single().newest.id)
     }
 }

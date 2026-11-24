@@ -107,6 +107,12 @@ import com.gatecontrol.android.tv.ui.components.TvNewPinDialog
 import com.gatecontrol.android.tv.ui.messages.TvChatsActions
 import com.gatecontrol.android.tv.ui.messages.TvChatsTab
 import com.gatecontrol.android.tv.ui.messages.TvMessagesPage
+import com.gatecontrol.android.tv.ui.messages.TvMessagesTab
+import com.gatecontrol.android.tv.mail.TvMail
+import com.gatecontrol.android.tv.mail.TvMailViewModel
+import com.gatecontrol.android.tv.ui.mail.TvMailActions
+import com.gatecontrol.android.tv.ui.mail.TvMailPage
+import com.gatecontrol.android.tv.ui.settings.TvMailOptions
 import com.gatecontrol.android.tv.ui.settings.TvMessagesOptions
 import android.content.BroadcastReceiver
 import android.content.Context
@@ -134,6 +140,7 @@ class TvActivity : ComponentActivity() {
     private val zuhause: TvZuhauseViewModel by viewModels()
     private val notes: TvNotizenViewModel by viewModels()
     private val chats: TvChatsViewModel by viewModels()
+    private val mailVm: TvMailViewModel by viewModels()
 
     @Inject lateinit var pairingApi: TvPairingApi
     @Inject lateinit var supervisor: TvSupervisor
@@ -145,6 +152,7 @@ class TvActivity : ComponentActivity() {
     @Inject lateinit var notesData: TvNotizen
     @Inject lateinit var pinUnlocks: TvPinUnlocks
     @Inject lateinit var chatsData: TvChats
+    @Inject lateinit var mailData: TvMail
     @Inject lateinit var composerKit: TvComposerKit
 
     /** GateControl's own viewer or player is opening over this activity: leaving for it keeps what the PIN opened. */
@@ -464,8 +472,33 @@ class TvActivity : ComponentActivity() {
                 handoff = { id -> composerKit.handoff(ContinueLink.Chat(id)) },
             )
         }
+        // Mail (stage 3f): the tab „Mail“ of Nachrichten, the accounts chosen in Einstellungen › Nachrichten
+        val mailUi by mailVm.ui.collectAsStateWithLifecycle()
+        var messagesTab by remember { mutableStateOf<TvMessagesTab?>(null) }
+        val mailActions = remember {
+            TvMailActions(
+                onStart = { mailVm.refresh(force = true) },
+                onSelect = mailVm::select,
+                onAnswer = mailVm::answer,
+                onSearch = mailVm::search,
+                onPick = mailVm::pick,
+                send = mailVm::send,
+                onCloseCompose = mailVm::closeCompose,
+                onUndoSend = mailVm::undoSend,
+                onArchive = mailVm::archive,
+                onDelete = mailVm::delete,
+                onUndoMove = mailVm::undoMove,
+                sources = mailVm::snippetSources,
+                handoff = mailVm::handoff,
+                attachment = mailVm::attachment,
+                picture = mailVm::picture,
+            )
+        }
         // the rail's count, also before Nachrichten was opened
-        LaunchedEffect(Unit) { chats.refresh() }
+        LaunchedEffect(Unit) {
+            chats.refresh()
+            mailVm.refresh()
+        }
         val homeActions = remember {
             TvZuhauseActions(
                 onStart = { zuhause.refresh(force = true) },
@@ -500,7 +533,10 @@ class TvActivity : ComponentActivity() {
                         zuhause.refresh()
                         notes.refresh()
                     }
-                    if (TvStartRow.MESSAGES !in rowsOff) chats.refresh()
+                    if (TvStartRow.MESSAGES !in rowsOff) {
+                        chats.refresh()
+                        mailVm.refresh()
+                    }
                     drive.loadRecent()
                     mediaVm.refreshResume()
                     onDispose { home.setVisible(false) }
@@ -522,6 +558,8 @@ class TvActivity : ComponentActivity() {
                         tasks = if (TvStartRow.HOME_TODAY in rowsOff) null else notesUi.tasksToday,
                         messages = if (TvStartRow.MESSAGES in rowsOff) emptyList() else chatsUi.news,
                         messagesUnread = chatsUi.unread,
+                        mailNews = if (TvStartRow.MESSAGES in rowsOff) emptyList() else mailUi.news,
+                        mailUnread = mailUi.unread,
                     ),
                     media = mediaActions,
                     onHome = { requested = TvDestination.Home },
@@ -529,6 +567,13 @@ class TvActivity : ComponentActivity() {
                     onMessages = { id ->
                         askPin(TvPinFunction.MESSAGES) {
                             chats.open(id)
+                            requested = TvDestination.Messages
+                        }
+                    },
+                    onMailNews = { n ->
+                        askPin(TvPinFunction.MESSAGES) {
+                            mailVm.select(n.newest)
+                            messagesTab = TvMessagesTab.Mail
                             requested = TvDestination.Messages
                         }
                     },
@@ -624,14 +669,17 @@ class TvActivity : ComponentActivity() {
                         onDismiss = { requested = TvDestination.Start },
                     )
                 } else {
-                    // Mail (stage 3f) hangs itself in with `mail = { … }` and `mailUnread`
                     TvMessagesPage(
                         chats = { TvChatsTab(chatsUi, chatsActions) },
                         chatsUnread = chatsUi.unread,
+                        mail = { TvMailPage(mailUi, mailActions) },
+                        mailUnread = mailUi.unread,
+                        wanted = messagesTab,
+                        onWantedShown = { messagesTab = null },
                     )
                 }
             },
-            badges = mapOf(TvDestination.Messages to chatsUi.unread),
+            badges = mapOf(TvDestination.Messages to chatsUi.unread + mailUi.unread),
             onOpen = { destination, open ->
                 val function = when (destination) {
                     TvDestination.Settings -> TvPinFunction.SETTINGS
@@ -661,6 +709,7 @@ class TvActivity : ComponentActivity() {
                             zuhauseData.clear()
                             notesData.clear()
                             chatsData.clear()
+                            mailData.clear()
                             pinUnlocks.lockAll()
                             pairing.reset()
                         }
@@ -684,6 +733,10 @@ class TvActivity : ComponentActivity() {
                             onDefault = chats::chooseDefault,
                             hint = chatHint,
                             onHint = prefs::setChatHint,
+                            mail = {
+                                LaunchedEffect(Unit) { mailVm.refresh(force = true) }
+                                TvMailOptions(mailUi.allAccounts, mailUi.chosen, mailUi.meState, mailVm::setAccount)
+                            },
                         )
                     },
                     startRows = { TvStartRowOptions(rowsOff, prefs::setStartRow) },

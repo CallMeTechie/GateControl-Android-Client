@@ -12,7 +12,7 @@ import com.gatecontrol.android.tv.ui.theme.GateControlTvTheme
 import com.gatecontrol.android.tv.zuhause.TvSourceState
 
 /**
- * Einstellungen › Mail (stage 3f, Frage 14 a): which mail accounts of the person who paired the TV show on it, each
+ * Einstellungen › Nachrichten (stage 3f, Frage 14 a): which mail accounts of the person who paired the TV show on it, each
  * with a switch. None by default — the TV is the family's, mail is one person's.
  */
 @Composable

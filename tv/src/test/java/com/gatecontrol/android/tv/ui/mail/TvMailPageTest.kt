@@ -57,7 +57,7 @@ class TvMailPageTest {
     @Test
     fun withoutChosenAccountsOnlyTheHintShows() {
         rule.setContent { GateControlTvTheme { TvMailPage(TvMailUi(meState = TvSourceState.OK, allAccounts = listOf(account(1, "Privat"))), TvMailActions()) } }
-        rule.onNodeWithText("No mail account shows on this TV yet. Choose them in Settings › Mail.").assertExists()
+        rule.onNodeWithText("No mail account shows on this TV yet. Choose them in Settings › Messages.").assertExists()
     }
 
     @Test

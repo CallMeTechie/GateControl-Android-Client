@@ -11,7 +11,7 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
- * Einstellungen › Mail of GateControl TV (Frage 14 a): which mail accounts of the person who paired the TV show on it.
+ * Einstellungen › Nachrichten of GateControl TV (Frage 14 a): which mail accounts of the person who paired the TV show on it.
  * None by default — mail belongs to one person and the TV stands in the living room. Its own small file next to the
  * TV's settings; the ids are the Mail plugin's account ids, nothing secret.
  */

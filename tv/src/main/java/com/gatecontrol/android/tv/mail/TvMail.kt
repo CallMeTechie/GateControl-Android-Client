@@ -5,6 +5,7 @@ import com.gatecontrol.android.mail.MAddress
 import com.gatecontrol.android.mail.MAi
 import com.gatecontrol.android.mail.MAttachment
 import com.gatecontrol.android.mail.MBulkUndo
+import com.gatecontrol.android.mail.MChanged
 import com.gatecontrol.android.mail.MDraft
 import com.gatecontrol.android.mail.MMe
 import com.gatecontrol.android.mail.MMessage
@@ -13,6 +14,7 @@ import com.gatecontrol.android.mail.MSend
 import com.gatecontrol.android.mail.MSummary
 import com.gatecontrol.android.mail.MailApi
 import com.gatecontrol.android.mail.MailBulk
+import com.gatecontrol.android.mail.MailJson
 import com.gatecontrol.android.mail.notOk
 import com.gatecontrol.android.tv.zuhause.TvSourceState
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -22,6 +24,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -51,7 +54,7 @@ data class TvMailMoved(val done: TvMailDone, val undo: MBulkUndo?)
 data class TvMailSentOk(val send: MSend, val windowMs: Long)
 
 /**
- * „Mail“ of GateControl TV: the inbox of the accounts chosen on the TV (Einstellungen › Mail, none by default), a mail
+ * „Mail“ of GateControl TV: the inbox of the accounts chosen on the TV (Einstellungen › Nachrichten, none by default), a mail
  * to read, its AI („Kurz gesagt“, answer suggestions), answering through the Mail plugin's drafts and the rest of its
  * app API ([MailApi], the phone app's), with the rights of the person who paired the TV. Nothing is kept on the stick
  * but the attachment opened last (in the cache). No new mails to typed addresses: a forward goes to someone the
@@ -239,6 +242,38 @@ class TvMail @Inject constructor(
         else -> null
     }
 
+    // ─── live ───────────────────────────────────────────────────────
+
+    private val _changes = kotlinx.coroutines.flow.MutableSharedFlow<MChanged>(extraBufferCapacity = 8, onBufferOverflow = kotlinx.coroutines.channels.BufferOverflow.DROP_OLDEST)
+
+    /** The plugin's live event `mail` (a mail came or changed, a body that was missing is there). */
+    val changes: kotlinx.coroutines.flow.SharedFlow<MChanged> = _changes.asSharedFlow()
+
+    @Volatile
+    private var liveJob: kotlinx.coroutines.Job? = null
+
+    /**
+     * A realtime event of the Mail plugin ([TvMailEvents]): the inboxes load again shortly after (several events at
+     * once load once); `calendar` and `contacts` are not the TV's. Only while accounts are chosen.
+     */
+    fun onEvent(type: String, data: com.google.gson.JsonElement?) {
+        if (type == "calendar" || type == "contacts") return
+        val changed = MailJson.changed(data) ?: if (type == "mail" || type == "changed") MChanged(null, null) else return
+        val chosen = settings.accounts.value
+        if (chosen.isEmpty() || (changed.accountId != null && changed.accountId !in chosen)) return
+        _changes.tryEmit(changed)
+        if (liveJob?.isActive == true) return
+        liveJob = scope.launch {
+            kotlinx.coroutines.delay(LIVE_DELAY_MS)
+            refresh(force = true)
+        }
+    }
+
+    /** A new push connection: what came while offline (only once Mail was loaded). */
+    fun onStreamOpen() {
+        if (settings.accounts.value.isNotEmpty() && _data.value.me != null) refreshAsync(force = true)
+    }
+
     /** Unpaired: nothing of this login stays (the choice of accounts neither). */
     fun clear() {
         _data.value = TvMailData()
@@ -259,6 +294,7 @@ class TvMail @Inject constructor(
 
     private companion object {
         const val MIN_GAP_MS = 30_000L
+        const val LIVE_DELAY_MS = 500L
         const val CACHE_DIR = "tv-mail"
         const val KEEP_FILES = 3
     }

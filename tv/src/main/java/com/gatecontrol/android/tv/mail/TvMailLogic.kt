@@ -24,6 +24,9 @@ enum class TvMailMode(val wire: String) {
     FORWARD("forward"),
 }
 
+/** A sender with unread mails for the start row „Neue Nachrichten“: only who and how many, never the subject. */
+data class TvMailNews(val sender: String, val count: Int, val newest: MSummary)
+
 /** What an attachment opens as on the TV: a photo or a PDF in the viewer of stage 2; anything else is a name only. */
 enum class TvAttachmentKind { PHOTO, PDF, OTHER }
 
@@ -79,6 +82,23 @@ object TvMailLogic {
 
     /** The unread mails of [list] (for the counts). */
     fun unread(list: List<MSummary>): Int = list.count { it.unread }
+
+    /** Senders on the start row at most. */
+    const val NEWS_MAX = 6
+
+    /**
+     * The start row „Neue Nachrichten“: the senders of unread mails in [inbox] (newest first), each with how many —
+     * the name only, never the subject or the text (the TV is in the living room).
+     */
+    fun news(inbox: List<MSummary>, max: Int = NEWS_MAX): List<TvMailNews> =
+        inbox.filter { it.unread }
+            .groupBy { it.from.email.trim().lowercase(Locale.ROOT) }
+            .map { (_, mails) ->
+                val newest = mails.maxWith(compareBy<MSummary> { it.date }.thenBy { it.id })
+                TvMailNews(newest.from.label, mails.size, newest)
+            }
+            .sortedWith(compareByDescending<TvMailNews> { it.newest.date }.thenByDescending { it.newest.id })
+            .take(max)
 
     /**
      * The mail's text in large type: its plain text, else its HTML as text, else the snippet. Spaces at the line ends

@@ -12,6 +12,7 @@ import com.gatecontrol.android.mail.MMessage
 import com.gatecontrol.android.mail.MResult
 import com.gatecontrol.android.mail.MSummary
 import com.gatecontrol.android.mail.MailBulk
+import com.gatecontrol.android.mail.MailLogic
 import com.gatecontrol.android.tv.input.TvComposerKit
 import com.gatecontrol.android.tv.input.TvHandoff
 import com.gatecontrol.android.tv.input.TvSnippetSource
@@ -62,9 +63,9 @@ enum class TvMailMessage { SENT, ARCHIVED, DELETED, BACK, SEND_STOPPED, TOO_LATE
 data class TvMailUi(
     /** `GET me`: whether Mail is there for this person. */
     val meState: TvSourceState = TvSourceState.LOADING,
-    /** The accounts chosen on the TV (empty: the hint to choose in Einstellungen › Mail). */
+    /** The accounts chosen on the TV (empty: the hint to choose in Einstellungen › Nachrichten). */
     val accounts: List<MAccount> = emptyList(),
-    /** All the person's accounts (Einstellungen › Mail) and the ids chosen of them. */
+    /** All the person's accounts (Einstellungen › Nachrichten) and the ids chosen of them. */
     val allAccounts: List<MAccount> = emptyList(),
     val chosen: Set<Long> = emptySet(),
     val items: List<MSummary> = emptyList(),
@@ -81,6 +82,9 @@ data class TvMailUi(
     val note: TvMailMessage? = null,
 ) {
     val unread: Int get() = TvMailLogic.unread(items)
+
+    /** The start row „Neue Nachrichten“: senders of unread mails (name and count only). */
+    val news: List<TvMailNews> get() = TvMailLogic.news(items)
 }
 
 /** The page „Mail“ (stage 3f): the list on the left, the chosen mail on the right, answering with the composer. */
@@ -143,10 +147,22 @@ class TvMailViewModel @Inject constructor(
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), TvMailUi())
 
+    init {
+        // a body the server did not have yet came (live event `mail` of this mail or its conversation)
+        viewModelScope.launch {
+            mail.changes.collect { c ->
+                val m = _reader.value.message ?: return@collect
+                if (!m.bodyMissing || !MailLogic.concerns(c, m.id, m.summary.threadId)) return@collect
+                val r = mail.message(m.id)
+                if (r is MResult.Ok) _reader.update { if (it.selectedId == m.id) it.copy(message = r.value.copy(summary = r.value.summary.copy(unread = it.message?.summary?.unread ?: r.value.summary.unread))) else it }
+            }
+        }
+    }
+
     /** The page shows: `GET me` and the inboxes (at most every half minute unless [force]d). */
     fun refresh(force: Boolean = false) = mail.refreshAsync(force)
 
-    /** Einstellungen › Mail: an account shows on the TV or not; the inboxes load again. */
+    /** Einstellungen › Nachrichten: an account shows on the TV or not; the inboxes load again. */
     fun setAccount(id: Long, on: Boolean) {
         settings.setAccount(id, on)
         if (!on && mail.data.value.lists.isNotEmpty() && _reader.value.message?.summary?.accountId == id) {

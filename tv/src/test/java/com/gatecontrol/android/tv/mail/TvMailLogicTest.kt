@@ -149,4 +149,16 @@ class TvMailLogicTest {
         assertEquals(6_000L, TvMailLogic.undoWindow(7_000, 1_000, 0))
         assertEquals(10_000L - 400, TvMailLogic.undoWindow(60_000, 1_000, 400))
     }
+
+    @Test
+    fun `news - per sender, newest first, only unread`() {
+        val a = summary(1, date = 1_000, unread = true, from = "mila@example.com")
+        val b = summary(2, date = 5_000, unread = true, from = "jonas@example.com")
+        val c = summary(3, date = 3_000, unread = true, from = "MILA@example.com")
+        val d = summary(4, date = 9_000, unread = false, from = "lea@example.com")
+        val news = TvMailLogic.news(listOf(a, b, c, d))
+        assertEquals(listOf(2L, 3L), news.map { it.newest.id })
+        assertEquals(listOf(1, 2), news.map { it.count })
+        assertEquals(1, TvMailLogic.news(listOf(a, b, c), max = 1).size)
+    }
 }

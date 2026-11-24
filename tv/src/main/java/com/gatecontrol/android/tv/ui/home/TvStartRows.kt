@@ -101,8 +101,12 @@ data class TvStartUi(
     val tasks: TvTasksToday? = null,
     /** "Neue Nachrichten": who wrote and how many — never the text (empty: the row is off, locked or has nothing). */
     val messages: List<com.gatecontrol.android.tv.chat.TvChatNews> = emptyList(),
-    /** All unread messages of the chats the TV shows (the row's count). */
+    /** All unread messages of the chats the TV shows (the row's count; the mails' are added to it). */
     val messagesUnread: Int = 0,
+    /** "Neue Nachrichten", Mail (stage 3f): senders of unread mails of the accounts the TV shows — name and count only. */
+    val mailNews: List<com.gatecontrol.android.tv.mail.TvMailNews> = emptyList(),
+    /** Unread mails of those accounts. */
+    val mailUnread: Int = 0,
 )
 
 /**
@@ -130,6 +134,8 @@ fun TvStartRows(
     onTasks: () -> Unit = {},
     /** OK on a card of "Neue Nachrichten": the page Nachrichten with that chat. */
     onMessages: (Long) -> Unit = {},
+    /** OK on a mail sender of "Neue Nachrichten": the tab Mail with that sender's newest mail. */
+    onMailNews: (com.gatecontrol.android.tv.mail.TvMailNews) -> Unit = {},
 ) {
     val colors = GateControlTvTheme.colors
     Column(modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
@@ -178,13 +184,15 @@ fun TvStartRows(
                 ui.tasks?.let { t -> item(key = "tasks") { TasksCard(t, onTasks) } }
             }
         }
-        if (ui.messages.isNotEmpty()) {
-            RowTitle(stringResource(R.string.tv_row_messages), pluralStringResource(R.plurals.tv_messages_new, ui.messagesUnread, ui.messagesUnread))
+        if (ui.messages.isNotEmpty() || ui.mailNews.isNotEmpty()) {
+            val unread = ui.messagesUnread + ui.mailUnread
+            RowTitle(stringResource(R.string.tv_row_messages), pluralStringResource(R.plurals.tv_messages_new, unread, unread))
             LazyRow(
                 contentPadding = PaddingValues(start = 2.dp, top = 9.dp, end = 30.dp, bottom = 14.dp),
                 horizontalArrangement = Arrangement.spacedBy(11.dp),
             ) {
                 itemsIndexed(ui.messages, key = { _, n -> n.conversationId }) { _, n -> NewsCard(n, onClick = { onMessages(n.conversationId) }) }
+                itemsIndexed(ui.mailNews, key = { _, n -> "mail:" + n.newest.id }) { _, n -> MailNewsCard(n, onClick = { onMailNews(n) }) }
             }
         }
         if (ui.media.isNotEmpty() && media != null) {
@@ -344,6 +352,12 @@ private fun TasksCard(t: TvTasksToday, onClick: () -> Unit) {
 private fun NewsCard(n: com.gatecontrol.android.tv.chat.TvChatNews, onClick: () -> Unit) {
     val name = n.name.ifBlank { stringResource(R.string.tv_chats_unnamed) }
     HomeCard(TvIcons.Chat, if (n.bridgeMark != null) "$name · ${n.bridgeMark}" else name, pluralStringResource(R.plurals.tv_messages_new, n.count, n.count), onClick)
+}
+
+/** A sender of unread mails: the name and „2 neue“ — never the subject. */
+@Composable
+private fun MailNewsCard(n: com.gatecontrol.android.tv.mail.TvMailNews, onClick: () -> Unit) {
+    HomeCard(TvIcons.Mail, n.sender, pluralStringResource(R.plurals.tv_messages_new, n.count, n.count), onClick)
 }
 
 private val TileWidth = 118.dp

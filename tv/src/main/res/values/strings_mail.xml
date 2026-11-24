@@ -1,9 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Mail (stage 3f): the tab „Mail“, answering, Einstellungen › Mail -->
-    <string name="tv_mail_title">Mail</string>
+    <!-- Mail (stage 3f): the tab „Mail“, answering, Einstellungen › Nachrichten -->
     <string name="tv_mail_inbox">Inbox</string>
-    <string name="tv_mail_none_chosen">No mail account shows on this TV yet. Choose them in Settings › Mail.</string>
+    <string name="tv_mail_none_chosen">No mail account shows on this TV yet. Choose them in Settings › Messages.</string>
     <string name="tv_mail_missing">Mail is not available for this login.</string>
     <string name="tv_mail_empty">No mails in the inbox.</string>
     <string name="tv_mail_pick">Choose a mail on the left.</string>
@@ -48,7 +47,6 @@
     <string name="tv_mail_note_too_late">Too late – the mail is already out.</string>
     <string name="tv_mail_note_refused">Mail refused that.</string>
     <string name="tv_mail_note_offline">No connection – nothing was changed.</string>
-    <string name="tv_mail_settings">Mail</string>
     <string name="tv_mail_settings_accounts">Mail accounts on this TV</string>
     <string name="tv_mail_settings_desc">Mail belongs to one person and the TV is the family\'s: only the accounts switched on here show on this TV. None by default.</string>
     <string name="tv_mail_settings_none">This login has no mail accounts.</string>
