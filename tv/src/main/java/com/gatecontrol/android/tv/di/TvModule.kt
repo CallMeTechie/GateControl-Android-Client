@@ -6,6 +6,7 @@ import com.gatecontrol.android.notify.PushPresenter
 import com.gatecontrol.android.notify.ServerControlSink
 import com.gatecontrol.android.quickactions.QuickActionSurfacesHook
 import com.gatecontrol.android.tv.chat.TvChatEvents
+import com.gatecontrol.android.tv.mail.TvMailEvents
 import com.gatecontrol.android.tv.push.TvPluginEventSink
 import com.gatecontrol.android.tv.push.TvPluginListener
 import com.gatecontrol.android.tv.push.TvPushPresenter
@@ -61,4 +62,9 @@ abstract class TvBindings {
     @Binds
     @IntoSet
     abstract fun bindChatEvents(impl: TvChatEvents): TvPluginListener
+
+    /** Mail (stage 3f): `mail`, a mail came or changed in an account shown on the TV. */
+    @Binds
+    @IntoSet
+    abstract fun bindMailEvents(impl: TvMailEvents): TvPluginListener
 }

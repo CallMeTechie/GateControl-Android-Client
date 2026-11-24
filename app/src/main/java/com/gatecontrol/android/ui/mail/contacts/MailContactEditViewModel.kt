@@ -1,5 +1,11 @@
 package com.gatecontrol.android.ui.mail.contacts
 
+import com.gatecontrol.android.mail.cardDraft
+import com.gatecontrol.android.mail.createCard
+import com.gatecontrol.android.mail.deleteCard
+import com.gatecontrol.android.mail.deleteCardPhoto
+import com.gatecontrol.android.mail.patchCard
+import com.gatecontrol.android.mail.putCardPhoto
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope

@@ -17,7 +17,8 @@ sealed class MResult<out T> {
     fun valueOrNull(): T? = (this as? Ok)?.value
 }
 
-internal fun <T> MResult<*>.notOk(): MResult<T> = when (this) {
+/** A result that is not [MResult.Ok] as one of another type (an `Ok` here is a bug: invalid). */
+fun <T> MResult<*>.notOk(): MResult<T> = when (this) {
     is MResult.Ok -> MResult.Failed(MailApi.CODE_INVALID, 0)
     is MResult.Failed -> this
     MResult.Offline -> MResult.Offline
@@ -75,7 +76,13 @@ data class MMicrosoft(
     val scopes: List<String>,
     /** Since Mail 1.2.0: the link a company's administrator opens to allow the new rights (null: none). */
     val adminConsentUrl: String? = null,
-)
+) {
+    companion object {
+        /** When the server names none (the sign-in itself, `MailMicrosoft`, stays in the phone app). */
+        const val DEFAULT_AUTHORITY = "https://login.microsoftonline.com/common"
+        val DEFAULT_SCOPES = listOf("openid", "profile", "email", "offline_access", "User.Read", "Mail.ReadWrite", "Mail.Send")
+    }
+}
 
 /**
  * The person's list settings (`PUT settings`). [swipeLeft] / [swipeRight] are the actions as the app uses them: since
@@ -148,6 +155,25 @@ data class MAccount(
         const val KIND_BUSINESS = "business"
         val PUSH = listOf("off", "relevant", "all")
         val ATTACHMENTS = listOf("off", "suggest", "auto")
+    }
+}
+
+/** `Account.calendar` / `Account.contacts` (Mail 1.2.0): the account's calendar or address book side. */
+data class MPimSide(
+    val sync: Boolean,
+    /** ok | syncing | auth_failed | unreachable | consent_required | none | off */
+    val state: String,
+    val readOnly: Boolean,
+    val server: String?,
+) {
+    companion object {
+        const val STATE_OK = "ok"
+        const val STATE_SYNCING = "syncing"
+        const val STATE_AUTH_FAILED = "auth_failed"
+        const val STATE_UNREACHABLE = "unreachable"
+        const val STATE_CONSENT = "consent_required"
+        const val STATE_NONE = "none"
+        const val STATE_OFF = "off"
     }
 }
 
@@ -289,8 +315,11 @@ data class MMessage(
      * live event `mail` with this mail's id (or its thread's) tells when it is there.
      */
     val bodyMissing: Boolean = false,
-    /** Since Mail 1.2.0: the invitation the mail carries (the card above the text). */
-    val invite: MInvitation? = null,
+    /**
+     * Since Mail 1.2.0: the invitation the mail carries (the card above the text), as the server sent it — read by
+     * the phone app's calendar part (`MMessage.invite`); GateControl TV leaves it.
+     */
+    val inviteJson: JsonObject? = null,
 ) {
     val id: Long get() = summary.id
 }

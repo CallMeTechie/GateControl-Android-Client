@@ -1,5 +1,6 @@
 package com.gatecontrol.android.ui.mail
 
+import com.gatecontrol.android.mail.invite
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -174,9 +175,11 @@ fun MailReadScreen(nav: MailReadNav, viewModel: MailReadViewModel = hiltViewMode
                                 text = { Text(stringResource(R.string.mail_unsubscribe)) },
                                 onClick = {
                                     menu = false
+                                    val link = u.url
+                                    val mail = u.mail
                                     when {
-                                        u.url != null -> openLink(context, u.url)
-                                        u.mail != null -> MailLogic.mailtoAddress(if (u.mail.startsWith("mailto:")) u.mail else "mailto:" + u.mail)?.let { nav.mailTo(it.email) }
+                                        link != null -> openLink(context, link)
+                                        mail != null -> MailLogic.mailtoAddress(if (mail.startsWith("mailto:")) mail else "mailto:$mail")?.let { nav.mailTo(it.email) }
                                     }
                                 },
                             )

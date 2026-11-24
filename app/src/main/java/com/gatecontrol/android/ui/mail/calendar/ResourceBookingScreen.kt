@@ -1,5 +1,7 @@
 package com.gatecontrol.android.ui.mail.calendar
 
+import com.gatecontrol.android.mail.book
+import com.gatecontrol.android.mail.resources
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable

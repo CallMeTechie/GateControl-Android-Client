@@ -80,15 +80,7 @@ object MailPimJson {
 
     // ─── account side (C2) ──────────────────────────────────────────
 
-    fun pimSide(o: JsonObject?): MPimSide? {
-        o ?: return null
-        return MPimSide(
-            sync = o.bool("sync") ?: true,
-            state = o.str("state") ?: MPimSide.STATE_OK,
-            readOnly = o.bool("readOnly") ?: false,
-            server = o.text("server"),
-        )
-    }
+    fun pimSide(o: JsonObject?): MPimSide? = MailJson.pimSide(o)
 
     // ─── calendars ──────────────────────────────────────────────────
 

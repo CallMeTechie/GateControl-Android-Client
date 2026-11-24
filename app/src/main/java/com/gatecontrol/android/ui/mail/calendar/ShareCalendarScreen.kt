@@ -1,5 +1,14 @@
 package com.gatecontrol.android.ui.mail.calendar
 
+import com.gatecontrol.android.mail.addShare
+import com.gatecontrol.android.mail.calendarSettings
+import com.gatecontrol.android.mail.deleteShare
+import com.gatecontrol.android.mail.patchCalendar
+import com.gatecontrol.android.mail.patchShare
+import com.gatecontrol.android.mail.patchShared
+import com.gatecontrol.android.mail.principals
+import com.gatecontrol.android.mail.shared
+import com.gatecontrol.android.mail.shares
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable

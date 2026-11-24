@@ -116,6 +116,8 @@ dependencies {
     implementation(project(":core:familie-api"))
     // Notizen: Mein Tag, lists and notebooks (area „Privat“), ticking off, the server's quick entry
     implementation(project(":core:notizen-api"))
+    // Mail: the inbox of the accounts chosen on the TV, reading, answering through drafts, the AI's answers
+    implementation(project(":core:mail-api"))
     // Nachrichten › Chats: the messenger's API, answers, realtime events and bridge rules (always `?bridged=1`)
     implementation(project(":core:chat-api"))
     implementation(project(":core:tunnel"))

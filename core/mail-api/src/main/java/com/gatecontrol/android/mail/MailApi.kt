@@ -5,7 +5,6 @@ import com.gatecontrol.android.data.SetupRepository
 import com.gatecontrol.android.network.ApiClient
 import com.gatecontrol.android.network.ApiClientProvider
 import com.gatecontrol.android.scan.MediaScanHttp
-import com.google.gson.GsonBuilder
 import com.google.gson.JsonElement
 import com.google.gson.JsonObject
 import com.google.gson.JsonParser
@@ -16,10 +15,8 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withTimeoutOrNull
-import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.RequestBody.Companion.asRequestBody
-import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.ResponseBody
 import retrofit2.Response
 import timber.log.Timber
@@ -48,17 +45,13 @@ class MailApi @Inject constructor(
         const val API_PREFIX = "api/v1/client/plugins/$MAIL_PLUGIN/api/"
         private const val TIMEOUT_MS = 25_000L
         /** Adding an account checks IMAP and SMTP first; the server's own time-outs are 30 s each. */
-        private const val ACCOUNT_TIMEOUT_MS = 75_000L
+        const val ACCOUNT_TIMEOUT_MS = 75_000L
         /** A bulk action on up to 500 mails talks to the provider: more time than a list. */
         private const val BULK_TIMEOUT_MS = 60_000L
         private const val UPLOAD_TIMEOUT_MS = 30 * 60_000L
         private const val IMAGE_TIMEOUT_MS = 20_000L
         private const val IMAGE_MAX_BYTES = 6L * 1024 * 1024
         private const val AVATAR_MAX_BYTES = 2L * 1024 * 1024
-        /** Keeps `null` members (a PATCH that clears a field); Retrofit's Gson leaves them out. */
-        private val NULLS_GSON = GsonBuilder().serializeNulls().create()
-        private val JSON_TYPE = "application/json; charset=utf-8".toMediaType()
-        private val OVERLAY_ID = Regex("^(familie|birthdays|alltag:[0-9]{1,15})$")
     }
 
     private val _unauthorized = MutableSharedFlow<Int>(extraBufferCapacity = 1, onBufferOverflow = BufferOverflow.DROP_OLDEST)
@@ -69,9 +62,14 @@ class MailApi @Inject constructor(
     suspend fun lang(): String =
         runCatching { settingsRepository.getLocale().first() }.getOrNull()?.takeIf { it == "de" || it == "en" } ?: "de"
 
-    private suspend fun langQuery(): Map<String, String> = mapOf("lang" to lang())
+    /** `lang` of every call (the app's language). */
+    suspend fun langQuery(): Map<String, String> = mapOf("lang" to lang())
 
-    private suspend fun <T> call(
+    /**
+     * One call of the plugin bridge, answered as an [MResult]. Public with [get], [post], [put], [patch] and [del] for the
+     * phone app's own routes (calendars, contacts, the Microsoft sign-in), which are not part of this module.
+     */
+    suspend fun <T> call(
         timeoutMs: Long = TIMEOUT_MS,
         media: Boolean = false,
         request: suspend ApiClient.() -> Response<JsonObject>,
@@ -109,22 +107,23 @@ class MailApi @Inject constructor(
             ?.let { JsonParser.parseString(it).takeIf { e -> e.isJsonObject }?.asJsonObject }
     }.getOrNull()
 
-    private suspend fun <T> get(path: String, query: Map<String, String> = emptyMap(), parse: (JsonObject) -> T?) =
+    suspend fun <T> get(path: String, query: Map<String, String> = emptyMap(), parse: (JsonObject) -> T?) =
         call(request = { pluginGet(MAIL_PLUGIN, path, query + langQuery()) }, parse = parse)
 
-    private suspend fun <T> post(path: String, body: JsonObject, timeoutMs: Long = TIMEOUT_MS, parse: (JsonObject) -> T?) =
+    suspend fun <T> post(path: String, body: JsonObject, timeoutMs: Long = TIMEOUT_MS, parse: (JsonObject) -> T?) =
         call(timeoutMs = timeoutMs, request = { pluginPost(MAIL_PLUGIN, path, body, langQuery()) }, parse = parse)
 
-    private suspend fun <T> put(path: String, body: JsonObject, parse: (JsonObject) -> T?) =
+    suspend fun <T> put(path: String, body: JsonObject, parse: (JsonObject) -> T?) =
         call(request = { pluginPut(MAIL_PLUGIN, path, body, langQuery()) }, parse = parse)
 
-    private suspend fun <T> patch(path: String, body: JsonObject, timeoutMs: Long = TIMEOUT_MS, parse: (JsonObject) -> T?) =
+    suspend fun <T> patch(path: String, body: JsonObject, timeoutMs: Long = TIMEOUT_MS, parse: (JsonObject) -> T?) =
         call(timeoutMs = timeoutMs, request = { pluginPatch(MAIL_PLUGIN, path, body, langQuery()) }, parse = parse)
 
-    private suspend fun <T> del(path: String, parse: (JsonObject) -> T?) =
+    suspend fun <T> del(path: String, parse: (JsonObject) -> T?) =
         call(request = { pluginDelete(MAIL_PLUGIN, path, langQuery()) }, parse = parse)
 
-    private val unit: (JsonObject) -> Unit = { }
+    /** The parser of an answer whose content is not needed. */
+    val unit: (JsonObject) -> Unit = { }
 
     /** A GET whose answer is not an object (`GET providers` is an array): read raw, parsed here. */
     private suspend fun <T> getAny(path: String, parse: (JsonElement) -> T?): MResult<T> {
@@ -172,10 +171,6 @@ class MailApi @Inject constructor(
     suspend fun discover(email: String): MResult<MDiscover> = post("accounts/discover", MailJson.discoverBody(email), parse = MailJson::discover)
 
     suspend fun addAccount(body: JsonObject): MResult<MAccount> = post("accounts", body, ACCOUNT_TIMEOUT_MS, MailJson::accountAnswer)
-
-    suspend fun addMicrosoft(body: JsonObject): MResult<MAccount> = post("accounts/microsoft", body, ACCOUNT_TIMEOUT_MS, MailJson::accountAnswer)
-
-    suspend fun reloginMicrosoft(id: Long, body: JsonObject): MResult<MAccount> = post("accounts/$id/microsoft", body, ACCOUNT_TIMEOUT_MS, MailJson::accountAnswer)
 
     suspend fun patchAccount(id: Long, body: JsonObject): MResult<MAccount> = patch("accounts/$id", body, ACCOUNT_TIMEOUT_MS, MailJson::accountAnswer)
 
@@ -368,221 +363,4 @@ class MailApi @Inject constructor(
         post("filing/$id/confirm", MailJson.driveSaveBody(folderId, name, null), timeoutMs = 60_000L, parse = MailJson::savedAnswer)
 
     suspend fun dismissFiling(id: Long): MResult<Unit> = post("filing/$id/dismiss", JsonObject(), parse = unit)
-
-    // ─── calendars (since Mail 1.2.0) ───────────────────────────────
-
-    /** A PATCH whose body keeps its `null` members (clearing a field: a rule, the online link, a birthday). */
-    private suspend fun <T> patchNulls(path: String, body: JsonObject, parse: (JsonObject) -> T?) =
-        call(request = {
-            pluginPatchRaw(MAIL_PLUGIN, path, NULLS_GSON.toJson(body).toRequestBody(JSON_TYPE), langQuery())
-        }, parse = parse)
-
-    /** `GET calendars` with the raw answer (kept for offline). */
-    suspend fun calendars(): MResult<Pair<MCalendars, JsonObject>> = get("calendars") { o -> MailPimJson.calendars(o)?.let { it to o } }
-
-    suspend fun createCalendar(name: String, color: String?): MResult<MCalendar> =
-        post("calendars", MailPimJson.calendarBody(name, color), parse = MailPimJson::calendarAnswer)
-
-    suspend fun patchCalendar(id: Long, body: JsonObject): MResult<MCalendar> = patch("calendars/$id", body, parse = MailPimJson::calendarAnswer)
-
-    suspend fun deleteCalendar(id: Long): MResult<Unit> = del("calendars/$id", unit)
-
-    suspend fun patchOverlay(id: String, body: JsonObject): MResult<MOverlay> = patch("overlays/" + id.takeIf { OVERLAY_ID.matches(it) }.orEmpty(), body, parse = MailPimJson::overlayAnswer)
-
-    suspend fun subscribeCalendar(url: String, name: String?): MResult<MCalendar> =
-        post("calendars/subscribe", MailPimJson.subscribeBody(url, name), timeoutMs = 45_000L, parse = MailPimJson::calendarAnswer)
-
-    suspend fun calendarSettings(body: JsonObject): MResult<MCalPrefs> = put("calendar/settings", body, MailPimJson::prefsAnswer)
-
-    /** `GET events` in `[from, to)` (≤ 62 days) of [calendars] (ids and overlay ids; null: all visible). */
-    suspend fun events(from: Long, to: Long, calendars: List<String>? = null): MResult<Pair<MEvents, JsonObject>> =
-        get("events", buildMap {
-            put("from", from.toString())
-            put("to", to.toString())
-            calendars?.let { put("calendars", it.joinToString(",")) }
-        }) { o -> MailPimJson.events(o)?.let { it to o } }
-
-    suspend fun event(id: Long, occurrence: String?): MResult<Pair<MEvent, JsonObject>> =
-        get("events/$id", occurrence?.let { mapOf("occurrence" to it) }.orEmpty()) { o -> MailPimJson.event(o)?.let { it to o } }
-
-    suspend fun createEvent(body: JsonObject): MResult<MEventSaved> = post("events", body, timeoutMs = 60_000L, parse = MailPimJson::eventSaved)
-
-    /** `PATCH events/<id>`: `409 conflict { current }` when [body]'s etag is old ([MailPimJson.conflictEvent]). */
-    suspend fun updateEvent(id: Long, body: JsonObject): MResult<MEventSaved> = patchNulls("events/$id", body, MailPimJson::eventSaved)
-
-    suspend fun deleteEvent(id: Long, scope: String, occurrence: String?, notify: Boolean, comment: String?): MResult<Unit> =
-        call(request = {
-            pluginDelete(MAIL_PLUGIN, "events/$id", buildMap {
-                put("scope", scope)
-                occurrence?.let { put("occurrence", it) }
-                if (notify) put("notify", "1")
-                comment?.trim()?.takeIf { it.isNotEmpty() }?.let { put("comment", it.take(1000)) }
-            } + langQuery())
-        }, parse = unit)
-
-    suspend fun respondEvent(id: Long, body: JsonObject): MResult<MEvent> = post("events/$id/respond", body, timeoutMs = 60_000L, parse = MailPimJson::eventAnswer)
-
-    suspend fun invitations(): MResult<List<MInvitation>> = get("invitations", mapOf("state" to "open"), MailPimJson::invitations)
-
-    suspend fun invitation(id: Long): MResult<MInvitation> = get("invitations/$id", parse = MailPimJson::invitation)
-
-    suspend fun respondInvitation(id: Long, body: JsonObject): MResult<MInviteAnswer> =
-        post("invitations/$id/respond", body, timeoutMs = 60_000L, parse = MailPimJson::inviteAnswer)
-
-    suspend fun applyInvitation(id: Long): MResult<MInviteAnswer> = post("invitations/$id/apply", JsonObject(), timeoutMs = 60_000L, parse = MailPimJson::inviteAnswer)
-
-    suspend fun dismissInvitation(id: Long, decline: Boolean): MResult<Unit> = post("invitations/$id/dismiss", MailPimJson.dismissBody(decline), timeoutMs = 60_000L, parse = unit)
-
-    // ─── free/busy, sharing, resources (since Mail 1.9.0) ───────────
-
-    /** `POST freebusy`: the day's free/busy of the person, [attendees] and [resources] (never titles). */
-    suspend fun freeBusy(from: Long, to: Long, attendees: List<String>, resources: List<Long>): MResult<MFreeBusy> =
-        post("freebusy", MailPimJson.freeBusyBody(from, to, attendees, resources), parse = MailPimJson::freeBusy)
-
-    /** `POST freebusy/suggest`: up to [limit] slots of [duration] minutes from [from] when everybody known is free. */
-    suspend fun suggest(duration: Int, from: Long?, attendees: List<String>, resources: List<Long>, limit: Int = 4): MResult<MSuggestions> =
-        post("freebusy/suggest", MailPimJson.suggestBody(duration, from, attendees, resources, limit), parse = MailPimJson::suggestions)
-
-    suspend fun shares(calendarId: Long): MResult<MShares> = get("calendars/$calendarId/shares", parse = MailPimJson::shares)
-
-    suspend fun addShare(calendarId: Long, type: String, principalId: Long, level: String): MResult<MShare> =
-        post("calendars/$calendarId/shares", MailPimJson.shareBody(type, principalId, level), parse = MailPimJson::shareAnswer)
-
-    suspend fun patchShare(calendarId: Long, shareId: Long, level: String): MResult<MShare> =
-        patch("calendars/$calendarId/shares/$shareId", MailPimJson.levelBody(level), parse = MailPimJson::shareAnswer)
-
-    suspend fun deleteShare(calendarId: Long, shareId: Long): MResult<Unit> = del("calendars/$calendarId/shares/$shareId", unit)
-
-    suspend fun shared(): MResult<MSharedList> = get("shared", parse = MailPimJson::sharedList)
-
-    suspend fun patchShared(calendarId: Long, visible: Boolean? = null, color: String? = null): MResult<MSharedCalendar> =
-        patch("shared/$calendarId", MailPimJson.sharedPatch(visible, color), parse = MailPimJson::sharedAnswer)
-
-    /** People (who may use Mail) and groups by name, to share with ([q] ≥ 2 characters). */
-    suspend fun principals(q: String): MResult<List<MPrincipal>> = get("principals", mapOf("q" to q.trim().take(60)), MailPimJson::principals)
-
-    /** `GET resources` (with [from]/[to]: each one's taken times in it, ≤ 31 days). */
-    suspend fun resources(from: Long? = null, to: Long? = null): MResult<MResources> =
-        get("resources", buildMap {
-            if (from != null && to != null) {
-                put("from", from.toString())
-                put("to", to.toString())
-            }
-        }, MailPimJson::resources)
-
-    suspend fun book(resourceId: Long, body: JsonObject): MResult<MEventSaved> = post("resources/$resourceId/book", body, timeoutMs = 60_000L, parse = MailPimJson::eventSaved)
-
-    /** `GET bookings?state=open|done|mine`. */
-    suspend fun bookings(state: String): MResult<MBookings> = get("bookings", mapOf("state" to state), MailPimJson::bookings)
-
-    suspend fun decideBooking(id: Long, approve: Boolean, override: Boolean = false, comment: String? = null): MResult<MBooking> =
-        post("bookings/$id/decide", MailPimJson.decideBody(approve, override, comment), timeoutMs = 60_000L, parse = MailPimJson::bookingAnswer)
-
-    suspend fun cancelBooking(id: Long): MResult<Unit> = del("bookings/$id", unit)
-
-    // ─── contacts (since Mail 1.2.0, path `cards`) ──────────────────
-
-    suspend fun addressbooks(): MResult<Pair<MBooks, JsonObject>> = get("addressbooks") { o -> MailPimJson.books(o)?.let { it to o } }
-
-    suspend fun patchAddressbook(id: Long, visible: Boolean): MResult<MAddressbook> = patch("addressbooks/$id", MailPimJson.bookPatch(visible), parse = MailPimJson::bookAnswer)
-
-    /** `GET cards`: a page of the list ([since]: only what changed, for the offline copy). */
-    suspend fun cards(q: String? = null, book: Long? = null, group: Long? = null, cursor: String? = null, since: Long? = null, limit: Int = 200): MResult<Pair<MCardPage, JsonObject>> =
-        get("cards", buildMap {
-            q?.trim()?.takeIf { it.isNotEmpty() }?.let { put("q", it.take(100)) }
-            put("book", book?.toString() ?: "all")
-            group?.let { put("group", it.toString()) }
-            cursor?.let { put("cursor", it) }
-            since?.let { put("since", it.toString()) }
-            put("limit", limit.coerceIn(1, 1000).toString())
-        }) { o -> MailPimJson.cardPage(o)?.let { it to o } }
-
-    suspend fun card(id: Long): MResult<Pair<MCard, JsonObject>> = get("cards/$id") { o -> MailPimJson.fullCard(o)?.let { it to o } }
-
-    suspend fun createCard(body: JsonObject): MResult<MCard> = post("cards", body, parse = MailPimJson::cardAnswer)
-
-    /**
-     * `PATCH cards/<id>`: `409 conflict { current }` ([MailPimJson.conflictCard]), `409 read_only`; since Mail 1.4.0
-     * with `writeBack` (the linked cards the change went back to).
-     */
-    suspend fun patchCard(id: Long, body: JsonObject): MResult<MCardSaved> = patchNulls("cards/$id", body, MailPimJson::cardSaved)
-
-    /** `DELETE cards/<id>`; [linkedToo] (Mail 1.4.0, `linked=delete`): the linked cards go at their provider too. */
-    suspend fun deleteCard(id: Long, linkedToo: Boolean = false): MResult<Unit> =
-        call(request = { pluginDelete(MAIL_PLUGIN, "cards/$id", (if (linkedToo) mapOf("linked" to "delete") else emptyMap()) + langQuery()) }, parse = unit)
-
-    // ─── the GC contact as the master (Mail 1.4.0; an older server answers 404) ───
-
-    suspend fun mergePreview(ids: List<Long>): MResult<MPreview> = post("cards/merge/preview", MailPimJson.idsBody(ids), parse = MailPimJson::previewAnswer)
-
-    suspend fun merges(limit: Int = 50): MResult<List<MMerge>> = get("cards/merges", mapOf("limit" to limit.coerceIn(1, 200).toString()), MailPimJson::merges)
-
-    suspend fun undoMerge(id: Long, keepMaster: Boolean): MResult<MUnmerge> =
-        post("cards/merges/$id/undo", MailPimJson.unmergeBody(null, keepMaster), timeoutMs = 60_000L, parse = MailPimJson::unmerge)
-
-    /** "Verknüpfung lösen": the linked cards [ids] of the GC contact [id] (null: all). */
-    suspend fun unmerge(id: Long, ids: List<Long>?, keepMaster: Boolean = false): MResult<MUnmerge> =
-        post("cards/$id/unmerge", MailPimJson.unmergeBody(ids, keepMaster), timeoutMs = 60_000L, parse = MailPimJson::unmerge)
-
-    /** "Übernehmen" ([mode] `replace` | `add`, null: the server's default). */
-    suspend fun acceptConflict(id: Long, conflictId: Long, mode: String?): MResult<MCard> =
-        post("cards/$id/conflicts/$conflictId/accept", MailPimJson.acceptBody(mode), parse = MailPimJson::cardAnswer)
-
-    /** "Verwerfen": the value stays away until it changes at the provider. */
-    suspend fun dismissConflict(id: Long, conflictId: Long): MResult<MCard> =
-        post("cards/$id/conflicts/$conflictId/dismiss", JsonObject(), parse = MailPimJson::cardAnswer)
-
-    /** Favourite and main number only (GateControl's own, never to the provider). */
-    suspend fun patchOwn(id: Long, body: JsonObject): MResult<MCardSaved> = patchNulls("cards/$id", body, MailPimJson::cardSaved)
-
-    suspend fun favorites(): MResult<Pair<List<MFavorite>, JsonObject>> = get("cards/favorites") { o -> MailPimJson.favorites(o)?.let { it to o } }
-
-    suspend fun putFavorites(ids: List<Long>): MResult<List<MFavorite>> = put("cards/favorites", MailPimJson.idsBody(ids), MailPimJson::favorites)
-
-    /** The calendar widget on Start: today and the next [days] − 1 days. */
-    suspend fun upcoming(days: Int = 2, limit: Int = 8): MResult<Pair<MUpcoming, JsonObject>> =
-        get("events/upcoming", mapOf("days" to days.coerceIn(1, 7).toString(), "limit" to limit.coerceIn(1, 20).toString())) { o -> MailPimJson.upcoming(o)?.let { it to o } }
-
-    suspend fun cardPhoto(id: Long): MResult<MPhoto> = get("cards/$id/photo", parse = MailPimJson::photo)
-
-    suspend fun putCardPhoto(id: Long, mime: String, bytes: ByteArray): MResult<MCard> = put("cards/$id/photo", MailPimJson.photoBody(mime, bytes), MailPimJson::cardAnswer)
-
-    suspend fun deleteCardPhoto(id: Long): MResult<MCard> = del("cards/$id/photo", MailPimJson::cardAnswer)
-
-    suspend fun lookup(email: String): MResult<MLookup> = get("cards/lookup", mapOf("email" to email.trim().take(320)), MailPimJson::lookup)
-
-    suspend fun activity(id: Long): MResult<MActivity> = get("cards/$id/activity", parse = MailPimJson::activity)
-
-    suspend fun cardDraft(messageId: Long?, email: String): MResult<MCardDraft> =
-        get("cards/draft", buildMap {
-            messageId?.let { put("messageId", it.toString()) }
-            put("email", email.trim().take(320))
-        }, MailPimJson::cardDraft)
-
-    /** `GET cards/duplicates` ([details]: each card in full and the preview, Mail 1.4.0). */
-    suspend fun duplicates(details: Boolean = false): MResult<List<MDuplicate>> =
-        get("cards/duplicates", if (details) mapOf("details" to "1") else emptyMap(), MailPimJson::duplicates)
-
-    suspend fun merge(body: JsonObject): MResult<MCard> = post("cards/merge", body, timeoutMs = 60_000L, parse = MailPimJson::cardAnswer)
-
-    suspend fun ignoreDuplicates(ids: List<Long>): MResult<Unit> = post("cards/duplicates/ignore", MailJson.idsBody(ids), parse = unit)
-
-    suspend fun importVcf(vcf: String, addressbookId: Long?): MResult<MImport> =
-        post("cards/import", MailPimJson.importBody(vcf, addressbookId), timeoutMs = 120_000L, parse = MailPimJson::importAnswer)
-
-    suspend fun exportVcf(book: Long? = null, group: Long? = null): MResult<MExport> =
-        get("cards/export", buildMap {
-            put("book", book?.toString() ?: "all")
-            group?.let { put("group", it.toString()) }
-        }, MailPimJson::export)
-
-    suspend fun createGroup(name: String): MResult<MGroup> = post("groups", MailPimJson.groupBody(name), parse = MailPimJson::groupAnswer)
-
-    suspend fun renameGroup(id: Long, name: String): MResult<MGroup> = patch("groups/$id", MailPimJson.groupBody(name), parse = MailPimJson::groupAnswer)
-
-    suspend fun deleteGroup(id: Long): MResult<Unit> = del("groups/$id", unit)
-
-    suspend fun group(id: Long): MResult<MGroupDetail> = get("groups/$id", parse = MailPimJson::groupDetail)
-
-    suspend fun groupMembers(id: Long, body: JsonObject): MResult<MGroupDetail> = post("groups/$id/members", body, parse = MailPimJson::groupDetail)
 }

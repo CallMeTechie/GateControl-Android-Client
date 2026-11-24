@@ -33,6 +33,8 @@ include(":core:gatedrop")
 include(":core:familie-api")
 // Notizen & Aufgaben (API, answers, models, the note's Markdown): phone app and GateControl TV
 include(":core:notizen-api")
+// GateControl Mail (accounts, lists, reading, drafts and sending, AI): phone app and GateControl TV
+include(":core:mail-api")
 // Messenger (API, answers, models, realtime events, bridge rules): phone app and GateControl TV
 include(":core:chat-api")
 include(":core:tunnel")

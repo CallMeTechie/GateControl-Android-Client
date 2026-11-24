@@ -1,5 +1,11 @@
 package com.gatecontrol.android.ui.mail.contacts
 
+import com.gatecontrol.android.mail.acceptConflict
+import com.gatecontrol.android.mail.activity
+import com.gatecontrol.android.mail.deleteCard
+import com.gatecontrol.android.mail.dismissConflict
+import com.gatecontrol.android.mail.patchOwn
+import com.gatecontrol.android.mail.unmerge
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope

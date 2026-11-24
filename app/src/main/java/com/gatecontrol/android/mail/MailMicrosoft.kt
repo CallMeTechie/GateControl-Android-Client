@@ -20,8 +20,8 @@ object MailMicrosoft {
     const val SCHEME = "msauth"
     /** The redirect's host: the app's package as published (contract D). */
     const val HOST = "com.gatecontrol.client"
-    const val DEFAULT_AUTHORITY = "https://login.microsoftonline.com/common"
-    val DEFAULT_SCOPES = listOf("openid", "profile", "email", "offline_access", "User.Read", "Mail.ReadWrite", "Mail.Send")
+    const val DEFAULT_AUTHORITY = MMicrosoft.DEFAULT_AUTHORITY
+    val DEFAULT_SCOPES = MMicrosoft.DEFAULT_SCOPES
     /** Since Mail 1.2.0: the rights of calendars and contacts (`Account.missingScopes`). */
     const val CALENDAR_SCOPE = "Calendars.ReadWrite"
     const val CONTACTS_SCOPE = "Contacts.ReadWrite"
