@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.147.0] - 2026-11-24
+
+### Features
+- Stufe 3b Zuhause – Müll, Kalender, Einkauf (#283)
+
+---
+
 ## [1.146.0] - 2026-11-23
 
 ### Features
