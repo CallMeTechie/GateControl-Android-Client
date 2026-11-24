@@ -58,6 +58,16 @@ class TvPrefsViewModel @Inject constructor(
 
     fun setStartRow(row: TvStartRow, on: Boolean) = settings.setStartRow(row, on)
 
+    /** Eingabe: the own text building blocks. */
+    val snippets: StateFlow<List<String>> = settings.snippets
+
+    fun setSnippets(list: List<String>) = settings.setSnippets(list)
+
+    /** Eingabe: the dictation hints show (off: „Diktat-Hinweise ausblenden“). */
+    val dictationHints: StateFlow<Boolean> = settings.dictationHints
+
+    fun setDictationHints(on: Boolean) = settings.setDictationHints(on)
+
     /** What the photo frame can show (the last `GET frame`). */
     val frameStatus: StateFlow<TvFrameStatus> = frameSource.status
 

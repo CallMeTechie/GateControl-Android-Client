@@ -5,8 +5,10 @@ import com.gatecontrol.android.drive.DNode
 import com.gatecontrol.android.drive.DriveApi
 import com.gatecontrol.android.gatedrop.GATEDROP_PLUGIN
 import com.gatecontrol.android.gatedrop.GateDropApi
+import com.gatecontrol.android.gatedrop.GdDevice
 import com.gatecontrol.android.gatedrop.GdEntry
 import com.gatecontrol.android.gatedrop.GdItem
+import com.gatecontrol.android.gatedrop.GdOwner
 import com.gatecontrol.android.gatedrop.GdPerson
 import com.gatecontrol.android.gatedrop.GdRecipients
 import com.gatecontrol.android.gatedrop.GdResult
@@ -192,5 +194,30 @@ class TvGateDropTest {
         coEvery { api.targets() } returns GdResult.Failed("http_404", 404)
         assertNull(gd.targets())
         assertEquals(false, gd.available.value)
+    }
+
+    @Test
+    fun `a draft goes as text to an own device only`() = runBlocking {
+        coEvery { api.targets() } returns GdResult.Ok(
+            GdTargets(
+                people = listOf(GdPerson("7", "Anna")),
+                devices = listOf(GdDevice("d1", "Laptop", "windows", online = false), GdDevice("d2", "Pixel", "android", online = true)),
+                peopleDevices = listOf(GdDevice("d9", "Tablet", "android", online = true, owner = GdOwner("u3", "Jonas"))),
+            ),
+        )
+        val text = slot<String>()
+        val to = slot<GdRecipients>()
+        coEvery { api.send(emptyList(), capture(text), null, null, capture(to)) } returns GdResult.Ok(GdSendResult("s3"))
+        val gd = drop()
+
+        assertEquals(listOf("Pixel", "Laptop"), gd.ownDevices()!!.map { it.name })
+        val pixel = gd.ownDevices()!!.first()
+        assertEquals(TvDropSend.Done("Pixel"), gd.sendText("Bin gleich da.\n\ngatecontrol://chat/12", pixel))
+        assertEquals("Bin gleich da.\n\ngatecontrol://chat/12", text.captured)
+        assertEquals(listOf("d2"), to.captured.devices)
+        assertTrue(to.captured.people.isEmpty())
+
+        assertEquals(TvDropSend.Failed("not_allowed"), gd.sendText("Hallo", TvDropTarget("7", "Anna", false, null, false)))
+        assertEquals(TvDropSend.Failed("empty"), gd.sendText("   ", pixel))
     }
 }

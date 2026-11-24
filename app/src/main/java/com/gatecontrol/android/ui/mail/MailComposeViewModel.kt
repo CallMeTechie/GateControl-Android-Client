@@ -183,7 +183,14 @@ class MailComposeViewModel @Inject constructor(
         val me = repository.me.value ?: repository.refresh().valueOrNull()
         when {
             argDraft != null -> when (val r = api.draft(argDraft)) {
-                is MResult.Ok -> fromDraft(r.value)
+                is MResult.Ok -> {
+                    fromDraft(r.value)
+                    // „Am Handy weiterschreiben“ of GateControl TV: the text begun there, before the quote
+                    MailLogic.continued(argReply, _state.value.text)?.let { text ->
+                        _state.update { it.copy(text = text) }
+                        changed()
+                    }
+                }
                 else -> _state.update { it.copy(loading = false, error = MailHomeViewModel.code(r)) }
             }
             argRef != null && argMode != null -> {

@@ -604,4 +604,47 @@
         <item quantity="one">%1$d overdue</item>
         <item quantity="other">%1$d overdue</item>
     </plurals>
+    <!-- Stage 3d: input building block -->
+    <string name="tv_set_input">Input</string>
+    <string name="tv_composer_label">Your text</string>
+    <string name="tv_composer_send">Send</string>
+    <string name="tv_composer_count">%1$d characters</string>
+    <string name="tv_composer_back_hint">Back in GateControl, your draft is still here. First OK for the keyboard, then hold the microphone button.</string>
+    <string name="tv_composer_mic_hint">OK opens the keyboard. Then hold the microphone button and speak; letting go adds the text.</string>
+    <string name="tv_composer_to_preview">Continue to preview</string>
+    <string name="tv_composer_handoff">Continue on the phone</string>
+    <string name="tv_composer_handoff_short">On the phone</string>
+    <string name="tv_composer_handoff_title">Continue writing on</string>
+    <string name="tv_composer_discard">Discard</string>
+    <string name="tv_composer_discard_title">Discard draft?</string>
+    <string name="tv_composer_discard_text">What you wrote is gone then.</string>
+    <string name="tv_composer_snippets">Text snippets</string>
+    <string name="tv_composer_snippets_none">No snippets yet. Create your own under Settings › Input.</string>
+    <string name="tv_composer_snippets_more">You can add to a snippet by voice afterwards.</string>
+    <string name="tv_composer_fallback">Dictation not working? Take a snippet, continue on the phone, or type with the Fire TV app on your phone or a Bluetooth keyboard.</string>
+    <string name="tv_composer_snippet_own">Own</string>
+    <string name="tv_composer_snippet_ai">AI suggestion</string>
+    <string name="tv_composer_snippet_suggestion">Suggestion</string>
+    <string name="tv_composer_preview_title">Send like this?</string>
+    <string name="tv_composer_sending">Sending …</string>
+    <string name="tv_composer_failed">Not sent. Try again?</string>
+    <string name="tv_composer_more">Keep speaking</string>
+    <string name="tv_composer_edit">Edit</string>
+    <string name="tv_input_snippets">Your text snippets</string>
+    <string name="tv_input_snippets_desc">They show beside every answer; OK puts one into the text.</string>
+    <string name="tv_input_snippet_new">New text snippet</string>
+    <string name="tv_input_snippet_new_desc">Type or dictate it, then save.</string>
+    <string name="tv_input_snippet_save">Save</string>
+    <string name="tv_input_snippet_full">At most %1$d snippets.</string>
+    <string name="tv_input_snippet_up">Move up</string>
+    <string name="tv_input_snippet_down">Move down</string>
+    <string name="tv_input_snippet_delete">Delete</string>
+    <string name="tv_input_snippet_none">No own snippets yet.</string>
+    <string name="tv_input_snippet_position">%1$d of %2$d</string>
+    <string name="tv_input_hints_off">Hide dictation hints</string>
+    <string name="tv_input_hints_off_desc">For people who only type: no hints on the microphone button.</string>
+    <string name="tv_input_privacy_title">Privacy of dictation</string>
+    <string name="tv_input_privacy">Dictation is a feature of Fire OS and Alexa: Amazon processes what you say, not GateControl. Keep that in mind for mails and chats. If you do not want that, take snippets or continue on the phone.</string>
+    <string name="tv_input_fallback_title">Without dictation</string>
+    <string name="tv_input_fallback">The Amazon Fire TV app on your phone types into the field on the TV; a Bluetooth keyboard paired with the stick works too.</string>
 </resources>

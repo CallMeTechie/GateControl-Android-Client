@@ -213,6 +213,16 @@ class MailLogicTest {
     }
 
     @Test
+    fun `a draft continued from the TV gets the text once, before the quote`() {
+        assertEquals("Passt am Freitag.\n\n> Zitat", MailLogic.continued(" Passt am Freitag. ", "\n\n> Zitat"))
+        assertEquals("Passt am Freitag.", MailLogic.continued("Passt am Freitag.", ""))
+        // the TV saved it on the server already
+        assertEquals(null, MailLogic.continued("Passt am Freitag.", "Passt am Freitag.\n\n> Zitat"))
+        assertEquals(null, MailLogic.continued(null, "Text"))
+        assertEquals(null, MailLogic.continued("  ", "Text"))
+    }
+
+    @Test
     fun `attachments - type labels and file names`() {
         assertEquals("PDF", MailLogic.typeLabel("x.pdf", "application/octet-stream"))
         assertEquals("XLS", MailLogic.typeLabel("Preisliste.xlsx", ""))

@@ -142,6 +142,9 @@
     <string name="gatedrop_to">to %1$s</string>
     <string name="gatedrop_saved_locally">saved</string>
     <string name="gatedrop_item_text">Text: %1$s</string>
+    <string name="gatedrop_item_continue">Continue writing: %1$s</string>
+    <string name="gatedrop_continue_chat">Begun on the TV · opens the chat</string>
+    <string name="gatedrop_continue_mail">Begun on the TV · opens the mail draft</string>
     <string name="gatedrop_item_link">Link: %1$s</string>
     <string name="gatedrop_empty_received">Nothing received yet.</string>
     <string name="gatedrop_empty_sent">Nothing sent yet.</string>

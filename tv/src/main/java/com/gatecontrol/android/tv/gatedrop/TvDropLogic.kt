@@ -98,6 +98,10 @@ object TvDropLogic {
         return own + people + others
     }
 
+    /** Only the person's own devices (not other people's open ones), online first. */
+    fun ownDevices(t: GdTargets): List<TvDropTarget> =
+        t.devices.filter { it.owner == null }.sortedByDescending { it.online }.map { TvDropTarget(it.id, it.name, true, it.platform, it.online) }
+
     /** What [e] is on its card: one file by its name, several by their kind ("3 Fotos"), else its text or link. */
     fun summary(e: TvDropEntry): TvDropSummary {
         val files = e.files
