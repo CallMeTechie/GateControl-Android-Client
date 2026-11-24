@@ -88,6 +88,9 @@
     <string name="rdp_cert_reject">Reject</string>
     <string name="rdp_auth_required_title">Authentication required</string>
     <string name="rdp_auth_required_message">The server requires credentials. Enter them to continue.</string>
+    <string name="rdp_session_connecting">Connecting to the remote desktop&#8230;</string>
+    <string name="rdp_session_failed_title">Connection failed</string>
+    <string name="rdp_session_failed_message">The remote desktop did not set up the connection. Check that the PC is on and in the VPN, that Remote Desktop is allowed there and that user name and password are right.</string>
 
     <!-- Settings -->
     <string name="settings_title">Settings</string>

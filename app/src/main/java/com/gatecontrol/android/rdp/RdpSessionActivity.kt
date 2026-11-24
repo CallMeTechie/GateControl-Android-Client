@@ -8,8 +8,13 @@ import androidx.activity.ComponentActivity
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -19,8 +24,10 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
@@ -267,24 +274,32 @@ class RdpSessionActivity : ComponentActivity() {
     @Composable
     private fun RdpSessionScreen() {
         val event by controller.events.collectAsState()
+        // the picture is there (the surface exists): until then a spinner instead of an empty window
+        var hasPicture by remember { mutableStateOf(rdpSurface != null) }
+        // the connection failed or ended before a picture came: a message instead of a silent close
+        var failed by remember { mutableStateOf(false) }
 
         LaunchedEffect(event) {
             when (val e = event) {
                 is RdpSessionEvent.SettingsChanged -> {
                     if (rdpSurface == null) initSurface(e.width, e.height, e.bpp)
+                    hasPicture = rdpSurface != null
                 }
                 is RdpSessionEvent.GraphicsResize -> {
                     initSurface(e.width, e.height, e.bpp)
+                    hasPicture = rdpSurface != null
                 }
                 // GraphicsUpdate is handled via direct onPixelUpdate callback
                 // (bypasses StateFlow for performance — no frame drops)
                 is RdpSessionEvent.ConnectionFailure -> {
                     Timber.e("Connection failed: ${e.reason}")
-                    finish()
+                    diagLog.log("Connection failed")
+                    failed = true
                 }
                 is RdpSessionEvent.Disconnected -> {
                     Timber.i("Disconnected")
-                    finish()
+                    // ended before any picture: the connection never came up — say so
+                    if (rdpSurface == null) failed = true else finish()
                 }
                 else -> { /* no-op */ }
             }
@@ -303,6 +318,18 @@ class RdpSessionActivity : ComponentActivity() {
                     }
                 },
             )
+
+            if (!hasPicture && !failed) {
+                Column(Modifier.align(Alignment.Center), horizontalAlignment = Alignment.CenterHorizontally) {
+                    CircularProgressIndicator()
+                    Spacer(Modifier.height(16.dp))
+                    Text(stringResource(R.string.rdp_session_connecting), style = MaterialTheme.typography.bodyMedium)
+                }
+            }
+
+            if (failed) {
+                ConnectionFailedDialog { finishSession() }
+            }
 
             when (val e = event) {
                 is RdpSessionEvent.VerifyCertificate -> CertificateVerifyDialog(
@@ -325,6 +352,18 @@ class RdpSessionActivity : ComponentActivity() {
                 else -> { /* no-op */ }
             }
         }
+    }
+
+    @Composable
+    private fun ConnectionFailedDialog(onDismiss: () -> Unit) {
+        AlertDialog(
+            onDismissRequest = onDismiss,
+            title = { Text(stringResource(R.string.rdp_session_failed_title)) },
+            text = { Text(stringResource(R.string.rdp_session_failed_message)) },
+            confirmButton = {
+                TextButton(onClick = onDismiss) { Text(stringResource(R.string.close)) }
+            },
+        )
     }
 
     @Composable
