@@ -48,6 +48,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.tv.material3.Border
 import androidx.tv.material3.ClickableSurfaceDefaults
@@ -75,6 +76,8 @@ enum class TvDestination(@param:StringRes val label: Int, val icon: ImageVector)
     Notes(R.string.tv_nav_notes, TvIcons.Notes),
     /** Zuhause (stage 3b): waste collection, the calendar of Familie and Alltag, shopping. */
     Home(R.string.tv_nav_home, TvIcons.Family),
+    /** Nachrichten (stage 3e): the tabs Chats and Mail. */
+    Messages(R.string.tv_nav_messages, TvIcons.Chat),
     Settings(R.string.tv_nav_settings, TvIcons.Settings),
 }
 
@@ -115,6 +118,9 @@ fun TvHome(
     gatedropPage: (@Composable () -> Unit)? = null,
     homePage: (@Composable () -> Unit)? = null,
     notesPage: (@Composable () -> Unit)? = null,
+    messagesPage: (@Composable () -> Unit)? = null,
+    /** The count at a page of the rail (Nachrichten: unread messages); none: no count. */
+    badges: Map<TvDestination, Int> = emptyMap(),
     /** Asked before a page opens (the TV PIN of Einstellungen); calls `open` when it may. */
     onOpen: (TvDestination, open: () -> Unit) -> Unit = { _, open -> open() },
     /** Another part of the app asks for a page (OK on a camera of the start page). */
@@ -141,6 +147,8 @@ fun TvHome(
                 gatedropPage()
             } else if (current == TvDestination.Notes && notesPage != null) {
                 notesPage()
+            } else if (current == TvDestination.Messages && messagesPage != null) {
+                messagesPage()
             } else if (current == TvDestination.Home && homePage != null) {
                 homePage()
             } else if (current == TvDestination.Settings && settingsPage != null) {
@@ -155,6 +163,7 @@ fun TvHome(
         }
         Rail(
             current = current,
+            badges = badges,
             onSelect = { d -> if (d != current) onOpen(d) { current = d } },
             startFocus = startFocus,
             modifier = Modifier.align(Alignment.CenterStart),
@@ -173,6 +182,7 @@ fun TvHome(
 @Composable
 private fun Rail(
     current: TvDestination,
+    badges: Map<TvDestination, Int>,
     onSelect: (TvDestination) -> Unit,
     startFocus: FocusRequester,
     modifier: Modifier = Modifier,
@@ -191,7 +201,8 @@ private fun Rail(
         verticalArrangement = Arrangement.spacedBy(9.dp),
     ) {
         for (destination in TvDestination.entries) {
-            val label = stringResource(destination.label)
+            val count = badges[destination]?.takeIf { it > 0 }
+            val label = stringResource(destination.label) + (count?.let { ", $it" } ?: "")
             val shape = RoundedCornerShape(9.dp)
             val ring = Border(BorderStroke(2.dp, colors.focus), shape = shape)
             Surface(
@@ -220,6 +231,15 @@ private fun Rail(
                     contentDescription = null,
                     modifier = Modifier.align(Alignment.Center).size(15.dp),
                 )
+                if (count != null) {
+                    // the count of unread messages at the icon („3“, „99+“)
+                    Text(
+                        if (count > 99) "99+" else count.toString(),
+                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 8.sp, lineHeight = 9.sp),
+                        color = colors.onAccent,
+                        modifier = Modifier.align(Alignment.TopEnd).background(colors.accent, RoundedCornerShape(5.dp)).padding(horizontal = 3.dp),
+                    )
+                }
             }
         }
     }

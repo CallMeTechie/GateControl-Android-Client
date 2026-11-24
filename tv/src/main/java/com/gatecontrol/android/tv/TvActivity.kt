@@ -94,6 +94,24 @@ import com.gatecontrol.android.tv.security.TvPinHold
 import com.gatecontrol.android.tv.security.TvPinUnlocks
 import com.gatecontrol.android.tv.ui.notizen.TvNotizenActions
 import com.gatecontrol.android.tv.ui.notizen.TvNotizenPage
+import com.gatecontrol.android.common.ContinueLink
+import com.gatecontrol.android.tv.chat.TvChatPhotos
+import com.gatecontrol.android.tv.chat.TvChats
+import com.gatecontrol.android.tv.chat.TvChatsViewModel
+import com.gatecontrol.android.tv.input.TvComposerKit
+import com.gatecontrol.android.tv.input.TvTyping
+import com.gatecontrol.android.tv.security.TvLeave
+import com.gatecontrol.android.tv.security.TvPinLeave
+import com.gatecontrol.android.tv.ui.components.TvChoiceDialog
+import com.gatecontrol.android.tv.ui.components.TvNewPinDialog
+import com.gatecontrol.android.tv.ui.messages.TvChatsActions
+import com.gatecontrol.android.tv.ui.messages.TvChatsTab
+import com.gatecontrol.android.tv.ui.messages.TvMessagesPage
+import com.gatecontrol.android.tv.ui.settings.TvMessagesOptions
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.IntentFilter
+import androidx.core.content.ContextCompat
 import dagger.hilt.android.AndroidEntryPoint
 import timber.log.Timber
 import javax.inject.Inject
@@ -115,6 +133,7 @@ class TvActivity : ComponentActivity() {
     private val mediaVm: TvMediaViewModel by viewModels()
     private val zuhause: TvZuhauseViewModel by viewModels()
     private val notes: TvNotizenViewModel by viewModels()
+    private val chats: TvChatsViewModel by viewModels()
 
     @Inject lateinit var pairingApi: TvPairingApi
     @Inject lateinit var supervisor: TvSupervisor
@@ -125,6 +144,22 @@ class TvActivity : ComponentActivity() {
     @Inject lateinit var zuhauseData: TvZuhause
     @Inject lateinit var notesData: TvNotizen
     @Inject lateinit var pinUnlocks: TvPinUnlocks
+    @Inject lateinit var chatsData: TvChats
+    @Inject lateinit var composerKit: TvComposerKit
+
+    /** GateControl's own viewer or player is opening over this activity: leaving for it keeps what the PIN opened. */
+    @Volatile
+    private var toOwnActivity = false
+
+    /** Left while a text field had the focus (dictation): when (elapsed realtime), for [TvPinLeave.lockOnReturn]. */
+    private var leftTypingAt: Long? = null
+
+    /** The screen saver or the screen going off: what the PIN opened always closes. */
+    private val screenAway = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            pinUnlocks.lockAll()
+        }
+    }
 
     private val vpnConsent = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         main.onConsent(result.resultCode == RESULT_OK)
@@ -132,6 +167,12 @@ class TvActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        val away = IntentFilter().apply {
+            addAction(Intent.ACTION_SCREEN_OFF)
+            addAction(Intent.ACTION_DREAMING_STARTED)
+        }
+        // protected broadcasts only the system sends
+        runCatching { ContextCompat.registerReceiver(this, screenAway, away, ContextCompat.RECEIVER_EXPORTED) }
         setContent {
             GateControlTvTheme {
                 val state by pairing.state.collectAsStateWithLifecycle()
@@ -160,16 +201,36 @@ class TvActivity : ComponentActivity() {
 
     override fun onStart() {
         super.onStart()
+        // back from the dictation (Alexa): locked only when it took long
+        if (TvPinLeave.lockOnReturn(leftTypingAt, SystemClock.elapsedRealtime())) pinUnlocks.lockAll()
+        leftTypingAt = null
+        toOwnActivity = false
         TvForeground.onStart()
         pairing.setVisible(true)
     }
 
     override fun onStop() {
-        // the photo frame, the screen saver or another app: what the PIN opened closes again
-        pinUnlocks.lockAll()
+        // the photo frame, the screen saver or another app: what the PIN opened closes again — not for GateControl's
+        // own viewer, and not at once while a text field has the focus (the dictation of Fire OS takes the front)
+        when (TvPinLeave.onStop(inApp = toOwnActivity, typing = TvTyping.active)) {
+            TvLeave.LOCK -> pinUnlocks.lockAll()
+            TvLeave.KEEP -> Unit
+            TvLeave.WAIT -> leftTypingAt = SystemClock.elapsedRealtime()
+        }
         pairing.setVisible(false)
         TvForeground.onStop()
         super.onStop()
+    }
+
+    override fun onDestroy() {
+        runCatching { unregisterReceiver(screenAway) }
+        super.onDestroy()
+    }
+
+    /** GateControl's viewer or player (it is part of the app: the PIN stays open behind it). */
+    private fun openViewer() {
+        toOwnActivity = true
+        startActivity(Intent(this, TvMediaActivity::class.java))
     }
 
     /** The pictures and videos of a send kept on the TV in the viewer, from its file [from] (or the first). */
@@ -181,7 +242,7 @@ class TvActivity : ComponentActivity() {
         }
         if (files.isEmpty()) return
         selection.setLocal(e.sendId, files, files.indexOfFirst { it.first == from }.coerceAtLeast(0))
-        startActivity(Intent(this, TvMediaActivity::class.java))
+        openViewer()
     }
 
     /** A received file: pictures and videos in the viewer, anything else in another app on the TV (if one takes it). */
@@ -259,7 +320,7 @@ class TvActivity : ComponentActivity() {
 
     /** Plays a film or episode of the media source in the player (Medien). */
     private fun playMedia(t: MediaTitle, fromStart: Boolean) {
-        mediaVm.play(t, fromStart) { startActivity(Intent(this, TvMediaActivity::class.java)) }
+        mediaVm.play(t, fromStart) { openViewer() }
     }
 
     private fun mediaActions(showMedia: () -> Unit) = TvMediaActions(
@@ -369,10 +430,42 @@ class TvActivity : ComponentActivity() {
                 onCancelAdd = notes::cancelAdd,
             )
         }
-        // A page behind the TV PIN; Notizen stays open for a while after it (TvPinHold).
+        // Nachrichten without a PIN yet: the first opening asks whether to set one (Frage 13 a)
+        var offerFor by remember { mutableStateOf<Pair<TvPinFunction, () -> Unit>?>(null) }
+        var newPinFor by remember { mutableStateOf<Pair<TvPinFunction, () -> Unit>?>(null) }
+        // A page behind the TV PIN; Notizen and Nachrichten stay open for a while after it (TvPinHold).
         val askPin: (TvPinFunction, () -> Unit) -> Unit = { function, open ->
-            if (pinState.needsPin(function) && !(function.holds && pinUnlocks.isOpen(function))) pinFor = function to open else open()
+            when {
+                pinState.offersPin(function) -> offerFor = function to open
+                pinState.needsPin(function) && !(function.holds && pinUnlocks.isOpen(function)) -> pinFor = function to open
+                else -> open()
+            }
         }
+        val chatsUi by chats.ui.collectAsStateWithLifecycle()
+        val chatHint by prefs.chatHint.collectAsStateWithLifecycle()
+        val chatsActions = remember {
+            TvChatsActions(
+                onStart = { chats.refresh(force = true) },
+                onOpen = chats::open,
+                onReading = chats::setReading,
+                onOlder = chats::loadOlder,
+                send = { text, replyTo, clientId -> chats.send(text, replyTo, clientId) },
+                onRetry = chats::retry,
+                onResend = chats::resend,
+                onDrop = chats::drop,
+                onReact = chats::react,
+                suggestions = chats::suggestions,
+                thumb = chats::thumb,
+                onPhoto = { photos, at ->
+                    selection.setPhotos(TvChatPhotos(photos, chatsData), at)
+                    openViewer()
+                },
+                ownSnippets = composerKit.ownSnippets,
+                handoff = { id -> composerKit.handoff(ContinueLink.Chat(id)) },
+            )
+        }
+        // the rail's count, also before Nachrichten was opened
+        LaunchedEffect(Unit) { chats.refresh() }
         val homeActions = remember {
             TvZuhauseActions(
                 onStart = { zuhause.refresh(force = true) },
@@ -407,6 +500,7 @@ class TvActivity : ComponentActivity() {
                         zuhause.refresh()
                         notes.refresh()
                     }
+                    if (TvStartRow.MESSAGES !in rowsOff) chats.refresh()
                     drive.loadRecent()
                     mediaVm.refreshResume()
                     onDispose { home.setVisible(false) }
@@ -426,15 +520,23 @@ class TvActivity : ComponentActivity() {
                         home = if (TvStartRow.HOME_TODAY in rowsOff) null else homeUi.home,
                         today = homeUi.today,
                         tasks = if (TvStartRow.HOME_TODAY in rowsOff) null else notesUi.tasksToday,
+                        messages = if (TvStartRow.MESSAGES in rowsOff) emptyList() else chatsUi.news,
+                        messagesUnread = chatsUi.unread,
                     ),
                     media = mediaActions,
                     onHome = { requested = TvDestination.Home },
                     onTasks = { askPin(TvPinFunction.NOTES) { requested = TvDestination.Notes } },
+                    onMessages = { id ->
+                        askPin(TvPinFunction.MESSAGES) {
+                            chats.open(id)
+                            requested = TvDestination.Messages
+                        }
+                    },
                     onDrop = { dropOpen = it },
                     dropCover = ::dropCover,
                     onDrive = { node ->
                         when (drive.pressRecent(node)) {
-                            TvDriveOpen.PHOTO, TvDriveOpen.VIDEO, TvDriveOpen.PREVIEW -> startActivity(Intent(this, TvMediaActivity::class.java))
+                            TvDriveOpen.PHOTO, TvDriveOpen.VIDEO, TvDriveOpen.PREVIEW -> openViewer()
                             TvDriveOpen.FOLDER -> requested = TvDestination.Drive
                             else -> Unit
                         }
@@ -470,7 +572,7 @@ class TvActivity : ComponentActivity() {
                     onItem = { node ->
                         drive.press(node).also { open ->
                             if (open == TvDriveOpen.PHOTO || open == TvDriveOpen.VIDEO || open == TvDriveOpen.PREVIEW) {
-                                startActivity(Intent(this, TvMediaActivity::class.java))
+                                openViewer()
                             }
                         }
                     },
@@ -510,11 +612,32 @@ class TvActivity : ComponentActivity() {
                     TvNotizenPage(notesUi, notesActions)
                 }
             },
+            messagesPage = {
+                // like Notizen: after the frame, the screen saver, leaving the app or ten minutes without a key: the PIN
+                val until by pinUnlocks.until.collectAsStateWithLifecycle()
+                val locked = pinState.needsPin(TvPinFunction.MESSAGES) && !TvPinHold.isOpen(until, TvPinFunction.MESSAGES, SystemClock.elapsedRealtime())
+                if (locked) {
+                    TvPinDialog(
+                        title = stringResource(R.string.tv_pin_for_messages),
+                        check = prefs::checkPin,
+                        onPassed = { pinUnlocks.opened(TvPinFunction.MESSAGES) },
+                        onDismiss = { requested = TvDestination.Start },
+                    )
+                } else {
+                    // Mail (stage 3f) hangs itself in with `mail = { … }` and `mailUnread`
+                    TvMessagesPage(
+                        chats = { TvChatsTab(chatsUi, chatsActions) },
+                        chatsUnread = chatsUi.unread,
+                    )
+                }
+            },
+            badges = mapOf(TvDestination.Messages to chatsUi.unread),
             onOpen = { destination, open ->
                 val function = when (destination) {
                     TvDestination.Settings -> TvPinFunction.SETTINGS
                     TvDestination.Drive -> TvPinFunction.DRIVE
                     TvDestination.Notes -> TvPinFunction.NOTES
+                    TvDestination.Messages -> TvPinFunction.MESSAGES
                     else -> null
                 }
                 if (function != null) askPin(function, open) else open()
@@ -537,6 +660,7 @@ class TvActivity : ComponentActivity() {
                             media.clear()
                             zuhauseData.clear()
                             notesData.clear()
+                            chatsData.clear()
                             pinUnlocks.lockAll()
                             pairing.reset()
                         }
@@ -549,6 +673,18 @@ class TvActivity : ComponentActivity() {
                     frame = {
                         val frameStatus by prefs.frameStatus.collectAsStateWithLifecycle()
                         TvFrameOptions(frame, frameStatus, prefs.frameServer(), prefs::setFrame, ::startFrame, prefs::refreshFrame)
+                    },
+                    messages = {
+                        TvMessagesOptions(
+                            chats = chatsUi.choosable,
+                            chosen = chatsUi.chosen,
+                            state = chatsUi.state,
+                            onLoad = { chats.refresh(force = true) },
+                            onChoose = chats::choose,
+                            onDefault = chats::chooseDefault,
+                            hint = chatHint,
+                            onHint = prefs::setChatHint,
+                        )
                     },
                     startRows = { TvStartRowOptions(rowsOff, prefs::setStartRow) },
                     input = {
@@ -566,6 +702,7 @@ class TvActivity : ComponentActivity() {
                     when (function) {
                         TvPinFunction.DRIVE -> R.string.tv_pin_for_drive
                         TvPinFunction.NOTES -> R.string.tv_pin_for_notes
+                        TvPinFunction.MESSAGES -> R.string.tv_pin_for_messages
                         else -> R.string.tv_pin_for_settings
                     },
                 ),
@@ -576,6 +713,37 @@ class TvActivity : ComponentActivity() {
                     open()
                 },
                 onDismiss = { pinFor = null },
+            )
+        }
+        offerFor?.let { (function, open) ->
+            TvChoiceDialog(
+                title = stringResource(R.string.tv_pin_offer_title),
+                text = stringResource(R.string.tv_pin_offer_text),
+                primary = stringResource(R.string.tv_pin_offer_set),
+                onPrimary = {
+                    offerFor = null
+                    prefs.pinOffered(function)
+                    newPinFor = function to open
+                },
+                secondary = stringResource(R.string.tv_pin_offer_skip),
+                onSecondary = {
+                    offerFor = null
+                    prefs.pinOffered(function)
+                    open()
+                },
+                onDismiss = { offerFor = null },
+            )
+        }
+        newPinFor?.let { (function, open) ->
+            TvNewPinDialog(
+                onSet = { pin ->
+                    newPinFor = null
+                    prefs.setPin(pin)
+                    // just set: open now, the PIN counts from the next time
+                    pinUnlocks.opened(function)
+                    open()
+                },
+                onDismiss = { newPinFor = null },
             )
         }
         dropOffer?.let { offer ->

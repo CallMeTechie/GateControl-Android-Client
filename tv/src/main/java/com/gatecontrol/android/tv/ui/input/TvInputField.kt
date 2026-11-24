@@ -26,6 +26,7 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
@@ -35,9 +36,17 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusDirection
+import androidx.compose.ui.focus.FocusManager
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
@@ -54,6 +63,7 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.tv.material3.Icon
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
+import com.gatecontrol.android.tv.input.TvTyping
 import com.gatecontrol.android.tv.ui.home.TvIcons
 import com.gatecontrol.android.tv.ui.theme.GateControlTvTheme
 
@@ -118,6 +128,22 @@ fun TvInputField(
     }
 }
 
+/**
+ * The field tells [TvTyping] while it has the focus (the system keyboard and the dictation are on it), and that it is
+ * gone when it leaves the screen.
+ */
+@Composable
+private fun TrackTyping(key: Any, focused: Boolean) {
+    SideEffect { TvTyping.focus(key, focused) }
+    DisposableEffect(key) { onDispose { TvTyping.focus(key, false) } }
+}
+
+/**
+ * ▲ / ▼ of the remote leave the field (stage 3d known problem 2: a multi-line field kept them for its cursor and the
+ * focus could not get out). While the keyboard is open the keys are the keyboard's, so nothing changes there.
+ */
+internal fun leave(focus: FocusManager, up: Boolean): Boolean = focus.moveFocus(if (up) FocusDirection.Up else FocusDirection.Down)
+
 /** The look of every field: panel, line, 8 dp corners; the focus ring of the TV. */
 @Composable
 private fun Modifier.frame(focused: Boolean, minHeight: Dp): Modifier {
@@ -147,6 +173,9 @@ private fun ComposeField(
     var focused by remember { mutableStateOf(false) }
     val focus = remember { FocusRequester() }
     val keyboard: SoftwareKeyboardController? = LocalSoftwareKeyboardController.current
+    val focusManager = LocalFocusManager.current
+    val typingKey = remember { Any() }
+    TrackTyping(typingKey, focused)
     // the cursor at the end whenever the text changes from outside (a building block, „Weiter sprechen“)
     var field by remember { mutableStateOf(TextFieldValue(value, TextRange(value.length))) }
     if (field.text != value) field = TextFieldValue(value, TextRange(value.length))
@@ -174,7 +203,13 @@ private fun ComposeField(
             .focusRequester(focus)
             .fillMaxWidth()
             .semantics { contentDescription = label }
-            .onFocusChanged { focused = it.isFocused },
+            .onFocusChanged { focused = it.isFocused }
+            .onPreviewKeyEvent { e ->
+                val up = e.key == Key.DirectionUp
+                val vertical = up || e.key == Key.DirectionDown
+                if (vertical && e.type == KeyEventType.KeyDown) leave(focusManager, up)
+                vertical
+            },
         decorationBox = { inner ->
             Box(Modifier.frame(focused, minHeight)) {
                 if (value.isEmpty() && placeholder != null) Text(placeholder, style = style.copy(color = colors.faint))
@@ -206,6 +241,9 @@ private fun ClassicField(
     val multi = minHeight > 0.dp
     val textSize = MaterialTheme.typography.bodyLarge.fontSize.value
     var view by remember { mutableStateOf<EditText?>(null) }
+    val focusManager = LocalFocusManager.current
+    val typingKey = remember { Any() }
+    TrackTyping(typingKey, focused)
     SideEffect { handle?.opener = { view?.let(::openKeyboard) } }
     AndroidView(
         factory = { context ->
@@ -234,6 +272,16 @@ private fun ClassicField(
                 setText(value)
                 setSelection(value.length)
                 setOnFocusChangeListener { _, has -> focused = has }
+                // ▲ / ▼ with the keyboard closed: out of the field (the multi-line one kept them for its cursor)
+                setOnKeyListener { v, keyCode, event ->
+                    val up = keyCode == KeyEvent.KEYCODE_DPAD_UP
+                    if ((up || keyCode == KeyEvent.KEYCODE_DPAD_DOWN) && event.action == KeyEvent.ACTION_DOWN) {
+                        if (!leave(focusManager, up)) v.focusSearch(if (up) android.view.View.FOCUS_UP else android.view.View.FOCUS_DOWN)?.requestFocus()
+                        true
+                    } else {
+                        (up || keyCode == KeyEvent.KEYCODE_DPAD_DOWN) && event.action == KeyEvent.ACTION_UP
+                    }
+                }
                 setOnEditorActionListener { _, action, event ->
                     val enter = event?.keyCode == KeyEvent.KEYCODE_ENTER && event.action == KeyEvent.ACTION_DOWN
                     if (action == EditorInfo.IME_ACTION_DONE || (!multi && enter)) {

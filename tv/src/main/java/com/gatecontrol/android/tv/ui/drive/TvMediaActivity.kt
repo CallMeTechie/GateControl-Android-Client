@@ -34,6 +34,7 @@ class TvMediaActivity : ComponentActivity() {
     @Inject lateinit var media: TvDriveMedia
     @Inject lateinit var gatedrop: TvGateDrop
     @Inject lateinit var mediaLibrary: com.gatecontrol.android.tv.media.TvMedia
+    @Inject lateinit var pinUnlocks: com.gatecontrol.android.tv.security.TvPinUnlocks
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -41,7 +42,8 @@ class TvMediaActivity : ComponentActivity() {
         val local = selection.local
         val sendId = selection.localSend
         val queue = selection.media
-        if (items.isEmpty() && local.isEmpty() && queue == null) {
+        val photos = selection.photos
+        if (items.isEmpty() && local.isEmpty() && queue == null && photos == null) {
             finish()
             return
         }
@@ -53,7 +55,10 @@ class TvMediaActivity : ComponentActivity() {
             GateControlTvTheme {
                 var at by rememberSaveable { mutableIntStateOf(start) }
                 var sending by remember { mutableStateOf<Int?>(null) }
-                if (queue != null) {
+                if (photos != null) {
+                    // a chat's photos (Nachrichten): only to look at, no „Senden an …“
+                    TvPhotoViewer(photos, at.coerceIn(0, photos.count - 1), onAt = { at = it }, onClose = ::finish)
+                } else if (queue != null) {
                     // Medien: films and episodes of the NAS (no "Senden an …")
                     val videos = remember { com.gatecontrol.android.tv.media.TvMediaVideos(queue, mediaLibrary, resources) }
                     TvVideoPlayer(videos, at.coerceIn(0, videos.count - 1), onAt = { at = it }, onClose = ::finish)
@@ -94,5 +99,11 @@ class TvMediaActivity : ComponentActivity() {
                 }
             }
         }
+    }
+
+    override fun onStop() {
+        // left for another app (not back to GateControl): what the TV PIN opened closes, as from the start page
+        if (!isFinishing) pinUnlocks.lockAll()
+        super.onStop()
     }
 }

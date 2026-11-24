@@ -110,10 +110,12 @@ class TvPinTest {
     fun `functions keep their stored names`() {
         for (f in TvPinFunction.entries) assertEquals(f, TvPinFunction.fromWire(f.wire))
         assertEquals(null, TvPinFunction.fromWire("other"))
-        assertEquals(listOf(TvPinFunction.DOOR, TvPinFunction.SETTINGS, TvPinFunction.DRIVE, TvPinFunction.NOTES), TvPinFunction.AVAILABLE)
+        assertEquals(listOf(TvPinFunction.DOOR, TvPinFunction.SETTINGS, TvPinFunction.DRIVE, TvPinFunction.NOTES, TvPinFunction.MESSAGES), TvPinFunction.AVAILABLE)
         assertEquals("notes", TvPinFunction.NOTES.wire)
-        // only Notizen stays open after the PIN; the door and the settings ask each time
-        assertEquals(listOf(TvPinFunction.NOTES), TvPinFunction.entries.filter { it.holds })
+        assertEquals("messages", TvPinFunction.MESSAGES.wire)
+        // Notizen and Nachrichten stay open after the PIN; the door and the settings ask each time
+        assertEquals(listOf(TvPinFunction.NOTES, TvPinFunction.MESSAGES), TvPinFunction.entries.filter { it.holds })
+        assertEquals(listOf(TvPinFunction.MESSAGES), TvPinFunction.entries.filter { it.defaultOn })
     }
 
     @Test
@@ -143,5 +145,51 @@ class TvPinTest {
         assertTrue(unlocks.isOpen(TvPinFunction.NOTES))
         unlocks.lockAll()
         assertFalse(unlocks.isOpen(TvPinFunction.NOTES))
+    }
+
+    @Test
+    fun `Nachrichten asks for the PIN by default until it is switched off`() {
+        val none = TvPinState()
+        // no PIN: nothing asks, the first opening offers one
+        assertFalse(none.needsPin(TvPinFunction.MESSAGES))
+        assertTrue(none.offersPin(TvPinFunction.MESSAGES))
+        assertFalse(none.offersPin(TvPinFunction.NOTES))
+        val asked = TvPinRules.offered(none, TvPinFunction.MESSAGES)
+        assertFalse(asked.offersPin(TvPinFunction.MESSAGES))
+        // a PIN: Nachrichten is „mit PIN“ without being chosen
+        val withPin = TvPinRules.setPin(asked, hash("2468"))
+        assertTrue(withPin.needsPin(TvPinFunction.MESSAGES))
+        assertFalse(withPin.offersPin(TvPinFunction.MESSAGES))
+        // switched off it stays off, also across a changed PIN; on again
+        val off = TvPinRules.setRequired(withPin, TvPinFunction.MESSAGES, false)
+        assertFalse(off.needsPin(TvPinFunction.MESSAGES))
+        assertFalse(TvPinRules.setPin(off, hash("1357")).needsPin(TvPinFunction.MESSAGES))
+        assertTrue(TvPinRules.setRequired(off, TvPinFunction.MESSAGES, true).needsPin(TvPinFunction.MESSAGES))
+        // removing the PIN does not offer it again
+        val removed = TvPinRules.removePin(withPin)
+        assertFalse(removed.needsPin(TvPinFunction.MESSAGES))
+        assertFalse(removed.offersPin(TvPinFunction.MESSAGES))
+    }
+
+    @Test
+    fun `Nachrichten stays open ten minutes like Notizen`() {
+        var now = 0L
+        val unlocks = TvPinUnlocks().apply { clock = { now } }
+        unlocks.opened(TvPinFunction.MESSAGES)
+        now = TvPinHold.HOLD_MS - 1
+        assertTrue(unlocks.isOpen(TvPinFunction.MESSAGES))
+        now = TvPinHold.HOLD_MS
+        assertFalse(unlocks.isOpen(TvPinFunction.MESSAGES))
+    }
+
+    @Test
+    fun `dictating keeps the PIN open for a while, leaving the app locks`() {
+        // stage 3d known problem: the dictation (Alexa) took the front and Nachrichten locked mid-answer
+        assertEquals(TvLeave.LOCK, TvPinLeave.onStop(inApp = false, typing = false))
+        assertEquals(TvLeave.WAIT, TvPinLeave.onStop(inApp = false, typing = true))
+        assertEquals(TvLeave.KEEP, TvPinLeave.onStop(inApp = true, typing = false))
+        assertFalse(TvPinLeave.lockOnReturn(null, 10_000L))
+        assertFalse(TvPinLeave.lockOnReturn(1_000L, 1_000L + TvPinLeave.DICTATION_GRACE_MS))
+        assertTrue(TvPinLeave.lockOnReturn(1_000L, 1_000L + TvPinLeave.DICTATION_GRACE_MS + 1))
     }
 }

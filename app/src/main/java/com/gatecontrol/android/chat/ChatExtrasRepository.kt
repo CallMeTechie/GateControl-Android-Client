@@ -211,7 +211,7 @@ class ChatExtrasRepository @Inject constructor(
     suspend fun deleteStory(id: String): ChatResult<Unit> {
         val r = api.deleteStory(id)
         if (r is ChatResult.Ok) {
-            _feed.update { f -> f?.copy(me = f.me?.copy(stories = f.me.stories.filter { it.id != id })) }
+            _feed.update { f -> f?.copy(me = f.me?.copy(stories = f.me!!.stories.filter { it.id != id })) }
             refreshFeedSoon()
         }
         return r

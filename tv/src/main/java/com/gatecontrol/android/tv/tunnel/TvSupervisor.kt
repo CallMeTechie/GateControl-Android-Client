@@ -53,6 +53,7 @@ class TvSupervisor @Inject constructor(
     private val pushClient: dagger.Lazy<PushClient>,
     private val pushController: dagger.Lazy<TvPushController>,
     private val doorbell: dagger.Lazy<TvDoorbell>,
+    private val chatHint: dagger.Lazy<com.gatecontrol.android.tv.chat.TvChatHint>,
 ) : ServerControlSink {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
@@ -67,6 +68,8 @@ class TvSupervisor @Inject constructor(
         }
         pushController.get().start(scope)
         doorbell.get().start(scope)
+        // „Neue Nachricht von …“ over other apps (off by default)
+        chatHint.get().start(scope)
         scope.launch {
             tunnelManager.state.collect { state ->
                 when (state) {

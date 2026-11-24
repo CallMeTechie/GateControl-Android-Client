@@ -161,7 +161,7 @@ fun MessageBubble(
                     val sender = conversation.members.firstOrNull { it.userId == m.senderId }
                     // a contact of a bridged chat: the contact's picture (Messenger 1.15, once fetched), else the initials
                     if (sender == null && m.bridge?.fromContact == true) {
-                        ContactAvatar(m.bridge.senderAvatarMediaId, m.bridge.senderName, 28.dp)
+                        ContactAvatar(m.bridge!!.senderAvatarMediaId, m.bridge!!.senderName, 28.dp)
                     } else {
                         ChatPersonAvatar(sender, 28.dp)
                     }
@@ -245,10 +245,10 @@ fun MessageBubble(
                     )
                     m.kind == ChatMessage.KIND_LOCATION -> m.location?.let { LocationContent(it.label, it.lat, it.lon) }
                     // Messenger 1.4 kinds.
-                    m.poll != null -> PollContent(m, m.poll, conversation, myId, actions.rich)
-                    m.event != null -> EventContent(m, m.event, conversation, myId, actions.rich)
-                    m.arrival != null -> ArrivalContent(m, m.arrival, actions.rich)
-                    m.action != null -> ActionContent(m, m.action, conversation, myId, actions.rich)
+                    m.poll != null -> PollContent(m, m.poll!!, conversation, myId, actions.rich)
+                    m.event != null -> EventContent(m, m.event!!, conversation, myId, actions.rich)
+                    m.arrival != null -> ArrivalContent(m, m.arrival!!, actions.rich)
+                    m.action != null -> ActionContent(m, m.action!!, conversation, myId, actions.rich)
                     m.card != null -> PluginCardContent(m, actions.rich)
                     m.isUnknownKind || m.kind in RICH_KINDS -> UnknownKindContent(m, actions.rich)
                 }

@@ -419,7 +419,7 @@ class ChatRepository @Inject constructor(
             val old = dao.conversation(c.id)?.let { parseObj(it.json) }?.let { ChatJson.conversation(it) }
             val kept = ChatPeopleStore.keep(c, old, fresh = mode == Store.Fresh)
             // the lead's own view came: the person's face follows from the server
-            if (kept.person != null && kept.person.conversationId == c.id && mode == Store.Fresh) coalesce("person:${kept.person.id}", 300L) { refreshPerson(kept.person.id) }
+            if (kept.person != null && kept.person!!.conversationId == c.id && mode == Store.Fresh) coalesce("person:${kept.person!!.id}", 300L) { refreshPerson(kept.person!!.id) }
             kept
         }
         dao.upsertConversations(items.map { ConversationEntity(it.id, ChatSerializer.conversation(it).toString(), it.activityAt) })

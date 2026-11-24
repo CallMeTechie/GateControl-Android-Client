@@ -736,9 +736,9 @@ fun ConversationScreen(
                         item(key = "started") {
                             Text(
                                 when (started.kind) {
-                                    com.gatecontrol.android.chat.ChatNumberStarted.Kind.CONTACT -> stringResource(R.string.chat_ncc_first_line_contact, c.bridge.label, started.name ?: c.title.orEmpty())
-                                    com.gatecontrol.android.chat.ChatNumberStarted.Kind.BOOK -> stringResource(R.string.chat_ncc_first_line_book, c.bridge.label, started.name ?: c.title.orEmpty(), started.display.orEmpty())
-                                    com.gatecontrol.android.chat.ChatNumberStarted.Kind.NUMBER -> stringResource(R.string.chat_newnum_first_line, c.bridge.label, started.display.orEmpty(), started.name ?: c.title.orEmpty())
+                                    com.gatecontrol.android.chat.ChatNumberStarted.Kind.CONTACT -> stringResource(R.string.chat_ncc_first_line_contact, c.bridge!!.label, started.name ?: c.title.orEmpty())
+                                    com.gatecontrol.android.chat.ChatNumberStarted.Kind.BOOK -> stringResource(R.string.chat_ncc_first_line_book, c.bridge!!.label, started.name ?: c.title.orEmpty(), started.display.orEmpty())
+                                    com.gatecontrol.android.chat.ChatNumberStarted.Kind.NUMBER -> stringResource(R.string.chat_newnum_first_line, c.bridge!!.label, started.display.orEmpty(), started.name ?: c.title.orEmpty())
                                 },
                                 style = MaterialTheme.typography.bodySmall,
                                 color = extra.muted,
@@ -790,7 +790,7 @@ fun ConversationScreen(
             Text(
                 when {
                     // Messenger 1.14: the bar above says why; here only that the history stays
-                    cc.bridge != null -> stringResource(if (cc.bridge.closed) R.string.chat_bridged_closed else R.string.chat_bridged_cannot_send, cc.bridge.label)
+                    cc.bridge != null -> stringResource(if (cc.bridge!!.closed) R.string.chat_bridged_closed else R.string.chat_bridged_cannot_send, cc.bridge!!.label)
                     else -> stringResource(if (cc.readonly) R.string.chat_readonly else R.string.chat_cannot_send)
                 },
                 style = MaterialTheme.typography.bodyMedium,
@@ -1233,20 +1233,20 @@ fun ConversationScreen(
             },
             // Messenger 1.10: pictures, voice messages and files into the person's Drive (a folder they pick).
             // not for a file the virus scan blocked (the server refuses it as well)
-            onToDrive = if (state.profile?.drive == true && m.media != null && !m.media.blocked && !m.deleted && m.kind in DRIVE_KINDS) {
+            onToDrive = if (state.profile?.drive == true && m.media != null && !m.media!!.blocked && !m.deleted && m.kind in DRIVE_KINDS) {
                 {
                     actionsFor = null
                     driveFor = m
                 }
             } else null,
-            onShareFile = if (m.media != null && !m.media.blocked) {
+            onShareFile = if (m.media != null && !m.media!!.blocked) {
                 {
                     actionsFor = null
-                    scanGate(m.media.scan) {
+                    scanGate(m.media!!.scan) {
                         scope.launch {
                         val f = viewModel.file(m)
                         if (f == null) Toast.makeText(context, R.string.chat_err_download, Toast.LENGTH_LONG).show()
-                        else openFile(context, f, m.meta?.fileName ?: defaultName(m), m.media.mime, share = true)
+                        else openFile(context, f, m.meta?.fileName ?: defaultName(m), m.media!!.mime, share = true)
                         }
                     }
                 }

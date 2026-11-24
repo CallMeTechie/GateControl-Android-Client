@@ -21,7 +21,7 @@ object ChatText {
     fun name(ctx: Context, p: ChatPerson?): String = when {
         p == null -> ctx.getString(R.string.chat_unknown_person)
         p.name.isNullOrBlank() -> ctx.getString(R.string.chat_deleted_account)
-        else -> p.name
+        else -> p.name!!
     }
 
     /** Name of user [id] in [c] ("Du" for the caller). */
@@ -33,7 +33,7 @@ object ChatText {
 
     /** Title of a conversation: the group's title or the other person's name (a bridged chat: the contact's). */
     fun title(ctx: Context, c: ChatConversation): String = when {
-        !c.title.isNullOrBlank() -> c.title
+        !c.title.isNullOrBlank() -> c.title!!
         // Messenger 1.14: a chat over a bridge has no `peer` — a contact without a name is not a deleted account.
         c.bridge != null -> ctx.getString(R.string.chat_bridged_unknown_contact)
         c.isGroup -> ctx.getString(R.string.chat_group_fallback)
@@ -49,7 +49,7 @@ object ChatText {
         return when {
             m.senderId != null -> nameOf(ctx, c, m.senderId, myId)
             b?.fromContact == true -> b.senderName ?: ctx.getString(R.string.chat_bridged_unknown_contact)
-            c?.bridge != null -> c.bridge.label
+            c?.bridge != null -> c.bridge!!.label
             else -> nameOf(ctx, c, null, myId)
         }
     }
@@ -57,7 +57,7 @@ object ChatText {
     /** Who a quoted message is from (a contact's in a bridged chat). */
     fun quotedOf(ctx: Context, c: ChatConversation?, r: com.gatecontrol.android.chat.ChatReplyRef, myId: Long?): String = when {
         r.contactId != null -> r.senderName ?: ctx.getString(R.string.chat_bridged_unknown_contact)
-        r.senderId == null && c?.bridge != null -> c.bridge.label
+        r.senderId == null && c?.bridge != null -> c.bridge!!.label
         else -> nameOf(ctx, c, r.senderId, myId)
     }
 

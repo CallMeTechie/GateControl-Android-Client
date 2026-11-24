@@ -65,6 +65,7 @@ app
 ├── core:gatedrop   → core:common, core:data, core:network
 ├── core:familie-api → core:common, core:data, core:network (Termine, Alltag/Müll, Einkauf mit Outbox, Agenda)
 ├── core:notizen-api → core:data, core:network, core:drive-api, core:familie-api (Notizen-API, Antworten, Modelle, NoteMd)
+├── core:chat-api → core:common, core:data, core:network, core:notify (Messenger-API mit ?bridged=1, Antworten, Modelle, Live-Ereignisse, Brücken-Regeln, Meine Orte)
 └── core:rdp        → core:common, core:network
 
 tv (GateControl TV) → alle core-Module außer core:rdp

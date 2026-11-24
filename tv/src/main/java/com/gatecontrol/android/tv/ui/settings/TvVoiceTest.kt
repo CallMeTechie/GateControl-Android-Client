@@ -56,6 +56,7 @@ private fun rowTitle(row: TvStartRow): Int = when (row) {
     TvStartRow.MEDIA -> R.string.tv_row_media_resume
     TvStartRow.DRIVE -> R.string.tv_row_drive
     TvStartRow.GATEDROP -> R.string.tv_row_gatedrop
+    TvStartRow.MESSAGES -> R.string.tv_row_messages
 }
 
 /** "Spracheingabe testen" (Einstellungen › Gerät): opens [TvVoiceTestDialog]. */

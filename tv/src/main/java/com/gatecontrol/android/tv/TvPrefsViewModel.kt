@@ -108,6 +108,14 @@ class TvPrefsViewModel @Inject constructor(
 
     fun setRequired(function: TvPinFunction, on: Boolean) = pins.setRequired(function, on)
 
+    /** The first opening of [function] asked whether to set a PIN (Nachrichten). */
+    fun pinOffered(function: TvPinFunction) = pins.offered(function)
+
+    /** Nachrichten: „Neue Nachricht von …“ over other apps. */
+    val chatHint: StateFlow<TvChatHintSettings> = settings.chatHint
+
+    fun setChatHint(value: TvChatHintSettings) = settings.setChatHint(value)
+
     fun loadCameras() {
         viewModelScope.launch {
             (doorApi.homeCameras() as? DoorResult.Ok)?.value?.takeIf { it.supported }?.let { _cameras.value = it.cameras }

@@ -401,6 +401,8 @@ fun TvComposerDialog(
     maxLength: Int = TvComposerLogic.MAX_TEXT,
     sources: List<TvSnippetSource> = emptyList(),
     handoff: TvHandoff? = null,
+    /** Above the field (a chat: the message the answer refers to, the way it goes). */
+    header: @Composable ColumnScope.() -> Unit = {},
 ) {
     val colors = GateControlTvTheme.colors
     Dialog(onDismissRequest = {}, properties = DialogProperties(usePlatformDefaultWidth = false, dismissOnBackPress = false, dismissOnClickOutside = false)) {
@@ -416,6 +418,7 @@ fun TvComposerDialog(
             maxLength = maxLength,
             sources = sources,
             handoff = handoff,
+            header = header,
             modifier = Modifier.fillMaxSize().background(colors.bg).padding(horizontal = 36.dp, vertical = 24.dp),
         )
     }

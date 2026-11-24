@@ -118,7 +118,23 @@ class TvMediaSelection @Inject constructor() {
     var media: com.gatecontrol.android.tv.media.TvMediaQueue? = null
         private set
 
+    /** Pictures of another source (a chat's photos, stage 3e) instead of Drive's or GateDrop's files. */
+    @Volatile
+    var photos: com.gatecontrol.android.tv.ui.drive.TvPhotoSource? = null
+        private set
+
+    fun setPhotos(source: com.gatecontrol.android.tv.ui.drive.TvPhotoSource, at: Int) {
+        items = emptyList()
+        document = false
+        local = emptyList()
+        localSend = null
+        media = null
+        photos = source
+        this.at = at.coerceIn(0, (source.count - 1).coerceAtLeast(0))
+    }
+
     fun setMedia(queue: com.gatecontrol.android.tv.media.TvMediaQueue) {
+        photos = null
         items = emptyList()
         document = false
         local = emptyList()
@@ -128,6 +144,7 @@ class TvMediaSelection @Inject constructor() {
     }
 
     fun set(items: List<DNode>, at: Int, document: Boolean = false) {
+        photos = null
         this.items = items
         this.at = at.coerceIn(0, (items.size - 1).coerceAtLeast(0))
         this.document = document
@@ -138,6 +155,7 @@ class TvMediaSelection @Inject constructor() {
 
     /** The pictures or videos of a GateDrop send kept on the TV ([sendId]), from [at]. */
     fun setLocal(sendId: String, files: List<Pair<Int, com.gatecontrol.android.tv.ui.drive.TvLocalFile>>, at: Int) {
+        photos = null
         items = emptyList()
         document = false
         local = files
@@ -147,6 +165,7 @@ class TvMediaSelection @Inject constructor() {
     }
 
     fun clear() {
+        photos = null
         items = emptyList()
         at = 0
         document = false

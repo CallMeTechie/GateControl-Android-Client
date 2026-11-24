@@ -25,6 +25,8 @@ internal object TvIcons {
         "M3 19c0-3 3-5 6-5s6 2 6 5M14 19c0-2 1.5-4 4-4s3 1 3 3",
     )
     /** Notizen: a list with ticks. */
+    /** Nachrichten: a speech bubble. */
+    val Chat = icon("M4 5h16v11H9l-5 4z")
     val Notes = icon("M9 6h11M9 12h11M9 18h11", "M4 6l1 1 2-2M4 12l1 1 2-2M4 18l1 1 2-2")
     val Settings = icon(
         "M9 12a3 3 0 1 0 6 0a3 3 0 1 0-6 0",
