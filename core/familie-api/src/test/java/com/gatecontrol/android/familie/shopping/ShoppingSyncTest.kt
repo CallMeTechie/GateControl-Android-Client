@@ -1,6 +1,5 @@
 package com.gatecontrol.android.familie.shopping
 
-import com.gatecontrol.android.familie.FamilieJson
 import com.gatecontrol.android.familie.FamilieResult
 import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -91,12 +90,12 @@ class ShoppingSyncTest {
     // ─── Sync engine ─────────────────────────────────────────────────
 
     private class FakeRemote(
-        var opsResult: (List<ShoppingOp>) -> FamilieResult<FamilieJson.OpsResult> = { FamilieResult.Ok(FamilieJson.OpsResult(it.size, emptyList(), "t")) },
+        var opsResult: (List<ShoppingOp>) -> FamilieResult<ShoppingOpsResult> = { FamilieResult.Ok(ShoppingOpsResult(it.size, emptyList(), "t")) },
         var fetchResult: (String?) -> FamilieResult<ShoppingSnapshot> = { FamilieResult.Ok(ShoppingSnapshot(serverTime = "t2")) },
     ) : ShoppingSyncEngine.Remote {
         val sent = mutableListOf<List<ShoppingOp>>()
         val fetched = mutableListOf<String?>()
-        override suspend fun ops(ops: List<ShoppingOp>): FamilieResult<FamilieJson.OpsResult> {
+        override suspend fun ops(ops: List<ShoppingOp>): FamilieResult<ShoppingOpsResult> {
             sent += ops
             return opsResult(ops)
         }
@@ -120,7 +119,7 @@ class ShoppingSyncTest {
         data = ShoppingLogic.enqueue(data, ShoppingOp(ShoppingOp.ITEM_ADD, id = "u1", listId = "l1", text = "Eier"))
         // The server rejected the check (someone deleted the item meanwhile).
         val remote = FakeRemote(
-            opsResult = { FamilieResult.Ok(FamilieJson.OpsResult(1, listOf(0 to "not_found"), "t")) },
+            opsResult = { FamilieResult.Ok(ShoppingOpsResult(1, listOf(0 to "not_found"), "t")) },
             fetchResult = { FamilieResult.Ok(ShoppingSnapshot(items = listOf(milk.copy(deleted = true), ShoppingItem("u1", "l1", "Eier")), serverTime = "t2")) },
         )
         val (result, after) = sync(data, remote)

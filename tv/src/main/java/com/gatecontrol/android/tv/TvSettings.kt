@@ -19,6 +19,20 @@ import kotlinx.coroutines.flow.asStateFlow
 import javax.inject.Inject
 import javax.inject.Singleton
 
+/** A row of the start page that can be switched off (Einstellungen › Startseite). */
+enum class TvStartRow(val wire: String) {
+    CAMERAS("cameras"),
+    HOME_TODAY("home_today"),
+    MEDIA("media"),
+    DRIVE("drive"),
+    GATEDROP("gatedrop"),
+    ;
+
+    companion object {
+        fun fromWire(value: String?): TvStartRow? = entries.firstOrNull { it.wire == value }
+    }
+}
+
 /**
  * Settings of GateControl TV (Einstellungen › Verbindung, Einblendungen) and the server typed in for the pairing.
  * Plain SharedPreferences: the boot receiver reads them synchronously, nothing in here is secret (the token and the
@@ -134,6 +148,30 @@ class TvSettings @Inject constructor(@ApplicationContext context: Context) {
         apps = prefs.getStringSet(KEY_SPLIT_APPS, emptySet()).orEmpty().filter(TvSplitTunnel::isPackageName).toSet(),
     )
 
+    private val _startRows = MutableStateFlow(readStartRows())
+
+    /** Startseite: the rows switched off (the rest shows; quick actions always do). */
+    val startRows: StateFlow<Set<TvStartRow>> = _startRows.asStateFlow()
+
+    fun setStartRow(row: TvStartRow, on: Boolean) {
+        val off = if (on) _startRows.value - row else _startRows.value + row
+        prefs.edit { putStringSet(KEY_ROWS_OFF, off.map { it.wire }.toSet()) }
+        _startRows.value = off
+    }
+
+    private fun readStartRows(): Set<TvStartRow> =
+        prefs.getStringSet(KEY_ROWS_OFF, emptySet()).orEmpty().mapNotNull(TvStartRow::fromWire).toSet()
+
+    private val _shoppingList = MutableStateFlow(prefs.getString(KEY_SHOPPING_LIST, null))
+
+    /** Zuhause: the shopping list chosen on the TV (null: the one with the most open entries). */
+    val shoppingList: StateFlow<String?> = _shoppingList.asStateFlow()
+
+    fun setShoppingList(id: String?) {
+        prefs.edit { if (id == null) remove(KEY_SHOPPING_LIST) else putString(KEY_SHOPPING_LIST, id) }
+        _shoppingList.value = id
+    }
+
     /** The server typed in once at the TV (https://host[:port]); kept for a new code after the old one ran out. */
     var pairServer: String?
         get() = prefs.getString(KEY_PAIR_SERVER, null)?.takeIf { it.isNotBlank() }
@@ -159,6 +197,8 @@ class TvSettings @Inject constructor(@ApplicationContext context: Context) {
         private const val KEY_FRAME_IDLE = "frame_idle_minutes"
         private const val KEY_FRAME_CLOCK = "frame_clock"
         private const val KEY_MEDIA_QUALITY = "media_quality"
+        private const val KEY_ROWS_OFF = "start_rows_off"
+        private const val KEY_SHOPPING_LIST = "zuhause_shopping_list"
         private const val MINUTES_PER_DAY = 24 * 60
         const val DEFAULT_AUTOSTART_TUNNEL = true
         const val DEFAULT_OPEN_ON_BOOT = false

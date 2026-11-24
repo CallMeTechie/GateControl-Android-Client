@@ -1,6 +1,5 @@
 package com.gatecontrol.android.familie.shopping
 
-import com.gatecontrol.android.familie.FamilieJson
 import com.gatecontrol.android.familie.FamilieResult
 import com.gatecontrol.android.familie.FamilieStorage
 import com.google.gson.reflect.TypeToken
@@ -47,7 +46,7 @@ class ShoppingStore(
     private val debounceMs: Long = DEBOUNCE_MS,
     private val clock: () -> Long = System::currentTimeMillis,
     private val onWaiting: () -> Unit = {},
-    private val onAnswer: suspend (FamilieJson.OpsResult) -> Unit = {},
+    private val onAnswer: suspend (ShoppingOpsResult) -> Unit = {},
 ) {
     /** Where the copy is kept. */
     interface Files {
@@ -175,7 +174,7 @@ object ShoppingSyncEngine {
     val DROP_ON = setOf(400, 413)
 
     interface Remote {
-        suspend fun ops(ops: List<ShoppingOp>): FamilieResult<FamilieJson.OpsResult>
+        suspend fun ops(ops: List<ShoppingOp>): FamilieResult<ShoppingOpsResult>
         suspend fun fetch(since: String?): FamilieResult<ShoppingSnapshot>
     }
 
@@ -193,7 +192,7 @@ object ShoppingSyncEngine {
         nowMs: Long,
         listsComplete: Boolean = false,
         dropOn: Set<Int> = DROP_ON,
-        onAnswer: suspend (FamilieJson.OpsResult) -> Unit = {},
+        onAnswer: suspend (ShoppingOpsResult) -> Unit = {},
     ): ShoppingSync {
         while (true) {
             val batch = ShoppingLogic.nextBatch(current())

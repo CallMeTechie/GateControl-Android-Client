@@ -54,11 +54,12 @@ data class TvConnectionUi(
 
 data class TvUpdateUi(val version: String, val check: TvUpdateCheck, val download: ApkUpdateState)
 
-/** The categories of Einstellungen (mockup "6 · Einstellungen"); GateDrop and Startseite follow with their functions. */
+/** The categories of Einstellungen (mockup "6 · Einstellungen"); GateDrop follows with its functions. */
 internal enum class TvSettingsCategory(@param:StringRes val label: Int) {
     Connection(R.string.tv_set_connection),
     Notices(R.string.tv_set_notices),
     Security(R.string.tv_set_security),
+    Start(R.string.tv_set_start),
     Frame(R.string.tv_set_frame),
     Updates(R.string.tv_set_updates),
     Device(R.string.tv_set_device),
@@ -85,6 +86,10 @@ fun TvSettingsPage(
     security: @Composable () -> Unit = {},
     /** Fotorahmen: what is shared, interval, order, idle start. */
     frame: @Composable () -> Unit = {},
+    /** Startseite: which rows show. */
+    startRows: @Composable () -> Unit = {},
+    /** Gerät: "Spracheingabe testen". */
+    voiceTest: @Composable () -> Unit = {},
 ) {
     var category by rememberSaveable { mutableStateOf(TvSettingsCategory.Connection) }
     Row(modifier.fillMaxSize().padding(end = 30.dp, bottom = 20.dp), horizontalArrangement = Arrangement.spacedBy(24.dp)) {
@@ -102,9 +107,13 @@ fun TvSettingsPage(
                 }
                 TvSettingsCategory.Notices -> notices()
                 TvSettingsCategory.Security -> security()
+                TvSettingsCategory.Start -> startRows()
                 TvSettingsCategory.Frame -> frame()
                 TvSettingsCategory.Updates -> UpdateOptions(update, onCheckUpdate, onInstallUpdate)
-                TvSettingsCategory.Device -> DeviceOptions(connection.host, deviceName, onUnpair)
+                TvSettingsCategory.Device -> {
+                    voiceTest()
+                    DeviceOptions(connection.host, deviceName, onUnpair)
+                }
             }
         }
     }

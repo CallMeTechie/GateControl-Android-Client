@@ -37,7 +37,7 @@ class ShoppingHubSyncTest {
         var completed: List<ShoppingCompleted> = emptyList()
         var answerLost = false
 
-        override suspend fun ops(ops: List<ShoppingOp>): FamilieResult<FamilieJson.OpsResult> {
+        override suspend fun ops(ops: List<ShoppingOp>): FamilieResult<ShoppingOpsResult> {
             if (offlineOps > 0) {
                 offlineOps--
                 return FamilieResult.Offline
@@ -57,7 +57,7 @@ class ShoppingHubSyncTest {
                 answerLost = false
                 return FamilieResult.Offline
             }
-            return FamilieResult.Ok(FamilieJson.OpsResult(ops.size - rejected.size, rejected, "t", completed))
+            return FamilieResult.Ok(ShoppingOpsResult(ops.size - rejected.size, rejected, "t", completed))
         }
 
         override suspend fun fetch(since: String?): FamilieResult<ShoppingSnapshot> {
@@ -66,7 +66,7 @@ class ShoppingHubSyncTest {
         }
     }
 
-    private fun sync(start: ShoppingData, remote: ShoppingSyncEngine.Remote, dropOn: Set<Int> = ShoppingSyncEngine.DROP_ON, onAnswer: (FamilieJson.OpsResult) -> Unit = {}): Pair<ShoppingSync, ShoppingData> = runBlocking {
+    private fun sync(start: ShoppingData, remote: ShoppingSyncEngine.Remote, dropOn: Set<Int> = ShoppingSyncEngine.DROP_ON, onAnswer: (ShoppingOpsResult) -> Unit = {}): Pair<ShoppingSync, ShoppingData> = runBlocking {
         var data = start
         val result = ShoppingSyncEngine.run({ data }, { t -> data = t(data) }, remote, now, listsComplete = true, dropOn = dropOn, onAnswer = { onAnswer(it) })
         result to data
@@ -234,7 +234,7 @@ class ShoppingHubSyncTest {
     fun `the answer names the tasks the last tick completed`() {
         val done = ShoppingCompleted(41, "Bei Lidl einkaufen", "list-einkauf")
         val hub = Hub(server).apply { completed = listOf(done) }
-        val seen = mutableListOf<FamilieJson.OpsResult>()
+        val seen = mutableListOf<ShoppingOpsResult>()
         val (_, after) = sync(queue(synced(), checkMilch, checkBrot), hub) { seen += it }
         assertEquals(listOf(done), seen.single().completed)
         assertEquals(0, ShoppingLogic.progress(ShoppingLogic.view(after), "list-einkauf").first)
@@ -271,7 +271,7 @@ class ShoppingHubSyncTest {
         val files = Files()
         val hub = Hub(server).apply { offlineOps = 1; completed = listOf(ShoppingCompleted(41, "Bei Lidl einkaufen", "list-einkauf")) }
         var waiting = 0
-        val answers = mutableListOf<FamilieJson.OpsResult>()
+        val answers = mutableListOf<ShoppingOpsResult>()
         val store = ShoppingStore(scope, files, hub, listsComplete = true, debounceMs = 3_600_000, clock = { now }, onWaiting = { waiting++ }, onAnswer = { answers += it })
         assertEquals(ShoppingSync.Synced, store.sync())
         store.edit(checkMilch)

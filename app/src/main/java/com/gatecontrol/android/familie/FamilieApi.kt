@@ -42,12 +42,10 @@ import com.gatecontrol.android.familie.rules.RuleTestResult
 import com.gatecontrol.android.familie.rules.RuleVacation
 import com.gatecontrol.android.familie.rules.RulesPayload
 import com.gatecontrol.android.familie.shopping.ShoppingOp
+import com.gatecontrol.android.familie.shopping.ShoppingOpsResult
 import com.gatecontrol.android.familie.shopping.ShoppingSnapshot
-import com.gatecontrol.android.network.ApiClient
 import com.gatecontrol.android.network.ApiClientProvider
 import com.google.gson.JsonObject
-import com.google.gson.JsonParser
-import java.io.IOException
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.CancellationException
@@ -56,50 +54,14 @@ import okhttp3.ResponseBody
 import retrofit2.Response
 import timber.log.Timber
 
-/** Outcome of a call to a plugin's app API. */
-sealed interface FamilieResult<out T> {
-    data class Ok<T>(val value: T) : FamilieResult<T>
-
-    /**
-     * The server answered with an error: [code] from `{ok:false, code}` or
-     * `http_<status>`. [retryAfter] (s) with too_soon / daily_limit;
-     * [requestId] when a locate request was refused because one is open;
-     * [field] names the refused input of an `invalid` answer (e.g.
-     * `contacts.0.phone`); [detail] the driver of an `already_taken` ride.
-     */
-    data class Failed(
-        val code: String,
-        val http: Int,
-        val retryAfter: Int? = null,
-        val requestId: Int? = null,
-        val field: String? = null,
-        val detail: String? = null,
-    ) : FamilieResult<Nothing>
-
-    /** No answer (network, VPN, timeout). */
-    data object Offline : FamilieResult<Nothing>
-
-    data object NotConfigured : FamilieResult<Nothing>
-}
-
-/** What a create call returned, when the answer carries it. */
-data class Created<T>(val value: T?)
-
-fun <T> FamilieResult<T>.valueOrNull(): T? = (this as? FamilieResult.Ok)?.value
-
-fun FamilieResult<*>.errorCode(): String? = when (this) {
-    is FamilieResult.Failed -> code
-    FamilieResult.Offline -> FamilieApi.CODE_OFFLINE
-    FamilieResult.NotConfigured -> FamilieApi.CODE_OFFLINE
-    is FamilieResult.Ok -> null
-}
-
 /**
  * The Familie plugin's app API (contract B3) through the core server's
  * client plugin bridge (`/api/v1/client/plugins/gatecontrol-familie/api/…`,
  * contract A3): one method per endpoint, typed answers from [FamilieJson].
  * Also the Alltag plugin's `app/events` (B5) and the Schule plugin's
- * `app/timetable` / `app/changes`. Never throws.
+ * `app/timetable` / `app/changes`. Never throws. The calls the phone app
+ * shares with GateControl TV (shopping lists, dates, Alltag) are
+ * [FamilieHomeApi]'s in :core:familie-api; they are passed on from here.
  */
 @Singleton
 class FamilieApi @Inject constructor(
@@ -107,106 +69,44 @@ class FamilieApi @Inject constructor(
     private val apiClientProvider: ApiClientProvider,
 ) {
     companion object {
-        const val CODE_OFFLINE = "offline"
-        const val CODE_INVALID = "invalid_answer"
-        private const val TIMEOUT_MS = 20_000L
+        const val CODE_OFFLINE = FamiliePluginCalls.CODE_OFFLINE
+        const val CODE_INVALID = FamiliePluginCalls.CODE_INVALID
         /** A school attachment: the plugin logs in at the school and downloads it first (~30 s). */
         private const val ATTACHMENT_TIMEOUT_MS = 75_000L
         /** Download of a plugin file (≤ 25 MB). */
         private const val MEDIA_TIMEOUT_MS = 120_000L
-        /** No slashes, no leading dot (`..`): one plain path segment. */
-        private val SEGMENT_RE = Regex("^[A-Za-z0-9_:-][A-Za-z0-9_.:-]{0,63}$")
 
         /** Path from fixed words and ids; an id that is not a plain token is refused. */
-        internal fun path(vararg segments: Any): String? {
-            val parts = segments.map { it.toString() }
-            return if (parts.all { SEGMENT_RE.matches(it) }) parts.joinToString("/") else null
-        }
+        internal fun path(vararg segments: Any): String? = FamiliePluginCalls.path(*segments)
     }
 
-    private suspend fun <T> call(
-        plugin: String = FAMILIE_PLUGIN,
-        request: suspend ApiClient.() -> Response<JsonObject>,
-        parse: (JsonObject) -> T?,
-        timeoutMs: Long = TIMEOUT_MS,
-        slow: Boolean = false,
-    ): FamilieResult<T> {
-        val url = setupRepository.getServerUrl()
-        if (url.isBlank() || !setupRepository.isConfigured()) return FamilieResult.NotConfigured
-        return try {
-            // A slow call (the plugin fetches a file first) runs on the media client: long read timeout, no call limit.
-            val client = if (slow) apiClientProvider.mediaClient(url) else apiClientProvider.getClient(url)
-            val response = withTimeoutOrNull(timeoutMs) { client.request() }
-                ?: return FamilieResult.Offline
-            if (response.isSuccessful) {
-                val body = response.body() ?: JsonObject()
-                if (body.has("ok") && body.get("ok").let { it.isJsonPrimitive && it.asJsonPrimitive.isBoolean && !it.asBoolean }) {
-                    return failed(body, response.code())
-                }
-                parse(body)?.let { FamilieResult.Ok(it) } ?: FamilieResult.Failed(CODE_INVALID, response.code())
-            } else {
-                val err = runCatching {
-                    response.errorBody()?.use { b -> b.string().takeIf { it.length < 16_384 } }
-                        ?.let { JsonParser.parseString(it).takeIf { e -> e.isJsonObject }?.asJsonObject }
-                }.getOrNull()
-                Timber.d("Familie: %s answered HTTP %d", plugin, response.code())
-                failed(err, response.code())
-            }
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: IOException) {
-            FamilieResult.Offline
-        } catch (e: Exception) {
-            Timber.d("Familie: call failed (%s)", e.javaClass.simpleName)
-            FamilieResult.Failed(CODE_INVALID, 0)
-        }
-    }
+    private val calls = FamiliePluginCalls(setupRepository, apiClientProvider)
 
-    private fun failed(body: JsonObject?, http: Int): FamilieResult.Failed = FamilieResult.Failed(
-        code = FamilieJson.errorCode(body) ?: if (body != null && http in 200..299) "failed" else "http_$http",
-        http = http,
-        retryAfter = FamilieJson.retryAfter(body),
-        requestId = FamilieJson.refusedRequestId(body),
-        field = FamilieJson.errorField(body),
-        detail = FamilieJson.errorDriver(body),
-    )
+    /** Shopping lists, dates and Alltag: shared with GateControl TV. */
+    private val home = FamilieHomeApi(setupRepository, apiClientProvider)
 
-    private suspend fun <T> get(path: String?, query: Map<String, String> = emptyMap(), plugin: String = FAMILIE_PLUGIN, parse: (JsonObject) -> T?): FamilieResult<T> {
-        val p = path ?: return FamilieResult.Failed(CODE_INVALID, 0)
-        return call(plugin, { pluginGet(plugin, p, query) }, parse)
-    }
+    private suspend fun <T> get(path: String?, query: Map<String, String> = emptyMap(), plugin: String = FAMILIE_PLUGIN, parse: (JsonObject) -> T?): FamilieResult<T> =
+        calls.get(path, query, plugin, parse)
 
-    private suspend fun <T> post(path: String?, body: JsonObject = JsonObject(), parse: (JsonObject) -> T?): FamilieResult<T> {
-        val p = path ?: return FamilieResult.Failed(CODE_INVALID, 0)
-        return call(FAMILIE_PLUGIN, { pluginPost(FAMILIE_PLUGIN, p, body) }, parse)
-    }
+    private suspend fun <T> post(path: String?, body: JsonObject = JsonObject(), parse: (JsonObject) -> T?): FamilieResult<T> =
+        calls.post(path, body, parse)
 
     /** A POST without a body to another plugin's app API; [slow] for calls the plugin needs long for. */
     private suspend fun <T> postTo(
         plugin: String,
         path: String?,
-        timeoutMs: Long = TIMEOUT_MS,
+        timeoutMs: Long = FamiliePluginCalls.TIMEOUT_MS,
         slow: Boolean = false,
         parse: (JsonObject) -> T?,
-    ): FamilieResult<T> {
-        val p = path ?: return FamilieResult.Failed(CODE_INVALID, 0)
-        return call(plugin, { pluginPost(plugin, p, JsonObject()) }, parse, timeoutMs, slow)
-    }
+    ): FamilieResult<T> = calls.postTo(plugin, path, timeoutMs, slow, parse)
 
-    private suspend fun <T> patch(path: String?, body: JsonObject, query: Map<String, String> = emptyMap(), parse: (JsonObject) -> T?): FamilieResult<T> {
-        val p = path ?: return FamilieResult.Failed(CODE_INVALID, 0)
-        return call(FAMILIE_PLUGIN, { pluginPatch(FAMILIE_PLUGIN, p, body, query) }, parse)
-    }
+    private suspend fun <T> patch(path: String?, body: JsonObject, query: Map<String, String> = emptyMap(), parse: (JsonObject) -> T?): FamilieResult<T> =
+        calls.patch(path, body, query, parse)
 
-    private suspend fun <T> put(path: String?, body: JsonObject, parse: (JsonObject) -> T?): FamilieResult<T> {
-        val p = path ?: return FamilieResult.Failed(CODE_INVALID, 0)
-        return call(FAMILIE_PLUGIN, { pluginPut(FAMILIE_PLUGIN, p, body) }, parse)
-    }
+    private suspend fun <T> put(path: String?, body: JsonObject, parse: (JsonObject) -> T?): FamilieResult<T> =
+        calls.put(path, body, parse)
 
-    private suspend fun delete(path: String?, query: Map<String, String> = emptyMap()): FamilieResult<Unit> {
-        val p = path ?: return FamilieResult.Failed(CODE_INVALID, 0)
-        return call(FAMILIE_PLUGIN, { pluginDelete(FAMILIE_PLUGIN, p, query) }, parse = { })
-    }
+    private suspend fun delete(path: String?, query: Map<String, String> = emptyMap()): FamilieResult<Unit> = calls.delete(path, query)
 
     private val unit: (JsonObject) -> Unit = { }
 
@@ -218,11 +118,9 @@ class FamilieApi @Inject constructor(
 
     // ─── shopping ────────────────────────────────────────────────────
 
-    suspend fun shopping(since: String?): FamilieResult<ShoppingSnapshot> =
-        get(path("shopping"), if (since != null) mapOf("since" to since) else emptyMap(), parse = FamilieJson::shopping)
+    suspend fun shopping(since: String?): FamilieResult<ShoppingSnapshot> = home.shopping(since)
 
-    suspend fun shoppingOps(ops: List<ShoppingOp>): FamilieResult<FamilieJson.OpsResult> =
-        post(path("shopping", "ops"), FamilieJson.opsBody(ops), FamilieJson::opsResult)
+    suspend fun shoppingOps(ops: List<ShoppingOp>): FamilieResult<ShoppingOpsResult> = home.shoppingOps(ops)
 
     suspend fun shoppingGoing(listId: String): FamilieResult<Unit> = post(path("shopping", "lists", listId, "going"), parse = unit)
 
@@ -292,18 +190,16 @@ class FamilieApi @Inject constructor(
 
     // ─── dates ───────────────────────────────────────────────────────
 
-    suspend fun dates(from: String, to: String): FamilieResult<List<FamilieEvent>> =
-        get(path("dates"), mapOf("from" to from, "to" to to), parse = FamilieJson::events)
+    suspend fun dates(from: String, to: String): FamilieResult<List<FamilieEvent>> = home.dates(from, to)
 
-    suspend fun createDate(draft: EventDraft): FamilieResult<Unit> = post(path("dates"), FamilieJson.eventBody(draft), unit)
+    suspend fun createDate(draft: EventDraft): FamilieResult<Unit> = home.createDate(draft)
 
-    suspend fun updateDate(id: String, draft: EventDraft): FamilieResult<Unit> = patch(path("dates", id), FamilieJson.eventBody(draft), parse = unit)
+    suspend fun updateDate(id: String, draft: EventDraft): FamilieResult<Unit> = home.updateDate(id, draft)
 
-    suspend fun deleteDate(id: String): FamilieResult<Unit> = delete(path("dates", id))
+    suspend fun deleteDate(id: String): FamilieResult<Unit> = home.deleteDate(id)
 
     /** Alltag appointments and waste dates (B5, ≤ 62 days). */
-    suspend fun alltagEvents(from: String, to: String): FamilieResult<AlltagPayload> =
-        get(path("app", "events"), mapOf("from" to from, "to" to to), plugin = ALLTAG_PLUGIN, parse = FamilieJson::alltag)
+    suspend fun alltagEvents(from: String, to: String): FamilieResult<AlltagPayload> = home.alltagEvents(from, to)
 
     // ─── Schule plugin (WebUntis timetable) ──────────────────────────
 
@@ -348,7 +244,7 @@ class FamilieApi @Inject constructor(
     suspend fun schoolAttachmentToDrive(messageId: String, attachmentId: String, folderId: Long): FamilieResult<String> {
         val p = path("app", "messages", messageId, "attachments", attachmentId, "drive") ?: return FamilieResult.Failed(CODE_INVALID, 0)
         val body = JsonObject().apply { addProperty("folderId", folderId) }
-        return call(SCHULE_PLUGIN, { pluginPost(SCHULE_PLUGIN, p, body) }, SchoolJson::driveSaved, ATTACHMENT_TIMEOUT_MS, true)
+        return calls.call(SCHULE_PLUGIN, { pluginPost(SCHULE_PLUGIN, p, body) }, SchoolJson::driveSaved, ATTACHMENT_TIMEOUT_MS, true)
     }
 
     /**

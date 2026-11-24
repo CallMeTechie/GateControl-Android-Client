@@ -31,7 +31,7 @@ class TvHomeTest {
     @Test
     fun railListsAllPagesAndStartsOnStart() {
         show()
-        for (label in listOf("Start", "Cameras", "Drive", "Media", "GateDrop", "Family", "Settings")) {
+        for (label in listOf("Start", "Cameras", "Drive", "Media", "GateDrop", "Home", "Settings")) {
             rule.onNodeWithContentDescription(label).assertExists()
         }
         rule.onNodeWithContentDescription("Start").assertIsSelected().assertIsFocused()
