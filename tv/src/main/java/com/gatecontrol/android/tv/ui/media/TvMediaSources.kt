@@ -28,13 +28,13 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
+import com.gatecontrol.android.media.MediaAddProblem
+import com.gatecontrol.android.media.MediaLogic
 import com.gatecontrol.android.media.MediaSource
 import com.gatecontrol.android.media.MediaSourceKind
 import com.gatecontrol.android.tv.R
-import com.gatecontrol.android.tv.media.TvAddProblem
 import com.gatecontrol.android.tv.media.TvAddStep
 import com.gatecontrol.android.tv.media.TvAddUi
-import com.gatecontrol.android.tv.media.TvMediaLogic
 import com.gatecontrol.android.tv.media.TvMediaUi
 import com.gatecontrol.android.tv.ui.components.TvButton
 import com.gatecontrol.android.tv.ui.components.TvButtonStyle
@@ -71,7 +71,7 @@ fun TvSourcesPage(ui: TvMediaUi, actions: TvMediaActions, onClose: () -> Unit, m
                         if (s.token == null) " · " + stringResource(R.string.tv_media_signed_out_short) else ""
                 }
                 TvOptionRow(
-                    title = TvMediaLogic.sourceLabel(s, shareWord),
+                    title = MediaLogic.sourceLabel(s, shareWord),
                     description = description,
                     end = TvRowEnd.None,
                     onClick = {
@@ -122,7 +122,7 @@ fun TvAddSourcePage(add: TvAddUi, actions: TvMediaActions, modifier: Modifier = 
         if (add.done) {
             Text(stringResource(R.string.tv_media_added), style = MaterialTheme.typography.bodyLarge, color = colors.accentText)
             add.pairedWith?.let { p ->
-                Text(stringResource(R.string.tv_media_paired, TvMediaLogic.shareAddress(p)), style = MaterialTheme.typography.bodyMedium, color = colors.text)
+                Text(stringResource(R.string.tv_media_paired, MediaLogic.shareAddress(p)), style = MaterialTheme.typography.bodyMedium, color = colors.text)
             }
             TvButton(stringResource(R.string.tv_media_done), onClick = actions.onAddCancel, style = TvButtonStyle.Primary, modifier = Modifier.focusRequester(first))
             LaunchedEffect(Unit) { first.requestSoon() }
@@ -276,12 +276,12 @@ private fun ShareAddress(add: TvAddUi, actions: TvMediaActions, addressField: Fo
 }
 
 @Composable
-private fun shareProblemText(p: TvAddProblem, smb: Boolean): String = stringResource(
+private fun shareProblemText(p: MediaAddProblem, smb: Boolean): String = stringResource(
     when (p) {
-        TvAddProblem.BAD_ADDRESS -> if (smb) R.string.tv_media_problem_share_address else R.string.tv_media_problem_webdav_address
-        TvAddProblem.NOT_FOUND -> R.string.tv_media_problem_share_not_found
-        TvAddProblem.WRONG_LOGIN -> R.string.tv_media_problem_login
-        TvAddProblem.OFFLINE -> R.string.tv_media_problem_share_offline
+        MediaAddProblem.BAD_ADDRESS -> if (smb) R.string.tv_media_problem_share_address else R.string.tv_media_problem_webdav_address
+        MediaAddProblem.NOT_FOUND -> R.string.tv_media_problem_share_not_found
+        MediaAddProblem.WRONG_LOGIN -> R.string.tv_media_problem_login
+        MediaAddProblem.OFFLINE -> R.string.tv_media_problem_share_offline
         else -> R.string.tv_media_failed
     },
 )
@@ -292,15 +292,15 @@ private fun Section(title: String) {
 }
 
 @Composable
-private fun problemText(p: TvAddProblem): String = stringResource(
+private fun problemText(p: MediaAddProblem): String = stringResource(
     when (p) {
-        TvAddProblem.BAD_ADDRESS -> R.string.tv_media_problem_address
-        TvAddProblem.NOT_FOUND -> R.string.tv_media_problem_not_found
-        TvAddProblem.OLD_SERVER -> R.string.tv_media_problem_old
-        TvAddProblem.NO_QUICK_CONNECT -> R.string.tv_media_problem_no_quick_connect
-        TvAddProblem.WRONG_LOGIN -> R.string.tv_media_problem_login
-        TvAddProblem.OFFLINE -> R.string.tv_media_offline
-        TvAddProblem.FAILED -> R.string.tv_media_failed
+        MediaAddProblem.BAD_ADDRESS -> R.string.tv_media_problem_address
+        MediaAddProblem.NOT_FOUND -> R.string.tv_media_problem_not_found
+        MediaAddProblem.OLD_SERVER -> R.string.tv_media_problem_old
+        MediaAddProblem.NO_QUICK_CONNECT -> R.string.tv_media_problem_no_quick_connect
+        MediaAddProblem.WRONG_LOGIN -> R.string.tv_media_problem_login
+        MediaAddProblem.OFFLINE -> R.string.tv_media_offline
+        MediaAddProblem.FAILED -> R.string.tv_media_failed
     },
 )
 

@@ -5,7 +5,8 @@ import com.google.gson.JsonObject
 import java.util.Locale
 
 /**
- * What the TV plays itself — the device profile Jellyfin decides with (direct or converted).
+ * What the device plays itself — the device profile Jellyfin decides with (direct or converted). The defaults are
+ * GateControl TV's; a phone's come from its decoders ([com.gatecontrol.android.media.MediaDeviceCaps]).
  *
  * Fire TV Stick 4K Max: H.264, HEVC (also HDR), VP9 and AV1 in mkv, mp4 and ts; AAC, MP3, FLAC, Opus, Vorbis, Dolby
  * Digital (Plus) decoded on the stick. DTS and TrueHD only go to an AV receiver that takes them over HDMI
@@ -22,6 +23,12 @@ data class JellyfinDeviceCaps(
     val vp9: Boolean = true,
     /** HDR on the screen: otherwise HDR video is converted (tone-mapped) on the NAS. */
     val hdr: Boolean = true,
+    /**
+     * Dolby Digital (Plus) decoded on the device itself. Always so on the Fire TV Stick; a phone only with a decoder
+     * for it, else Jellyfin converts the sound (to AAC).
+     */
+    val ac3: Boolean = true,
+    val eac3: Boolean = true,
     val name: String = "GateControl TV",
 )
 
@@ -35,11 +42,21 @@ object JellyfinProfile {
     private val TEXT_SUBTITLES = listOf("srt", "subrip", "vtt", "webvtt", "ass", "ssa", "ttml", "mov_text")
     private val PICTURE_SUBTITLES = listOf("pgssub", "pgs", "dvdsub", "dvbsub")
 
-    /** The sound codecs the stick plays directly with [caps]. */
+    /** The sound [caps]' device decodes itself: [DECODED_AUDIO] without Dolby Digital (Plus) where it has no decoder. */
+    fun decodedAudio(caps: JellyfinDeviceCaps): List<String> =
+        DECODED_AUDIO.filter { (it != "ac3" || caps.ac3) && (it != "eac3" || caps.eac3) }
+
+    /** The sound codecs the device plays directly with [caps] (decoded, or passed on to the AV receiver). */
     fun directAudio(caps: JellyfinDeviceCaps): List<String> {
-        val pass = caps.passthrough.map { it.lowercase(Locale.ROOT) }.filter { it in PASSTHROUGH_ONLY }
+        val pass = caps.passthrough.map { it.lowercase(Locale.ROOT) }.filter { it in PASSTHROUGH_ONLY || it == "ac3" || it == "eac3" }
         val extra = if ("dts" in pass) pass + "dca" else pass
-        return (DECODED_AUDIO + extra).distinct()
+        return (decodedAudio(caps) + extra).distinct()
+    }
+
+    /** The sound Jellyfin converts to for [caps]: AAC, Dolby Digital (Plus) where the device plays it, DTS to a receiver. */
+    fun convertedAudio(caps: JellyfinDeviceCaps): List<String> {
+        val direct = directAudio(caps)
+        return listOf("aac") + listOf("ac3", "eac3").filter { it in direct } + caps.passthrough.filter { it == "dts" }
     }
 
     fun videoCodecs(caps: JellyfinDeviceCaps): List<String> =
@@ -72,7 +89,7 @@ object JellyfinProfile {
                             addProperty("Protocol", "hls")
                             // H.264: what the J3455's Quick Sync converts to without effort
                             addProperty("VideoCodec", "h264")
-                            addProperty("AudioCodec", (listOf("aac", "ac3", "eac3") + caps.passthrough.filter { it == "dts" }).joinToString(","))
+                            addProperty("AudioCodec", convertedAudio(caps).joinToString(","))
                             addProperty("Context", "Streaming")
                             addProperty("MaxAudioChannels", caps.maxAudioChannels.toString())
                             addProperty("MinSegments", 1)

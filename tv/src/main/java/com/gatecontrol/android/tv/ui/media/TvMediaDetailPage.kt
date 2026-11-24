@@ -44,16 +44,16 @@ import androidx.tv.material3.ClickableSurfaceDefaults
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
+import com.gatecontrol.android.media.MediaLink
+import com.gatecontrol.android.media.MediaLogic
 import com.gatecontrol.android.media.MediaPlay
+import com.gatecontrol.android.media.MediaProblem
 import com.gatecontrol.android.media.MediaQuality
 import com.gatecontrol.android.media.MediaStream
 import com.gatecontrol.android.media.MediaTitle
 import com.gatecontrol.android.media.MediaTracks
 import com.gatecontrol.android.tv.R
 import com.gatecontrol.android.tv.media.TvDetailUi
-import com.gatecontrol.android.tv.media.TvMediaLink
-import com.gatecontrol.android.tv.media.TvMediaLogic
-import com.gatecontrol.android.tv.media.TvMediaProblem
 import com.gatecontrol.android.tv.player.TvPlayerKeys
 import com.gatecontrol.android.tv.ui.components.TvButton
 import com.gatecontrol.android.tv.ui.components.TvButtonStyle
@@ -71,7 +71,7 @@ import com.gatecontrol.android.tv.ui.theme.GateControlTvTheme
 @Composable
 fun TvMediaDetailPage(
     detail: TvDetailUi,
-    link: TvMediaLink,
+    link: MediaLink,
     pictures: Map<String, Bitmap>,
     actions: TvMediaActions,
     modifier: Modifier = Modifier,
@@ -112,7 +112,7 @@ fun TvMediaDetailPage(
                 Text(it, style = MaterialTheme.typography.bodyMedium, color = colors.text, maxLines = 4, overflow = TextOverflow.Ellipsis, modifier = Modifier.width(560.dp))
             }
             detail.problem?.let {
-                Text(stringResource(if (it == TvMediaProblem.OFFLINE) R.string.tv_media_offline else R.string.tv_media_failed), style = MaterialTheme.typography.bodyMedium, color = colors.warn)
+                Text(stringResource(if (it == MediaProblem.OFFLINE) R.string.tv_media_offline else R.string.tv_media_failed), style = MaterialTheme.typography.bodyMedium, color = colors.warn)
             }
             if (t.playable) {
                 if (t.resumable) Progress(t)
@@ -209,7 +209,7 @@ private fun MetaLine(detail: TvDetailUi) {
     val t = detail.title
     val runtime = t.runtimeMs?.let { ms ->
         val m = ms / 60_000
-        if (m >= 60) stringResource(R.string.tv_media_hours_minutes, m / 60, m % 60) else stringResource(R.string.tv_media_minutes, TvMediaLogic.minutes(ms))
+        if (m >= 60) stringResource(R.string.tv_media_hours_minutes, m / 60, m % 60) else stringResource(R.string.tv_media_minutes, MediaLogic.minutes(ms))
     }
     val series = if (t.kind == MediaTitle.Kind.SERIES) (t.childCount ?: detail.seasons.size.takeIf { it > 0 })?.let { pluralStringResource(R.plurals.tv_media_series_seasons, it, it) } else null
     val line = listOfNotNull(t.year?.toString(), runtime, series, t.genres.firstOrNull()).joinToString(" · ")
@@ -243,15 +243,16 @@ private fun Progress(t: MediaTitle) {
  * fits, and "Angepasst (NAS rechnet um)" with the step for the measured line; the suggestion ticked.
  */
 @Composable
-private fun QualityChoice(detail: TvDetailUi, link: TvMediaLink, actions: TvMediaActions) {
+private fun QualityChoice(detail: TvDetailUi, link: MediaLink, actions: TvMediaActions) {
     val offer = detail.offer ?: return
     val video = MediaQuality.videoLabel(detail.detail?.version?.video)
     val original = offer.originalBps?.let { MediaQuality.label(it) }
+    val bps = link.bps
     val originalText = when {
         link.atHome == true -> stringResource(R.string.tv_media_home_fast)
         offer.adaptedBps == null -> listOfNotNull(video, original?.let { stringResource(R.string.tv_media_about, it) }).joinToString(" · ")
-        !offer.originalFits && link.bps != null && original != null ->
-            stringResource(R.string.tv_media_original_too_much, listOfNotNull(video, stringResource(R.string.tv_media_about, original)).joinToString(" · "), MediaQuality.label(link.bps))
+        !offer.originalFits && bps != null && original != null ->
+            stringResource(R.string.tv_media_original_too_much, listOfNotNull(video, stringResource(R.string.tv_media_about, original)).joinToString(" · "), MediaQuality.label(bps))
         else -> listOfNotNull(video, original?.let { stringResource(R.string.tv_media_about, it) }).joinToString(" · ")
     }
     Column(Modifier.width(560.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {

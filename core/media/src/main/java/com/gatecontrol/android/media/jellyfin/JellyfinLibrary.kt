@@ -32,7 +32,7 @@ class JellyfinLibrary(
     override val source: MediaSource,
     http: OkHttpClient,
     private val info: MediaClientInfo,
-    /** What the TV plays itself (the HDMI sink's sound formats). */
+    /** What the device plays itself (on the TV the HDMI sink's sound formats, on a phone its decoders). */
     private val caps: () -> JellyfinDeviceCaps = { JellyfinDeviceCaps() },
 ) : MediaLibrary {
 
@@ -224,6 +224,36 @@ class JellyfinLibrary(
 
     override fun headers(): Map<String, String> = mapOf("Authorization" to client.authorization())
 
+    /**
+     * "Gerät anmelden" (Quick Connect › Authorize, Jellyfin 10.8+): confirms the [code] another device shows with this
+     * device's access. Whether Quick Connect is on is asked first; spaces in the code ("731 205") do not matter.
+     */
+    suspend fun authorize(code: String): JellyfinAuthorize {
+        val digits = code.filterNot { it.isWhitespace() }
+        if (digits.isEmpty() || digits.length > 32 || !digits.all { it.isLetterOrDigit() }) return JellyfinAuthorize.UNKNOWN_CODE
+        when (val enabled = client.get("QuickConnect/Enabled")) {
+            is MediaResult.Ok -> if (enabled.value?.takeIf { it.isJsonPrimitive }?.let { runCatching { it.asBoolean }.getOrNull() } != true) {
+                return JellyfinAuthorize.DISABLED
+            }
+            MediaResult.Offline -> return JellyfinAuthorize.OFFLINE
+            // an old server without Quick Connect
+            MediaResult.NotFound -> return JellyfinAuthorize.DISABLED
+            else -> return JellyfinAuthorize.FAILED
+        }
+        val query = mapOf("code" to digits, "userId" to user.ifEmpty { null })
+        return when (val r = client.post("QuickConnect/Authorize", query)) {
+            // true, or (some versions) an empty answer: confirmed; false: no such code waiting
+            is MediaResult.Ok -> {
+                val ok = r.value?.takeIf { it.isJsonPrimitive }?.let { runCatching { it.asBoolean }.getOrNull() }
+                if (ok == false) JellyfinAuthorize.UNKNOWN_CODE else JellyfinAuthorize.CONFIRMED
+            }
+            MediaResult.Unauthorized -> JellyfinAuthorize.SIGNED_OUT
+            MediaResult.NotFound -> JellyfinAuthorize.UNKNOWN_CODE
+            MediaResult.Offline -> JellyfinAuthorize.OFFLINE
+            is MediaResult.Failed -> if (r.code == 400) JellyfinAuthorize.UNKNOWN_CODE else JellyfinAuthorize.FAILED
+        }
+    }
+
     companion object {
         const val FIELDS = "PrimaryImageAspectRatio,DateCreated,Genres,OfficialRating"
         const val IMAGES = "Primary,Backdrop,Thumb"
@@ -232,6 +262,9 @@ class JellyfinLibrary(
         const val MEASURE_BYTES = 2_500_000
     }
 }
+
+/** How confirming another device's Quick Connect code ended ([JellyfinLibrary.authorize]). */
+enum class JellyfinAuthorize { CONFIRMED, DISABLED, UNKNOWN_CODE, SIGNED_OUT, OFFLINE, FAILED }
 
 /**
  * Adding a Jellyfin source (Medien › Quellen): the server's public info, then signing in by Quick Connect (code on

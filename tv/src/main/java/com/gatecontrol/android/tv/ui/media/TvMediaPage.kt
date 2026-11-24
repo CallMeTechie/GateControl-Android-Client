@@ -48,6 +48,9 @@ import androidx.compose.ui.unit.dp
 import androidx.tv.material3.Icon
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
+import com.gatecontrol.android.media.MediaLink
+import com.gatecontrol.android.media.MediaLogic
+import com.gatecontrol.android.media.MediaProblem
 import com.gatecontrol.android.media.MediaSource
 import com.gatecontrol.android.media.MediaSourceKind
 import com.gatecontrol.android.media.MediaTitle
@@ -55,9 +58,6 @@ import com.gatecontrol.android.media.jellyfin.JellyfinServerHint
 import com.gatecontrol.android.tv.R
 import com.gatecontrol.android.tv.media.TvAddUi
 import com.gatecontrol.android.tv.media.TvDetailUi
-import com.gatecontrol.android.tv.media.TvMediaLink
-import com.gatecontrol.android.tv.media.TvMediaLogic
-import com.gatecontrol.android.tv.media.TvMediaProblem
 import com.gatecontrol.android.tv.media.TvMediaUi
 import com.gatecontrol.android.tv.ui.components.TvButton
 import com.gatecontrol.android.tv.ui.components.TvButtonStyle
@@ -73,7 +73,7 @@ data class TvMediaScreen(
     val ui: TvMediaUi,
     val detail: TvDetailUi? = null,
     val add: TvAddUi? = null,
-    val link: TvMediaLink = TvMediaLink(),
+    val link: MediaLink = MediaLink(),
     val pictures: Map<String, Bitmap> = emptyMap(),
 )
 
@@ -149,10 +149,10 @@ private fun Header(screen: TvMediaScreen, onSources: (() -> Unit)?, modifier: Mo
     val colors = GateControlTvTheme.colors
     Row(modifier.fillMaxWidth().padding(end = 30.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
         Text(stringResource(R.string.tv_nav_media), style = MaterialTheme.typography.titleMedium, color = colors.text)
-        screen.ui.source?.let { TvPill(TvMediaLogic.sourceLabel(it), TvPillTone.Accent) }
+        screen.ui.source?.let { TvPill(MediaLogic.sourceLabel(it), TvPillTone.Accent) }
         val shareWord = stringResource(R.string.tv_media_share)
         for (share in screen.ui.shares.take(MAX_SHARE_PILLS)) {
-            val label = TvMediaLogic.sourceLabel(share, shareWord)
+            val label = MediaLogic.sourceLabel(share, shareWord)
             if (share.id in screen.ui.shareProblems) {
                 TvPill(stringResource(R.string.tv_media_share_unreachable, label), TvPillTone.Warn)
             } else {
@@ -168,10 +168,10 @@ private fun Header(screen: TvMediaScreen, onSources: (() -> Unit)?, modifier: Mo
 
 /** "Heimnetz · schnell" or "Unterwegs · 18 Mbit/s". */
 @Composable
-internal fun LinkPill(link: TvMediaLink) {
+internal fun LinkPill(link: MediaLink) {
     when (link.atHome) {
         true -> TvPill(stringResource(R.string.tv_media_home_fast), TvPillTone.Accent)
-        false -> TvPill(TvMediaLogic.bandwidth(link)?.let { stringResource(R.string.tv_media_away_bw, it) } ?: stringResource(R.string.tv_media_away), TvPillTone.Info)
+        false -> TvPill(MediaLogic.bandwidth(link)?.let { stringResource(R.string.tv_media_away_bw, it) } ?: stringResource(R.string.tv_media_away), TvPillTone.Info)
         null -> Unit
     }
 }
@@ -196,15 +196,15 @@ private fun Rows(screen: TvMediaScreen, actions: TvMediaActions, onSources: () -
                 Text(
                     stringResource(
                         when (problem) {
-                            TvMediaProblem.OFFLINE -> R.string.tv_media_offline
-                            TvMediaProblem.SIGNED_OUT -> R.string.tv_media_signed_out
-                            TvMediaProblem.FAILED -> R.string.tv_media_failed
+                            MediaProblem.OFFLINE -> R.string.tv_media_offline
+                            MediaProblem.SIGNED_OUT -> R.string.tv_media_signed_out
+                            MediaProblem.FAILED -> R.string.tv_media_failed
                         },
                     ),
                     style = MaterialTheme.typography.bodyLarge,
                     color = colors.muted,
                 )
-                if (problem == TvMediaProblem.SIGNED_OUT) {
+                if (problem == MediaProblem.SIGNED_OUT) {
                     TvButton(stringResource(R.string.tv_media_sign_in_again), onClick = actions.onAdd, style = TvButtonStyle.Primary, modifier = Modifier.focusRequester(first))
                 } else {
                     TvButton(stringResource(R.string.tv_drive_retry), onClick = actions.onRetry, modifier = Modifier.focusRequester(first))
@@ -216,11 +216,11 @@ private fun Rows(screen: TvMediaScreen, actions: TvMediaActions, onSources: () -
                 if (problem != null) {
                     Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(bottom = 4.dp)) {
                         Text(
-                            stringResource(if (problem == TvMediaProblem.OFFLINE) R.string.tv_media_offline else if (problem == TvMediaProblem.SIGNED_OUT) R.string.tv_media_signed_out else R.string.tv_media_failed),
+                            stringResource(if (problem == MediaProblem.OFFLINE) R.string.tv_media_offline else if (problem == MediaProblem.SIGNED_OUT) R.string.tv_media_signed_out else R.string.tv_media_failed),
                             style = MaterialTheme.typography.bodyMedium,
                             color = colors.warn,
                         )
-                        if (problem == TvMediaProblem.SIGNED_OUT) TvButton(stringResource(R.string.tv_media_sign_in_again), onClick = actions.onAdd)
+                        if (problem == MediaProblem.SIGNED_OUT) TvButton(stringResource(R.string.tv_media_sign_in_again), onClick = actions.onAdd)
                     }
                 }
                 if (ui.resume.isNotEmpty()) {
@@ -285,7 +285,7 @@ private fun PosterRow(
                 pictures,
                 actions,
                 modifier = (if (i == 0 && focus != null) Modifier.focusRequester(focus) else Modifier)
-                    .onFocusChanged { if (it.isFocused && TvMediaLogic.wantsMore(i, items.size, more)) onMore() },
+                    .onFocusChanged { if (it.isFocused && MediaLogic.wantsMore(i, items.size, more)) onMore() },
             )
         }
     }
@@ -334,8 +334,8 @@ internal fun ResumeCard(t: MediaTitle, pictures: Map<String, Bitmap>, actions: T
 @Composable
 internal fun left(t: MediaTitle): String? {
     val ms = t.leftMs ?: return null
-    return TvMediaLogic.hoursMinutes(ms)?.let { stringResource(R.string.tv_media_left_hours, it) }
-        ?: stringResource(R.string.tv_media_left_minutes, TvMediaLogic.minutes(ms))
+    return MediaLogic.hoursMinutes(ms)?.let { stringResource(R.string.tv_media_left_hours, it) }
+        ?: stringResource(R.string.tv_media_left_minutes, MediaLogic.minutes(ms))
 }
 
 /** "Staffel 2 · Folge 4" for an episode, "ab 42:10" for a film. */
@@ -351,7 +351,7 @@ internal fun resumeLine(t: MediaTitle): String =
 @Composable
 internal fun posterLine(t: MediaTitle): String? = when (t.kind) {
     MediaTitle.Kind.SERIES -> t.childCount?.let { pluralStringResource(R.plurals.tv_media_series_seasons, it, it) } ?: stringResource(R.string.tv_media_series)
-    else -> listOfNotNull(t.year?.toString(), t.runtimeMs?.let { TvMediaLogic.hoursMinutes(it) ?: stringResource(R.string.tv_media_minutes, TvMediaLogic.minutes(it)) })
+    else -> listOfNotNull(t.year?.toString(), t.runtimeMs?.let { MediaLogic.hoursMinutes(it) ?: stringResource(R.string.tv_media_minutes, MediaLogic.minutes(it)) })
         .joinToString(" · ").ifEmpty { null }
 }
 

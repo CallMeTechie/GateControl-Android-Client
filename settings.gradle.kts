@@ -38,8 +38,10 @@ include(":core:mail-api")
 // Messenger (API, answers, models, realtime events, bridge rules): phone app and GateControl TV
 include(":core:chat-api")
 include(":core:tunnel")
-// Media of the own NAS (Jellyfin, SMB and WebDAV shares): shared by GateControl TV and, later, the phone app
+// Media of the own NAS (Jellyfin, SMB and WebDAV shares, MediaHub, the rules of the pages): GateControl TV and, later, the phone app
 include(":core:media")
+// The Media3 parts of the media player (data source of a share, tracks, progress, player with Jellyfin's header)
+include(":core:media-player")
 include(":core:rdp")
 // SSH terminal of „Fernzugriff“: Termux terminal-emulator + terminal-view (Apache-2.0), fixed release sources
 include(":termux-terminal")

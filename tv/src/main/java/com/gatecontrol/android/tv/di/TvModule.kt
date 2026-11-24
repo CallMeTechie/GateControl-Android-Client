@@ -1,5 +1,6 @@
 package com.gatecontrol.android.tv.di
 
+import com.gatecontrol.android.media.MediaDevice
 import com.gatecontrol.android.network.ClientPlatform
 import com.gatecontrol.android.notify.PluginEventSink
 import com.gatecontrol.android.notify.PushPresenter
@@ -7,6 +8,7 @@ import com.gatecontrol.android.notify.ServerControlSink
 import com.gatecontrol.android.quickactions.QuickActionSurfacesHook
 import com.gatecontrol.android.tv.chat.TvChatEvents
 import com.gatecontrol.android.tv.mail.TvMailEvents
+import com.gatecontrol.android.tv.media.TvMediaDevice
 import com.gatecontrol.android.tv.push.TvPluginEventSink
 import com.gatecontrol.android.tv.push.TvPluginListener
 import com.gatecontrol.android.tv.push.TvPushPresenter
@@ -67,4 +69,8 @@ abstract class TvBindings {
     @Binds
     @IntoSet
     abstract fun bindMailEvents(impl: TvMailEvents): TvPluginListener
+
+    /** Medien: the shared hub asks the TV for its name in Jellyfin, its profile (HDMI sink) and the quality setting. */
+    @Binds
+    abstract fun bindMediaDevice(impl: TvMediaDevice): MediaDevice
 }

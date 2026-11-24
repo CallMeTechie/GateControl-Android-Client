@@ -16,7 +16,10 @@ import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.test.performKeyInput
 import androidx.compose.ui.test.pressKey
+import com.gatecontrol.android.media.MediaAddProblem
 import com.gatecontrol.android.media.MediaDetail
+import com.gatecontrol.android.media.MediaLink
+import com.gatecontrol.android.media.MediaProblem
 import com.gatecontrol.android.media.MediaQuality
 import com.gatecontrol.android.media.MediaSource
 import com.gatecontrol.android.media.MediaSourceKind
@@ -26,12 +29,9 @@ import com.gatecontrol.android.media.MediaVersion
 import com.gatecontrol.android.media.jellyfin.JellyfinQuickConnect
 import com.gatecontrol.android.media.jellyfin.JellyfinServerHint
 import com.gatecontrol.android.media.jellyfin.JellyfinServerInfo
-import com.gatecontrol.android.tv.media.TvAddProblem
 import com.gatecontrol.android.tv.media.TvAddStep
 import com.gatecontrol.android.tv.media.TvAddUi
 import com.gatecontrol.android.tv.media.TvDetailUi
-import com.gatecontrol.android.tv.media.TvMediaLink
-import com.gatecontrol.android.tv.media.TvMediaProblem
 import com.gatecontrol.android.tv.media.TvMediaUi
 import com.gatecontrol.android.tv.ui.theme.GateControlTvTheme
 import org.junit.Assert.assertEquals
@@ -77,7 +77,7 @@ class TvMediaPageTest {
         rule.setContent {
             GateControlTvTheme {
                 TvMediaPage(
-                    TvMediaScreen(rows, link = TvMediaLink(atHome = false, bps = 18_000_000)),
+                    TvMediaScreen(rows, link = MediaLink(atHome = false, bps = 18_000_000)),
                     TvMediaActions(onPlay = { t, start -> played += t.id to start }, onOpen = { opened += it.id }),
                 )
             }
@@ -115,7 +115,7 @@ class TvMediaPageTest {
         rule.onNodeWithText("Add source").assertIsFocused()
         rule.onRoot().performKeyInput { pressKey(Key.DirectionCenter) }
         assertEquals(1, adding)
-        ui = rows.copy(problem = TvMediaProblem.SIGNED_OUT)
+        ui = rows.copy(problem = MediaProblem.SIGNED_OUT)
         rule.waitForIdle()
         rule.onNodeWithText("The sign-in at the media server has expired.").assertExists()
         rule.onNodeWithText("Sign in again").assertExists()
@@ -142,7 +142,7 @@ class TvMediaPageTest {
         rule.setContent {
             GateControlTvTheme {
                 TvMediaPage(
-                    TvMediaScreen(rows, detail = detail, link = TvMediaLink(atHome = false, bps = 18_000_000)),
+                    TvMediaScreen(rows, detail = detail, link = MediaLink(atHome = false, bps = 18_000_000)),
                     TvMediaActions(onOriginal = { picked += it }, onPlay = { t, s -> played += t.id to s }),
                 )
             }
@@ -171,7 +171,7 @@ class TvMediaPageTest {
     fun `the detail page at home says so`() {
         val offer = MediaQuality.offer(atHome = true, measuredBps = null, originalBps = 52_000_000)
         val detail = TvDetailUi(kobalt, MediaDetail(kobalt, listOf(version)), loading = false, offer = offer)
-        rule.setContent { GateControlTvTheme { TvMediaPage(TvMediaScreen(rows, detail = detail, link = TvMediaLink(atHome = true)), TvMediaActions()) } }
+        rule.setContent { GateControlTvTheme { TvMediaPage(TvMediaScreen(rows, detail = detail, link = MediaLink(atHome = true)), TvMediaActions()) } }
         rule.onNodeWithText("Original (direct)").assertExists()
         rule.onNodeWithText("Adapted (the NAS converts)").assertDoesNotExist()
         // the pill above and the line of "Original (direkt)"
@@ -224,7 +224,7 @@ class TvMediaPageTest {
             movies = rows.movies + kupfer,
         )
         val opened = mutableListOf<String>()
-        rule.setContent { GateControlTvTheme { TvMediaPage(TvMediaScreen(ui, link = TvMediaLink(atHome = true)), TvMediaActions(onOpen = { opened += it.id })) } }
+        rule.setContent { GateControlTvTheme { TvMediaPage(TvMediaScreen(ui, link = MediaLink(atHome = true)), TvMediaActions(onOpen = { opened += it.id })) } }
         rule.onNodeWithText("Jellyfin · DS918+").assertExists()
         rule.onNodeWithText("NAS share · \\\\nas\\filme").assertExists()
         // the share's two titles carry the mark, Jellyfin's none
@@ -245,7 +245,7 @@ class TvMediaPageTest {
         val version = MediaVersion("f:k.mkv", container = "mkv", supportsDirectPlay = true)
         val offer = MediaQuality.offer(atHome = false, measuredBps = 18_000_000, originalBps = null, canConvert = false)
         val detail = TvDetailUi(kupfer, MediaDetail(kupfer, listOf(version)), loading = false, offer = offer)
-        rule.setContent { GateControlTvTheme { TvMediaPage(TvMediaScreen(rows, detail = detail, link = TvMediaLink(atHome = false, bps = 18_000_000)), TvMediaActions()) } }
+        rule.setContent { GateControlTvTheme { TvMediaPage(TvMediaScreen(rows, detail = detail, link = MediaLink(atHome = false, bps = 18_000_000)), TvMediaActions()) } }
         rule.onNodeWithText("Kupferstadt").assertExists()
         rule.onNodeWithText("NAS").assertExists()
         rule.onNodeWithText("Original (direct)").assertExists()
@@ -295,10 +295,10 @@ class TvMediaPageTest {
         rule.onNodeWithText("Connect").performSemanticsAction(SemanticsActions.OnClick)
         assertEquals("connect::", calls.last())
 
-        add = add.copy(problem = TvAddProblem.WRONG_LOGIN)
+        add = add.copy(problem = MediaAddProblem.WRONG_LOGIN)
         rule.waitForIdle()
         rule.onNodeWithText("Name or password is wrong.").assertExists()
-        add = add.copy(problem = TvAddProblem.NOT_FOUND)
+        add = add.copy(problem = MediaAddProblem.NOT_FOUND)
         rule.waitForIdle()
         rule.onNodeWithText("Share or folder not found.").assertExists()
 

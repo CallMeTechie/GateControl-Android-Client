@@ -31,11 +31,14 @@ android {
     }
 }
 
-// Media of the own NAS (stage 2 of GateControl TV, later the phone and Windows apps): the sources (Jellyfin, SMB and
+// Media of the own NAS (stage 2 of GateControl TV, the phone app from stage 4): the sources (Jellyfin, SMB and
 // WebDAV shares behind the same [com.gatecontrol.android.media.MediaLibrary]), their stored access (encrypted),
-// the server search in the home network, the device profile and the choice of quality by bandwidth. No UI here.
+// the server search in the home network, the device profile and the choice of quality by bandwidth, the hub over
+// all of it (MediaHub), the loading of the rows and the steps of adding a source. No UI here.
 dependencies {
     implementation(project(":core:data"))
+    // HomeCacheLan: at home straight through the Wi-Fi (bound sockets), the home-network check, the LAN's addresses
+    implementation(project(":core:network"))
 
     implementation(libs.core.ktx)
     implementation(libs.hilt.android)
@@ -55,6 +58,7 @@ dependencies {
     testRuntimeOnly(libs.junit.platform.launcher)
     testImplementation(libs.coroutines.test)
     testImplementation(libs.mockwebserver)
+    testImplementation(libs.mockk)
 }
 
 tasks.withType<Test> {

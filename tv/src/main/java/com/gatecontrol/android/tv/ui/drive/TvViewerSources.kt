@@ -13,6 +13,7 @@ import com.gatecontrol.android.drive.DNode
 import com.gatecontrol.android.drive.DResult
 import com.gatecontrol.android.drive.DriveMediaLogic
 import com.gatecontrol.android.drive.DriveVideoPlaces
+import com.gatecontrol.android.media.player.PlaybackEvent
 import com.gatecontrol.android.tv.drive.TvDriveMedia
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -59,9 +60,6 @@ data class TvChoices(val audio: List<TvChoice> = emptyList(), val text: List<TvC
     val quality0: TvChoice? get() = quality.firstOrNull { it.selected }
 }
 
-/** What the player tells the source about a playback ("Weiterschauen" in Jellyfin). */
-enum class TvPlayEvent { START, PROGRESS, STOP }
-
 /** The videos the player goes through: Drive's (streamed with Range) or received ones (a file on the TV). */
 interface TvVideoSource {
     val count: Int
@@ -82,7 +80,7 @@ interface TvVideoSource {
     fun choose(i: Int, choice: TvChoice): Boolean = false
 
     /** [durationMs]: the video's length as the player found it (0: not known yet). */
-    fun report(i: Int, event: TvPlayEvent, positionMs: Long, paused: Boolean, durationMs: Long = 0) {}
+    fun report(i: Int, event: PlaybackEvent, positionMs: Long, paused: Boolean, durationMs: Long = 0) {}
 
     /** Seconds of "Nächste Folge in …" at the end before the next one starts; 0: at once (Drive's folder). */
     val nextCountdownSeconds: Int get() = 0

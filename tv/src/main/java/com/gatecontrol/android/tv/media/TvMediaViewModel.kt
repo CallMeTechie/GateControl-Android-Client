@@ -4,35 +4,35 @@ import android.graphics.Bitmap
 import android.util.LruCache
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.gatecontrol.android.media.MediaAddProblem
 import com.gatecontrol.android.media.MediaAddress
+import com.gatecontrol.android.media.MediaBrowse
 import com.gatecontrol.android.media.MediaDetail
-import com.gatecontrol.android.media.MediaLibrary
-import com.gatecontrol.android.media.MediaQuality
+import com.gatecontrol.android.media.MediaHub
+import com.gatecontrol.android.media.MediaLink
+import com.gatecontrol.android.media.MediaProblem
 import com.gatecontrol.android.media.MediaQualityOffer
+import com.gatecontrol.android.media.MediaQuickConnectEnd
 import com.gatecontrol.android.media.MediaResult
+import com.gatecontrol.android.media.MediaServerCheck
+import com.gatecontrol.android.media.MediaSetup
+import com.gatecontrol.android.media.MediaShareAdded
 import com.gatecontrol.android.media.MediaSource
 import com.gatecontrol.android.media.MediaSourceKind
 import com.gatecontrol.android.media.MediaTitle
-import com.gatecontrol.android.media.MediaTracks
-import com.gatecontrol.android.media.jellyfin.JellyfinQuickConnect
+import com.gatecontrol.android.media.jellyfin.JellyfinAuth
 import com.gatecontrol.android.media.jellyfin.JellyfinServerHint
 import com.gatecontrol.android.media.jellyfin.JellyfinServerInfo
-import com.gatecontrol.android.media.jellyfin.JellyfinSignIn
 import com.gatecontrol.android.tv.drive.TvMediaSelection
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import java.util.UUID
 import javax.inject.Inject
-
-/** Why the media page shows nothing. */
-enum class TvMediaProblem { OFFLINE, SIGNED_OUT, FAILED }
 
 /**
  * The rows of Medien (mockup 7): the Jellyfin server shown ([source]) and the shares ([shares]) in one; a title in
@@ -45,7 +45,7 @@ data class TvMediaUi(
     /** Shares that could not be read just now (by id). */
     val shareProblems: Set<String> = emptySet(),
     val loading: Boolean = false,
-    val problem: TvMediaProblem? = null,
+    val problem: MediaProblem? = null,
     val resume: List<MediaTitle> = emptyList(),
     val latest: List<MediaTitle> = emptyList(),
     val movies: List<MediaTitle> = emptyList(),
@@ -58,24 +58,12 @@ data class TvMediaUi(
     val any: Boolean get() = source != null || shares.isNotEmpty()
 }
 
-/** One source's rows as loaded (Jellyfin page by page, a share whole). */
-private data class TvRows(
-    val resume: List<MediaTitle> = emptyList(),
-    val latest: List<MediaTitle> = emptyList(),
-    val movies: List<MediaTitle> = emptyList(),
-    val moviesTotal: Int = 0,
-    val moviesNext: Int? = null,
-    val series: List<MediaTitle> = emptyList(),
-    val seriesTotal: Int = 0,
-    val seriesNext: Int? = null,
-)
-
 /** A title's detail page (mockup 8); a series with its seasons and episodes. */
 data class TvDetailUi(
     val title: MediaTitle,
     val detail: MediaDetail? = null,
     val loading: Boolean = true,
-    val problem: TvMediaProblem? = null,
+    val problem: MediaProblem? = null,
     val seasons: List<MediaTitle> = emptyList(),
     val seasonId: String? = null,
     val episodes: List<MediaTitle> = emptyList(),
@@ -87,8 +75,6 @@ data class TvDetailUi(
 )
 
 enum class TvAddStep { TYPE, ADDRESS, LOGIN }
-
-enum class TvAddProblem { BAD_ADDRESS, NOT_FOUND, OLD_SERVER, NO_QUICK_CONNECT, WRONG_LOGIN, OFFLINE, FAILED }
 
 /** Medien › Quellen › Quelle hinzufügen (mockup 10). */
 data class TvAddUi(
@@ -102,7 +88,7 @@ data class TvAddUi(
     val server: JellyfinServerInfo? = null,
     /** The base URL [server] answered at. */
     val serverAddress: String? = null,
-    val problem: TvAddProblem? = null,
+    val problem: MediaAddProblem? = null,
     /** Quick Connect (code) or name and password. */
     val quickConnect: Boolean = true,
     val code: String? = null,
@@ -116,13 +102,17 @@ data class TvAddUi(
 /**
  * The page "Medien" of the rail: the rows of the current source, a title's details (sound, subtitles, quality), the
  * sources and adding one; and "Weiterschauen" of the start page. The player is [com.gatecontrol.android.tv.ui.drive
- * .TvMediaActivity] with [TvMediaVideos].
+ * .TvMediaActivity] with [TvMediaVideos]. The loading and the steps of adding are the shared [MediaBrowse] and
+ * [MediaSetup]; here only what the TV's pages show.
  */
 @HiltViewModel
 class TvMediaViewModel @Inject constructor(
-    private val media: TvMedia,
+    private val media: MediaHub,
     private val selection: TvMediaSelection,
 ) : ViewModel() {
+
+    private val browse = MediaBrowse(media) { publish() }
+    private val setup = MediaSetup(media)
 
     private val _ui = MutableStateFlow(TvMediaUi())
     val ui: StateFlow<TvMediaUi> = _ui.asStateFlow()
@@ -134,7 +124,7 @@ class TvMediaViewModel @Inject constructor(
     private val _add = MutableStateFlow<TvAddUi?>(null)
     val add: StateFlow<TvAddUi?> = _add.asStateFlow()
 
-    val link: StateFlow<TvMediaLink> = media.link
+    val link: StateFlow<MediaLink> = media.link
 
     /** Posters and backdrops loaded so far (key: [pictureKey]). */
     private val _pictures = MutableStateFlow<Map<String, Bitmap>>(emptyMap())
@@ -148,10 +138,6 @@ class TvMediaViewModel @Inject constructor(
     private var loadJob: Job? = null
     private var quickJob: Job? = null
 
-    /** The rows as loaded: the Jellyfin server's, each share's (by id). */
-    private var jellyfin = TvRows()
-    private var shareRows: Map<String, TvRows> = emptyMap()
-
     init {
         viewModelScope.launch {
             media.store.sources.collect { list ->
@@ -160,28 +146,19 @@ class TvMediaViewModel @Inject constructor(
         }
     }
 
-    private fun library(): MediaLibrary? = media.currentSource()?.let(media::library)
-
     /** The rows of all sources in one (mockup 7): a title in Jellyfin and on a share once, Jellyfin's. */
     private fun publish() {
-        val j = jellyfin
-        val shares = media.shares().mapNotNull { shareRows[it.id] }
-        val known = j.resume + j.latest + j.movies + j.series
-        fun fromShares(f: (TvRows) -> List<MediaTitle>) = TvMediaLogic.withoutDuplicates(shares.flatMap(f), known)
-        val resume = TvMediaLogic.byLastPlayed(listOf(j.resume, fromShares { it.resume }), RESUME)
-        val latest = TvMediaLogic.byAdded(listOf(j.latest, fromShares { it.latest }), LATEST)
-        val shareMovies = fromShares { it.movies }
-        val shareSeries = fromShares { it.series }
+        val rows = browse.rows()
         _ui.update {
             it.copy(
-                resume = resume,
-                latest = TvMediaLogic.latestWithout(latest, resume),
-                movies = TvMediaLogic.alphabetical(j.movies, j.moviesNext == null, shareMovies),
-                moviesTotal = j.moviesTotal + shareMovies.size,
-                moviesNext = j.moviesNext,
-                series = TvMediaLogic.alphabetical(j.series, j.seriesNext == null, shareSeries),
-                seriesTotal = j.seriesTotal + shareSeries.size,
-                seriesNext = j.seriesNext,
+                resume = rows.resume,
+                latest = rows.latest,
+                movies = rows.movies,
+                moviesTotal = rows.moviesTotal,
+                moviesNext = rows.moviesNext,
+                series = rows.series,
+                seriesTotal = rows.seriesTotal,
+                seriesNext = rows.seriesNext,
             )
         }
     }
@@ -193,80 +170,26 @@ class TvMediaViewModel @Inject constructor(
         _ui.update { it.copy(source = source, shares = shares, sources = media.store.sources.value) }
         loadJob?.cancel()
         if (source == null && shares.isEmpty()) {
-            jellyfin = TvRows()
-            shareRows = emptyMap()
+            browse.clear()
             _ui.update { TvMediaUi(sources = it.sources) }
             return
         }
-        if (source == null) jellyfin = TvRows()
-        shareRows = shareRows.filterKeys { id -> shares.any { it.id == id } }
+        browse.keepOnly(source, shares)
         loadJob = viewModelScope.launch {
             _ui.update { it.copy(loading = true, problem = null) }
             media.check(source ?: shares.first())
             coroutineScope {
-                if (source != null) launch { loadJellyfin(source) }
-                for (s in shares) launch { loadShare(s) }
+                if (source != null) {
+                    launch { browse.loadJellyfin(source)?.let { p -> _ui.update { it.copy(problem = p) } } }
+                }
+                for (s in shares) {
+                    launch {
+                        browse.loadShare(s) { bad -> _ui.update { it.copy(shareProblems = if (bad) it.shareProblems + s.id else it.shareProblems - s.id) } }
+                    }
+                }
             }
             _ui.update { it.copy(loading = false) }
         }
-    }
-
-    private suspend fun loadJellyfin(source: MediaSource) {
-        if (source.token == null) {
-            // signed out by the server earlier: sign in again
-            jellyfin = TvRows()
-            publish()
-            _ui.update { it.copy(problem = TvMediaProblem.SIGNED_OUT) }
-            return
-        }
-        val lib = media.library(source)
-        val resume = lib.resume(RESUME)
-        val problem = problemOf(resume, source)
-        if (problem != null) {
-            jellyfin = TvRows()
-            publish()
-            _ui.update { it.copy(problem = problem) }
-            return
-        }
-        jellyfin = jellyfin.copy(resume = resume.valueOrNull().orEmpty())
-        publish()
-        jellyfin = jellyfin.copy(latest = lib.latest(LATEST).valueOrNull().orEmpty())
-        publish()
-        val movies = lib.movies(0, TvMediaLogic.PAGE).valueOrNull()
-        val series = lib.series(0, TvMediaLogic.PAGE).valueOrNull()
-        jellyfin = jellyfin.copy(
-            movies = movies?.items.orEmpty(),
-            moviesTotal = movies?.total ?: 0,
-            moviesNext = movies?.next,
-            series = series?.items.orEmpty(),
-            seriesTotal = series?.total ?: 0,
-            seriesNext = series?.next,
-        )
-        publish()
-    }
-
-    /** A share whole (its folders are searched once, then all rows come from that). */
-    private suspend fun loadShare(source: MediaSource) {
-        val lib = media.library(source)
-        val resume = lib.resume(RESUME)
-        if (resume !is MediaResult.Ok) {
-            shareRows = shareRows - source.id
-            _ui.update { it.copy(shareProblems = it.shareProblems + source.id) }
-            publish()
-            return
-        }
-        val movies = lib.movies(0, SHARE_ALL).valueOrNull()
-        val series = lib.series(0, SHARE_ALL).valueOrNull()
-        shareRows = shareRows + (
-            source.id to TvRows(
-                resume = resume.value,
-                latest = lib.latest(LATEST).valueOrNull().orEmpty(),
-                movies = movies?.items.orEmpty(),
-                series = series?.items.orEmpty(),
-            )
-            )
-        _ui.update { it.copy(shareProblems = it.shareProblems - source.id) }
-        publish()
     }
 
     /** Back from the player: "Weiterschauen" and the open detail page show where it is now. */
@@ -281,55 +204,20 @@ class TvMediaViewModel @Inject constructor(
         val source = media.currentSource()?.takeIf { it.token != null }
         val shares = media.shares()
         if (source == null && shares.isEmpty()) {
-            jellyfin = TvRows()
-            shareRows = emptyMap()
+            browse.clear()
             _ui.update { it.copy(resume = emptyList()) }
             return
         }
-        viewModelScope.launch {
-            media.check(source ?: shares.first())
-            coroutineScope {
-                if (source != null) {
-                    launch { media.library(source).resume(RESUME).valueOrNull()?.let { r -> jellyfin = jellyfin.copy(resume = r) } }
-                }
-                for (s in shares) {
-                    launch {
-                        media.library(s).resume(RESUME).valueOrNull()?.let { r -> shareRows = shareRows + (s.id to (shareRows[s.id] ?: TvRows()).copy(resume = r)) }
-                    }
-                }
-            }
-            publish()
-        }
-    }
-
-    private fun problemOf(r: MediaResult<*>, source: MediaSource): TvMediaProblem? = when (r) {
-        is MediaResult.Ok -> null
-        MediaResult.Offline -> TvMediaProblem.OFFLINE
-        MediaResult.Unauthorized -> {
-            // a share keeps its password (it may be the NAS that refuses just now); Jellyfin's token is gone
-            if (source.kind == MediaSourceKind.JELLYFIN) media.store.dropToken(source.id)
-            TvMediaProblem.SIGNED_OUT
-        }
-        else -> TvMediaProblem.FAILED
+        viewModelScope.launch { browse.loadResume(source, shares) }
     }
 
     private var moreJob: Job? = null
 
     /** The remote came near the end of "Filme" ([movies]) or "Serien": Jellyfin's next page (a share has all). */
     fun more(movies: Boolean) {
-        val lib = library() ?: return
-        val next = if (movies) jellyfin.moviesNext else jellyfin.seriesNext
-        if (next == null || moreJob?.isActive == true) return
-        moreJob = viewModelScope.launch {
-            val page = (if (movies) lib.movies(next, TvMediaLogic.PAGE) else lib.series(next, TvMediaLogic.PAGE)).valueOrNull() ?: return@launch
-            val j = jellyfin
-            jellyfin = if (movies) {
-                j.copy(movies = (j.movies + page.items).distinctBy { t -> t.id }, moviesNext = page.next, moviesTotal = page.total)
-            } else {
-                j.copy(series = (j.series + page.items).distinctBy { t -> t.id }, seriesNext = page.next, seriesTotal = page.total)
-            }
-            publish()
-        }
+        if (media.currentSource() == null) return
+        if (!browse.hasMore(movies) || moreJob?.isActive == true) return
+        moreJob = viewModelScope.launch { browse.more(movies) }
     }
 
     fun pictureKey(title: MediaTitle, backdrop: Boolean): String = "${title.sourceId}:${if (backdrop) title.backdropId else title.posterId}:${if (backdrop) "b" else "p"}"
@@ -390,39 +278,28 @@ class TvMediaViewModel @Inject constructor(
     }
 
     private fun load(page: TvDetailUi) {
-        val source = media.store.source(page.title.sourceId) ?: return
-        val lib = media.library(source)
+        media.store.source(page.title.sourceId) ?: return
         val id = page.title.id
         viewModelScope.launch {
-            val d = lib.detail(id)
-            val detail = d.valueOrNull()
-            if (detail == null) {
-                replaceTop(id) { it.copy(loading = false, problem = problemOf(d, source)) }
+            val (loaded, problem) = browse.detail(page.title)
+            if (loaded == null) {
+                replaceTop(id) { it.copy(loading = false, problem = problem) }
                 return@launch
             }
-            val version = detail.version
-            val choice = (detail.title.seriesId)?.let { media.store.trackChoice(it) }
-            val link = media.link.value
-            val offer = MediaQuality.offer(
-                atHome = link.atHome == true,
-                measuredBps = link.bps,
-                originalBps = version?.bitrate,
-                alwaysOriginal = source.alwaysOriginal,
-                canConvert = source.kind.canConvert,
-            )
+            val detail = loaded.detail
             replaceTop(id) {
                 it.copy(
                     title = detail.title,
                     detail = detail,
                     loading = false,
-                    audio = version?.let { v -> MediaTracks.pickAudio(v, choice) },
-                    subtitle = version?.let { v -> MediaTracks.pickSubtitle(v, choice) ?: v.defaultSubtitle },
-                    original = !offer.suggestAdapted,
-                    offer = offer,
+                    audio = loaded.audio,
+                    subtitle = loaded.subtitle,
+                    original = !loaded.offer.suggestAdapted,
+                    offer = loaded.offer,
                 )
             }
             if (detail.title.kind == MediaTitle.Kind.SERIES) {
-                val seasons = lib.seasons(id).valueOrNull().orEmpty()
+                val seasons = browse.seasons(page.title)
                 replaceTop(id) { it.copy(seasons = seasons) }
                 val first = seasons.firstOrNull { (it.unplayed ?: 0) > 0 } ?: seasons.firstOrNull()
                 first?.let { season(id, it.id) }
@@ -433,10 +310,10 @@ class TvMediaViewModel @Inject constructor(
     /** A season of the open series. */
     fun season(seriesId: String, seasonId: String) {
         val top = _details.value.lastOrNull { it.title.id == seriesId } ?: return
-        val source = media.store.source(top.title.sourceId) ?: return
+        media.store.source(top.title.sourceId) ?: return
         replaceTop(seriesId) { it.copy(seasonId = seasonId) }
         viewModelScope.launch {
-            val episodes = media.library(source).episodes(seriesId, seasonId).valueOrNull().orEmpty()
+            val episodes = browse.episodes(top.title, seasonId)
             replaceTop(seriesId) { if (it.seasonId == seasonId) it.copy(episodes = episodes) else it }
         }
     }
@@ -454,17 +331,17 @@ class TvMediaViewModel @Inject constructor(
         val seriesId = now.title.seriesId
         val version = now.detail?.version
         if (seriesId != null && version != null && (now.audio != t.audio || now.subtitle != t.subtitle)) {
-            media.store.setTrackChoice(seriesId, MediaTracks.choiceOf(version, now.audio, now.subtitle))
+            browse.rememberTracks(seriesId, version, now.audio, now.subtitle)
         }
     }
 
     /** "Als gesehen markieren" (and back). */
     fun togglePlayed() {
         val t = _details.value.lastOrNull() ?: return
-        val source = media.store.source(t.title.sourceId) ?: return
+        media.store.source(t.title.sourceId) ?: return
         val played = !t.title.played
         viewModelScope.launch {
-            if (media.library(source).setPlayed(t.title.id, played) is MediaResult.Ok) {
+            if (browse.setPlayed(t.title, played)) {
                 replaceTop(t.title.id) { it.copy(title = it.title.copy(played = played, positionMs = if (played) 0 else it.title.positionMs)) }
                 refreshResume()
             }
@@ -476,20 +353,14 @@ class TvMediaViewModel @Inject constructor(
      * open detail page's sound, subtitle and quality. [then] opens the player once the queue is ready.
      */
     fun play(title: MediaTitle, fromStart: Boolean = false, then: () -> Unit) {
-        val source = media.store.source(title.sourceId) ?: return
+        media.store.source(title.sourceId) ?: return
         val page = _details.value.lastOrNull()?.takeIf { it.title.id == title.id }
         viewModelScope.launch {
-            val episodes = if (title.kind == MediaTitle.Kind.EPISODE && title.seriesId != null) {
-                media.library(source).episodes(title.seriesId!!).valueOrNull().orEmpty()
-            } else {
-                emptyList()
-            }
-            val start = if (fromStart) 0L else null
-            val q = TvMediaLogic.queue(source.id, title, episodes, start).copy(
+            val q = browse.queue(title, fromStart)?.copy(
                 audioIndex = page?.audio,
                 subtitleIndex = page?.subtitle,
                 original = page?.offer?.takeIf { it.adaptedBps != null }?.let { page.original },
-            )
+            ) ?: return@launch
             selection.setMedia(q)
             then()
         }
@@ -546,38 +417,26 @@ class TvMediaViewModel @Inject constructor(
      */
     fun connectShare(name: String, password: String) {
         val a = _add.value ?: return
-        val address = MediaAddress.normalizeShare(a.kind, a.address) ?: run {
-            _add.update { it?.copy(problem = TvAddProblem.BAD_ADDRESS) }
+        if (MediaAddress.normalizeShare(a.kind, a.address) == null) {
+            _add.update { it?.copy(problem = MediaAddProblem.BAD_ADDRESS) }
             return
         }
-        val user = name.trim().ifEmpty { null }
-        val pass = password.takeIf { user != null && it.isNotEmpty() }
         _add.update { it?.copy(signingIn = true, problem = null) }
         viewModelScope.launch {
-            media.check(null)
-            val r = media.tryShare(a.kind, address, user, pass)
-            if (r !is MediaResult.Ok) {
-                val problem = when (r) {
-                    MediaResult.Unauthorized -> TvAddProblem.WRONG_LOGIN
-                    MediaResult.NotFound -> TvAddProblem.NOT_FOUND
-                    MediaResult.Offline -> TvAddProblem.OFFLINE
-                    else -> TvAddProblem.FAILED
+            when (val r = setup.connectShare(a.kind, a.address, name, password)) {
+                is MediaShareAdded.Problem -> _add.update { it?.copy(signingIn = false, problem = r.problem) }
+                is MediaShareAdded.Saved -> {
+                    _add.update { it?.copy(signingIn = false, done = true, pairedWith = r.partner) }
+                    refresh()
                 }
-                _add.update { it?.copy(signingIn = false, problem = problem) }
-                return@launch
             }
-            val draft = MediaSource(UUID.randomUUID().toString(), a.kind, "", address, userName = user, password = pass)
-            val saved = media.store.save(draft.copy(name = TvMediaLogic.shareAddress(draft)))
-            val partner = saved.pairWith?.let { media.store.source(it) }
-            _add.update { it?.copy(signingIn = false, done = true, pairedWith = partner) }
-            refresh()
         }
     }
 
     fun search() {
         _add.update { it?.copy(searching = true) }
         viewModelScope.launch {
-            val found = runCatching { media.discover() }.getOrDefault(emptyList())
+            val found = setup.search()
             _add.update { a ->
                 a?.copy(searching = false, found = found, address = a.address.ifEmpty { found.firstOrNull()?.address.orEmpty() })
             }
@@ -595,22 +454,21 @@ class TvMediaViewModel @Inject constructor(
     /** Step 2: is a Jellyfin server at the address? */
     fun check() {
         val a = _add.value ?: return
-        val base = MediaAddress.normalize(a.address) ?: run {
-            _add.update { it?.copy(problem = TvAddProblem.BAD_ADDRESS) }
+        if (MediaAddress.normalize(a.address) == null) {
+            _add.update { it?.copy(problem = MediaAddProblem.BAD_ADDRESS) }
             return
         }
         _add.update { it?.copy(checking = true, problem = null) }
         viewModelScope.launch {
-            media.check(null)
-            when (val r = media.signIn(base).server()) {
-                is MediaResult.Ok -> {
-                    val ok = r.value.supported
-                    _add.update {
-                        it?.copy(checking = false, server = r.value.takeIf { ok }, serverAddress = base.takeIf { ok }, problem = if (ok) null else TvAddProblem.OLD_SERVER)
+            when (val r = setup.check(a.address)) {
+                is MediaServerCheck.Found -> _add.update { it?.copy(checking = false, server = r.server, serverAddress = r.address, problem = null) }
+                is MediaServerCheck.Problem -> _add.update {
+                    if (r.problem == MediaAddProblem.OLD_SERVER) {
+                        it?.copy(checking = false, server = null, serverAddress = null, problem = r.problem)
+                    } else {
+                        it?.copy(checking = false, problem = r.problem)
                     }
                 }
-                MediaResult.Offline -> _add.update { it?.copy(checking = false, problem = TvAddProblem.OFFLINE) }
-                else -> _add.update { it?.copy(checking = false, problem = TvAddProblem.NOT_FOUND) }
             }
         }
     }
@@ -633,40 +491,22 @@ class TvMediaViewModel @Inject constructor(
         val base = _add.value?.serverAddress ?: return
         quickJob?.cancel()
         quickJob = viewModelScope.launch {
-            val signIn = media.signIn(base)
-            if (!signIn.quickConnectEnabled()) {
-                _add.update { it?.copy(problem = TvAddProblem.NO_QUICK_CONNECT, quickConnect = false) }
-                return@launch
-            }
-            val q = signIn.quickConnect().valueOrNull() ?: run {
-                _add.update { it?.copy(problem = TvAddProblem.FAILED) }
-                return@launch
-            }
-            _add.update { it?.copy(code = q.code, waiting = true) }
-            val until = System.currentTimeMillis() + QUICK_CONNECT_MS
-            while (System.currentTimeMillis() < until) {
-                delay(QUICK_POLL_MS)
-                when (val c = signIn.confirmed(q)) {
-                    is MediaResult.Ok -> if (c.value) {
-                        finish(signIn, q)
-                        return@launch
-                    }
-                    MediaResult.Offline -> Unit
-                    else -> {
-                        // the code ran out on the server: a new one
-                        _add.update { it?.copy(code = null, waiting = false) }
-                        startQuickConnect()
-                        return@launch
+            val end = setup.quickConnect(
+                base,
+                onCode = { code -> _add.update { it?.copy(code = code, waiting = code != null) } },
+                onSigningIn = { _add.update { it?.copy(signingIn = true, waiting = false) } },
+            )
+            when (end) {
+                is MediaQuickConnectEnd.SignedIn -> saved(end.auth)
+                is MediaQuickConnectEnd.Problem -> _add.update {
+                    if (end.problem == MediaAddProblem.NO_QUICK_CONNECT) {
+                        it?.copy(problem = end.problem, quickConnect = false)
+                    } else {
+                        it?.copy(waiting = false, code = null, problem = end.problem)
                     }
                 }
             }
-            _add.update { it?.copy(waiting = false, code = null, problem = TvAddProblem.FAILED) }
         }
-    }
-
-    private suspend fun finish(signIn: JellyfinSignIn, q: JellyfinQuickConnect) {
-        _add.update { it?.copy(signingIn = true, waiting = false) }
-        saved(signIn.signIn(q))
     }
 
     /** Name and password: sent once, never kept. */
@@ -674,44 +514,23 @@ class TvMediaViewModel @Inject constructor(
         val base = _add.value?.serverAddress ?: return
         if (name.isBlank()) return
         _add.update { it?.copy(signingIn = true, problem = null) }
-        viewModelScope.launch { saved(media.signIn(base).signIn(name.trim(), password)) }
+        viewModelScope.launch { saved(setup.signIn(base, name, password)) }
     }
 
-    private fun saved(r: MediaResult<com.gatecontrol.android.media.jellyfin.JellyfinAuth>) {
+    private fun saved(r: MediaResult<JellyfinAuth>) {
         val a = _add.value ?: return
         val auth = r.valueOrNull()
         if (auth == null) {
-            _add.update {
-                it?.copy(signingIn = false, problem = if (r is MediaResult.Unauthorized) TvAddProblem.WRONG_LOGIN else if (r is MediaResult.Offline) TvAddProblem.OFFLINE else TvAddProblem.FAILED)
-            }
+            _add.update { it?.copy(signingIn = false, problem = setup.problemOf(r)) }
             return
         }
-        val source = media.store.save(
-            MediaSource(
-                id = UUID.randomUUID().toString(),
-                kind = MediaSourceKind.JELLYFIN,
-                name = a.server?.name ?: "Jellyfin",
-                address = a.serverAddress ?: return,
-                userId = auth.userId,
-                userName = auth.userName,
-                token = auth.token,
-                serverId = auth.serverId ?: a.server?.id,
-            ),
-        )
-        media.select(source.id)
+        setup.saveJellyfin(auth, a.server, a.serverAddress ?: return)
         _add.update { it?.copy(signingIn = false, done = true) }
         refresh()
     }
 
     private companion object {
-        const val RESUME = 12
-        const val LATEST = 16
-        const val QUICK_POLL_MS = 3_000L
-        const val QUICK_CONNECT_MS = 10 * 60_000L
         const val PICTURE_CACHE_BYTES = 24 * 1024 * 1024
         const val MAX_SHOWN = 160
-
-        /** A share's rows are loaded whole (its index is on the TV already). */
-        const val SHARE_ALL = 2_000
     }
 }

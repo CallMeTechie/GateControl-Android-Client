@@ -1,7 +1,7 @@
 package com.gatecontrol.android.tv.ui.drive
 
-import com.gatecontrol.android.tv.player.TvTrack
-import com.gatecontrol.android.tv.player.TvTrackMenu
+import com.gatecontrol.android.media.player.PlayerTrack
+import com.gatecontrol.android.media.player.PlayerTrackMenu
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Test
@@ -17,8 +17,8 @@ class TvPlayerUiTest {
 
     @Test
     fun `what the bar says about subtitles`() {
-        val de = TvTrack(TvTrack.Kind.TEXT, 3, 0, "Deutsch (SDH)", "de", 0, selected = true)
-        assertEquals("Deutsch (SDH)", TvPlayerUi.textState(TvTrackMenu(emptyList(), listOf(de)), "aus"))
-        assertEquals("aus", TvPlayerUi.textState(TvTrackMenu(emptyList(), listOf(de.copy(selected = false))), "aus"))
+        val de = PlayerTrack(PlayerTrack.Kind.TEXT, 3, 0, "Deutsch (SDH)", "de", 0, selected = true)
+        assertEquals("Deutsch (SDH)", TvPlayerUi.textState(PlayerTrackMenu(emptyList(), listOf(de)), "aus"))
+        assertEquals("aus", TvPlayerUi.textState(PlayerTrackMenu(emptyList(), listOf(de.copy(selected = false))), "aus"))
     }
 }

@@ -286,4 +286,51 @@ class JellyfinLibraryTest {
         assertNull(library.imageUrl(t, backdrop = true, maxHeight = 540))
         assertTrue(library.headers().getValue("Authorization").contains("Token=\"tok-secret\""))
     }
+
+    @Test
+    fun `Geraet anmelden - another device's Quick Connect code confirmed with this access`() = runTest {
+        server.enqueue(json("true"))
+        server.enqueue(json("true"))
+        assertEquals(JellyfinAuthorize.CONFIRMED, library.authorize(" 731 205 "))
+        assertEquals("/QuickConnect/Enabled", server.takeRequest().path)
+        val r = server.takeRequest()
+        assertEquals("POST", r.method)
+        assertEquals("/QuickConnect/Authorize?code=731205&userId=u1", r.path)
+        assertTrue(r.getHeader("Authorization")!!.contains("Token=\"tok-secret\""))
+
+        // a code nobody is waiting with
+        server.enqueue(json("true"))
+        server.enqueue(json("{}", code = 404))
+        assertEquals(JellyfinAuthorize.UNKNOWN_CODE, library.authorize("000000"))
+        server.takeRequest()
+        server.takeRequest()
+
+        // Quick Connect switched off on the server: nothing sent
+        server.enqueue(json("false"))
+        assertEquals(JellyfinAuthorize.DISABLED, library.authorize("731205"))
+        server.takeRequest()
+        assertEquals(JellyfinAuthorize.UNKNOWN_CODE, library.authorize("  "))
+        assertEquals(5, server.requestCount)
+
+        // this device's access is gone
+        server.enqueue(json("true"))
+        server.enqueue(MockResponse().setResponseCode(401))
+        assertEquals(JellyfinAuthorize.SIGNED_OUT, library.authorize("731205"))
+    }
+
+    @Test
+    fun `a phone without Dolby decoders - AC3 converted to AAC, never passed through`() {
+        val phone = com.gatecontrol.android.media.MediaDeviceCaps.fromDecoders(listOf("video/avc", "video/hevc", "audio/mp4a-latm"), hdrScreen = false, name = "GateControl")
+        assertFalse("ac3" in JellyfinProfile.directAudio(phone))
+        assertFalse("eac3" in JellyfinProfile.directAudio(phone))
+        assertEquals(listOf("aac"), JellyfinProfile.convertedAudio(phone))
+        val profile = JellyfinProfile.build(phone, 8_000_000)
+        assertEquals("GateControl", profile.get("Name").asString)
+        assertEquals("aac", profile.getAsJsonArray("TranscodingProfiles")[0].asJsonObject.get("AudioCodec").asString)
+        assertFalse(profile.getAsJsonArray("DirectPlayProfiles")[0].asJsonObject.get("AudioCodec").asString.contains("ac3"))
+        // the TV stick decodes Dolby itself, DTS goes to the receiver
+        val tv = JellyfinDeviceCaps(passthrough = setOf("dts"))
+        assertEquals(listOf("aac", "ac3", "eac3", "dts"), JellyfinProfile.convertedAudio(tv))
+        assertTrue("eac3" in JellyfinProfile.directAudio(tv))
+    }
 }
