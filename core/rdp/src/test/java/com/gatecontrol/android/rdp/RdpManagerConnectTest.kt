@@ -3,6 +3,7 @@ package com.gatecontrol.android.rdp
 import android.content.Context
 import com.gatecontrol.android.network.ApiClient
 import com.gatecontrol.android.network.RdpConnectResponse
+import com.gatecontrol.android.network.RdpEndSessionRequest
 import com.gatecontrol.android.network.RdpRoute
 import com.gatecontrol.android.network.RdpRouteStatus
 import com.gatecontrol.android.network.RdpRouteStatusResponse
@@ -16,6 +17,7 @@ import io.mockk.verify
 import kotlinx.coroutines.test.runTest
 import okhttp3.ResponseBody.Companion.toResponseBody
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
@@ -68,10 +70,11 @@ class RdpManagerConnectTest {
         val result = manager.connect(route(), api, isVpnConnected = true)
 
         assertTrue(result is RdpManager.ConnectResult.Success, "got $result")
+        // the server session first: the window gets its id and reports the end with it
         coVerifyOrder {
             api.getRdpConnection(7, null)
-            embedded.launchSession(context, any())
             api.startRdpSession(7)
+            embedded.launchSession(context, match { it.serverSessionId == 42 })
         }
         // no credentials: no key exchange
         verify(exactly = 0) { credentials.generatePublicKey() }
@@ -86,9 +89,66 @@ class RdpManagerConnectTest {
         assertTrue(result is RdpManager.ConnectResult.Error, "got $result")
         result as RdpManager.ConnectResult.Error
         assertEquals(RdpConnectFailure.FIREWALL_TIMEOUT, result.failure)
-        assertEquals(RdpProgress.CREDENTIALS, result.step)
+        assertEquals(RdpProgress.HOST_ACCESS, result.step)
         verify(exactly = 0) { embedded.launchSession(any(), any()) }
         coVerify(exactly = 0) { api.startRdpSession(any()) }
+    }
+
+    @Test
+    fun `waiting for the PC is its own step, credentials only with credentials`() = runTest {
+        coEvery { api.getRdpConnection(7, null) } returns mockk<RdpConnectResponse>(relaxed = true)
+        val steps = mutableListOf<RdpProgress>()
+
+        manager.connect(route(), api, isVpnConnected = true, onProgress = { steps += it })
+
+        assertEquals(
+            listOf(
+                RdpProgress.VPN_CHECK, RdpProgress.TCP_CHECK, RdpProgress.HOST_ACCESS,
+                RdpProgress.SESSION_START, RdpProgress.CLIENT_LAUNCH, RdpProgress.COMPLETE,
+            ),
+            steps,
+        )
+        // the sheet orders the steps by number: the same order as they run
+        assertEquals(steps.sortedBy { it.step }, steps)
+    }
+
+    @Test
+    fun `a refused connect is reported at the step waiting for the PC`() = runTest {
+        coEvery { api.getRdpConnection(7, null) } throws refused(504, "firewall_timeout")
+        val result = manager.connect(route(), api, isVpnConnected = true) as RdpManager.ConnectResult.Error
+        assertEquals(RdpProgress.HOST_ACCESS, result.step)
+    }
+
+    @Test
+    fun `client launch fails after connect - the session ends at once`() = runTest {
+        coEvery { api.getRdpConnection(7, null) } returns mockk<RdpConnectResponse>(relaxed = true)
+        every { embedded.launchSession(any(), any()) } throws IllegalStateException("no activity")
+        coEvery { api.endRdpSession(7, any()) } returns RdpSessionResponse(ok = true, session = null)
+
+        val result = manager.connect(route(), api, isVpnConnected = true)
+
+        assertTrue(result is RdpManager.ConnectResult.Error, "got $result")
+        coVerify { api.endRdpSession(7, RdpEndSessionRequest(sessionId = 42, endReason = RdpManager.END_LAUNCH_FAILED)) }
+        verify(exactly = 0) { monitor.startSession(any(), any(), any(), any()) }
+    }
+
+    @Test
+    fun `endServerSession reports the end and forgets the session`() = runTest {
+        coEvery { api.endRdpSession(7, any()) } returns RdpSessionResponse(ok = true, session = null)
+
+        assertTrue(manager.endServerSession(api, 7, 42, RdpManager.END_CONNECT_TIMEOUT))
+
+        coVerify { api.endRdpSession(7, RdpEndSessionRequest(sessionId = 42, endReason = "connect_timeout")) }
+        verify { monitor.endSession(7) }
+    }
+
+    @Test
+    fun `endServerSession without a known id lets the server pick, and survives errors`() = runTest {
+        coEvery { api.endRdpSession(7, any()) } throws refused(400, "No active session found")
+
+        assertFalse(manager.endServerSession(api, 7, 0, RdpManager.END_USER_CANCEL))
+
+        coVerify { api.endRdpSession(7, RdpEndSessionRequest(sessionId = null, endReason = "user_cancel")) }
     }
 
     @Test

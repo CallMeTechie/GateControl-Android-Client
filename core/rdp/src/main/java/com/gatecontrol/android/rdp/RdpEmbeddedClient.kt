@@ -37,6 +37,7 @@ class RdpEmbeddedClient {
         const val EXTRA_ADMIN_SESSION = "rdp_admin_session"
         const val EXTRA_ROUTE_NAME = "rdp_route_name"
         const val EXTRA_ROUTE_ID = "rdp_route_id"
+        const val EXTRA_SESSION_ID = "rdp_session_id"
     }
 
     /**
@@ -84,6 +85,7 @@ class RdpEmbeddedClient {
             EXTRA_ADMIN_SESSION to params.adminSession,
             EXTRA_ROUTE_NAME to params.routeName,
             EXTRA_ROUTE_ID to params.routeId,
+            EXTRA_SESSION_ID to params.serverSessionId,
         )
         params.username?.let { map[EXTRA_USERNAME] = it }
         params.password?.let { map[EXTRA_PASSWORD] = it }

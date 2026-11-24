@@ -80,7 +80,8 @@ class RdpSessionActivity : ComponentActivity() {
                 audioMode = intent.getStringExtra("rdp_audio_mode") ?: "local",
                 adminSession = intent.getBooleanExtra("rdp_admin_session", false),
                 routeName = intent.getStringExtra("rdp_route_name") ?: "",
-                routeId = intent.getIntExtra("rdp_route_id", 0)
+                routeId = intent.getIntExtra("rdp_route_id", 0),
+                serverSessionId = intent.getIntExtra(RdpEmbeddedClient.EXTRA_SESSION_ID, 0)
             )
         }
     }
@@ -92,6 +93,13 @@ class RdpSessionActivity : ComponentActivity() {
     @Volatile private var rdpCanvasView: RdpCanvasView? = null
     @Volatile private var rdpSurface: Bitmap? = null
     private var rdpRouteId: Int = 0
+    private var serverSessionId: Int = 0
+    // how far the session got, for the end reason reported to the server
+    @Volatile private var pictureShown = false
+    @Volatile private var failedBeforePicture = false
+    @Volatile private var connectTimedOut = false
+    // the end goes to the server once (finishSession, a failure and onDestroy all report it)
+    private val endReported = java.util.concurrent.atomic.AtomicBoolean(false)
 
     @androidx.annotation.VisibleForTesting
     internal val controllerForTest: RdpSessionController
@@ -119,6 +127,7 @@ class RdpSessionActivity : ComponentActivity() {
 
         sessionStartMs = System.currentTimeMillis()
         rdpRouteId = params.routeId
+        serverSessionId = params.serverSessionId
 
         // Diagnostic log for RDP debugging — debug builds only, app-private storage
         diagLog = RdpDiagnosticLog(this)
@@ -209,26 +218,29 @@ class RdpSessionActivity : ComponentActivity() {
         finish()
     }
 
-    /** Fire-and-forget: tell the server this RDP session ended. */
+    /**
+     * Fire-and-forget, once: tell the server this RDP session ended (DELETE /client/rdp/:id/session).
+     * For a PC registered with Fernzugriff this closes its firewall rule for this app at once.
+     */
     private fun notifyServerSessionEnd() {
         if (rdpRouteId <= 0) return
+        if (!endReported.compareAndSet(false, true)) return
+        val reason = RdpSessionEndReason.of(pictureShown, failedBeforePicture, connectTimedOut)
         try {
             val serverUrl = dagger.hilt.android.EntryPointAccessors
                 .fromApplication(applicationContext, ServerUrlEntryPoint::class.java)
                 .setupRepository().getServerUrl()
             if (serverUrl.isEmpty()) return
-            val client = dagger.hilt.android.EntryPointAccessors
+            val entry = dagger.hilt.android.EntryPointAccessors
                 .fromApplication(applicationContext, ServerUrlEntryPoint::class.java)
-                .apiClientProvider().getClient(serverUrl)
+            val client = entry.apiClientProvider().getClient(serverUrl)
+            val manager = entry.rdpManager()
+            val routeId = rdpRouteId
+            val sessionId = serverSessionId
             kotlinx.coroutines.GlobalScope.launch(kotlinx.coroutines.Dispatchers.IO) {
-                try {
-                    // Use disconnect-all for this route — we don't track the
-                    // server-side sessionId, and a single client can only have
-                    // one active session per route anyway.
-                    client.disconnectAllSessions(rdpRouteId)
-                    Timber.i("Server notified: RDP session ended for route $rdpRouteId")
-                } catch (e: Exception) {
-                    Timber.w(e, "Failed to notify server of RDP session end")
+                // the app's own session end (not the admin's disconnect-all): only this one closes the PC's rule
+                if (manager.endServerSession(client, routeId, sessionId, reason)) {
+                    Timber.i("Server notified: RDP session ended for route $routeId ($reason)")
                 }
             }
         } catch (e: Exception) {
@@ -241,6 +253,7 @@ class RdpSessionActivity : ComponentActivity() {
     interface ServerUrlEntryPoint {
         fun setupRepository(): com.gatecontrol.android.data.SetupRepository
         fun apiClientProvider(): com.gatecontrol.android.network.ApiClientProvider
+        fun rdpManager(): RdpManager
     }
 
     private fun startRdpService(routeName: String) {
@@ -291,6 +304,11 @@ class RdpSessionActivity : ComponentActivity() {
             diagLog.log("Connect timeout")
             timedOut = true
             failed = true
+            // stop FreeRDP and close the PC's access now, not only when the dialog is closed
+            connectTimedOut = true
+            failedBeforePicture = true
+            controller.disconnect()
+            notifyServerSessionEnd()
         }
 
         LaunchedEffect(event) {
@@ -298,10 +316,12 @@ class RdpSessionActivity : ComponentActivity() {
                 is RdpSessionEvent.SettingsChanged -> {
                     if (rdpSurface == null) initSurface(e.width, e.height, e.bpp)
                     hasPicture = rdpSurface != null
+                    pictureShown = hasPicture
                 }
                 is RdpSessionEvent.GraphicsResize -> {
                     initSurface(e.width, e.height, e.bpp)
                     hasPicture = rdpSurface != null
+                    pictureShown = hasPicture
                 }
                 // GraphicsUpdate is handled via direct onPixelUpdate callback
                 // (bypasses StateFlow for performance — no frame drops)
@@ -309,11 +329,20 @@ class RdpSessionActivity : ComponentActivity() {
                     Timber.e("Connection failed: ${e.reason}")
                     diagLog.log("Connection failed")
                     failed = true
+                    // report the end at once: for a registered PC its firewall rule closes again
+                    if (!pictureShown) failedBeforePicture = true
+                    notifyServerSessionEnd()
                 }
                 is RdpSessionEvent.Disconnected -> {
                     Timber.i("Disconnected")
                     // ended before any picture: the connection never came up — say so
-                    if (rdpSurface == null) failed = true else finish()
+                    if (rdpSurface == null) {
+                        failed = true
+                        failedBeforePicture = true
+                        notifyServerSessionEnd()
+                    } else {
+                        finish()
+                    }
                 }
                 else -> { /* no-op */ }
             }

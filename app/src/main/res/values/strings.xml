@@ -65,6 +65,7 @@
     <string name="rdp_credential_none">Manual login</string>
     <string name="rdp_progress_vpn">Checking VPN&#8230;</string>
     <string name="rdp_progress_tcp">Checking host&#8230;</string>
+    <string name="rdp_progress_host_access">Waiting for the PC&#8230;</string>
     <string name="rdp_progress_creds">Loading credentials&#8230;</string>
     <string name="rdp_progress_launch">Launching client&#8230;</string>
     <string name="rdp_progress_session">Starting session&#8230;</string>

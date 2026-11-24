@@ -238,9 +238,10 @@ private fun ConnectingView(
         val steps = listOf(
             RdpProgress.VPN_CHECK to stringResource(R.string.rdp_progress_vpn),
             RdpProgress.TCP_CHECK to stringResource(R.string.rdp_progress_tcp),
+            RdpProgress.HOST_ACCESS to stringResource(R.string.rdp_progress_host_access),
             RdpProgress.CREDENTIALS to stringResource(R.string.rdp_progress_creds),
-            RdpProgress.CLIENT_LAUNCH to stringResource(R.string.rdp_progress_launch),
             RdpProgress.SESSION_START to stringResource(R.string.rdp_progress_session),
+            RdpProgress.CLIENT_LAUNCH to stringResource(R.string.rdp_progress_launch),
             RdpProgress.SERVICE_START to stringResource(R.string.rdp_progress_service),
             RdpProgress.COMPLETE to stringResource(R.string.rdp_progress_done)
         )
