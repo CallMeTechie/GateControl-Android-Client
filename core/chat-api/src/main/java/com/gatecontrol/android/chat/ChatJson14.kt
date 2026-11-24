@@ -988,7 +988,7 @@ object ChatStatusLogic {
     /** A status still applies at [nowMs] (no `until` or not passed). */
     fun active(status: ChatStatus?, nowMs: Long): Boolean {
         if (status == null) return false
-        val until = ChatTimeline.epochMs(status.until) ?: return true
+        val until = status.until?.let { runCatching { java.time.Instant.parse(it).toEpochMilli() }.getOrNull() } ?: return true
         return until > nowMs
     }
 

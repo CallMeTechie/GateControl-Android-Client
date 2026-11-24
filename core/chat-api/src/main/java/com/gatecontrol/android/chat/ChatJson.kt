@@ -113,7 +113,7 @@ object ChatJson {
 
     fun avatarPath(value: String?): String? = value?.trim()?.takeIf { AVATAR_PATH_RE.matches(it) && !it.contains("..") }
 
-    internal fun token(value: String?): String? = value?.takeIf { TOKEN_RE.matches(it) }
+    fun token(value: String?): String? = value?.takeIf { TOKEN_RE.matches(it) }
 
     fun isClientId(value: String?): Boolean = value != null && CLIENT_ID_RE.matches(value)
 

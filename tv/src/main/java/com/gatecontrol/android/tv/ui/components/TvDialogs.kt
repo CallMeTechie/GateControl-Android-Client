@@ -60,6 +60,30 @@ fun TvConfirmDialog(title: String, text: String?, confirm: String, onConfirm: ()
     LaunchedEffect(Unit) { runCatching { first.requestFocus() } }
 }
 
+/** A question with two ways on (e.g. „PIN anlegen“ / „Ohne PIN öffnen“); Zurück is neither. */
+@Composable
+fun TvChoiceDialog(
+    title: String,
+    text: String?,
+    primary: String,
+    onPrimary: () -> Unit,
+    secondary: String,
+    onSecondary: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val colors = GateControlTvTheme.colors
+    val first = remember { FocusRequester() }
+    TvDialog(onDismiss) {
+        Text(title, style = MaterialTheme.typography.headlineSmall, color = colors.text)
+        if (text != null) Text(text, style = MaterialTheme.typography.bodyMedium, color = colors.muted)
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 6.dp)) {
+            TvButton(primary, onClick = onPrimary, style = TvButtonStyle.Primary, modifier = Modifier.focusRequester(first))
+            TvButton(secondary, onClick = onSecondary)
+        }
+    }
+    LaunchedEffect(Unit) { runCatching { first.requestFocus() } }
+}
+
 /**
  * Asks for the TV PIN (OK on the field opens the number keyboard). [check] is the store's; wrong PINs count, after
  * five the entry is locked for a while (the text says until when).

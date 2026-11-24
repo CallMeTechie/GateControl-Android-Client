@@ -99,6 +99,10 @@ data class TvStartUi(
     val today: LocalDate = LocalDate.now(),
     /** "Heute zu Hause": the tasks of Mein Tag ("3 heute · 1 überfällig"; null: the row is off or Notizen is not there). */
     val tasks: TvTasksToday? = null,
+    /** "Neue Nachrichten": who wrote and how many — never the text (empty: the row is off, locked or has nothing). */
+    val messages: List<com.gatecontrol.android.tv.chat.TvChatNews> = emptyList(),
+    /** All unread messages of the chats the TV shows (the row's count). */
+    val messagesUnread: Int = 0,
 )
 
 /**
@@ -124,6 +128,8 @@ fun TvStartRows(
     onHome: () -> Unit = {},
     /** OK on the tasks card of "Heute zu Hause": the page Notizen. */
     onTasks: () -> Unit = {},
+    /** OK on a card of "Neue Nachrichten": the page Nachrichten with that chat. */
+    onMessages: (Long) -> Unit = {},
 ) {
     val colors = GateControlTvTheme.colors
     Column(modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
@@ -170,6 +176,15 @@ fun TvStartRows(
                 home?.next?.let { e -> item(key = "next") { DateCard(e, ui.today, onHome) } }
                 home?.list?.let { l -> item(key = "shopping") { ShoppingCard(l.name, home.open, onHome) } }
                 ui.tasks?.let { t -> item(key = "tasks") { TasksCard(t, onTasks) } }
+            }
+        }
+        if (ui.messages.isNotEmpty()) {
+            RowTitle(stringResource(R.string.tv_row_messages), pluralStringResource(R.plurals.tv_messages_new, ui.messagesUnread, ui.messagesUnread))
+            LazyRow(
+                contentPadding = PaddingValues(start = 2.dp, top = 9.dp, end = 30.dp, bottom = 14.dp),
+                horizontalArrangement = Arrangement.spacedBy(11.dp),
+            ) {
+                itemsIndexed(ui.messages, key = { _, n -> n.conversationId }) { _, n -> NewsCard(n, onClick = { onMessages(n.conversationId) }) }
             }
         }
         if (ui.media.isNotEmpty() && media != null) {
@@ -322,6 +337,13 @@ private fun TasksCard(t: TvTasksToday, onClick: () -> Unit) {
         else -> pluralStringResource(R.plurals.tv_notes_card_today, t.open, t.open) + " · " + pluralStringResource(R.plurals.tv_notes_card_overdue, t.overdue, t.overdue)
     }
     HomeCard(TvIcons.Notes, stringResource(R.string.tv_notes_card), sub, onClick)
+}
+
+/** A chat with news: its name (with W/S/T over a bridge) and „3 neue“ — never the text. */
+@Composable
+private fun NewsCard(n: com.gatecontrol.android.tv.chat.TvChatNews, onClick: () -> Unit) {
+    val name = n.name.ifBlank { stringResource(R.string.tv_chats_unnamed) }
+    HomeCard(TvIcons.Chat, if (n.bridgeMark != null) "$name · ${n.bridgeMark}" else name, pluralStringResource(R.plurals.tv_messages_new, n.count, n.count), onClick)
 }
 
 private val TileWidth = 118.dp

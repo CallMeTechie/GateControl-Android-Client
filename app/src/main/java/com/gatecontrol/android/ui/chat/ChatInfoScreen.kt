@@ -536,10 +536,10 @@ fun ChatInfoScreen(
                 }
                 Text(ChatText.title(ctx, conv), style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.ExtraBold), color = MaterialTheme.colorScheme.onBackground, textAlign = TextAlign.Center)
                 // Messenger 1.20: a channel — „Kanal über WhatsApp · nur lesen“
-                val sub = if (conv.bridge?.channel == true) resources.getString(R.string.chat_ch_info, conv.bridge.label) else buildList {
+                val sub = if (conv.bridge?.channel == true) resources.getString(R.string.chat_ch_info, conv.bridge!!.label) else buildList {
                     add(resources.getString(if (conv.isGroup) R.string.chat_kind_group else R.string.chat_kind_direct))
                     // Messenger 1.14: a chat over a bridge has one member (the caller) — it names the service instead
-                    if (conv.bridge != null) add(resources.getString(R.string.chat_bridged_via, conv.bridge.label))
+                    if (conv.bridge != null) add(resources.getString(R.string.chat_bridged_via, conv.bridge!!.label))
                     else if (conv.isGroup) add(resources.getQuantityString(R.plurals.chat_members, conv.members.size, conv.members.size))
                     if (conv.isNotice) add(resources.getString(R.string.chat_notice_tag))
                     else if (conv.managedBy != null) add(resources.getString(R.string.chat_managed_short))
@@ -554,7 +554,7 @@ fun ChatInfoScreen(
             error?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(horizontal = 16.dp)) }
 
             // No files crossed a bridge in Messenger 1.14: nothing to list there; 1.15 where the service takes files.
-            if (conv.bridge == null || com.gatecontrol.android.chat.ChatBridgeChat.TAKES_FILE in conv.bridge.supports) {
+            if (conv.bridge == null || com.gatecontrol.android.chat.ChatBridgeChat.TAKES_FILE in conv.bridge!!.supports) {
                 GcListRow(
                     title = stringResource(R.string.chat_media_title),
                     description = stringResource(R.string.chat_media_row_desc),
@@ -636,7 +636,7 @@ fun ChatInfoScreen(
                         ChatText.presence(ctx, conv.peer)?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = extra.muted) }
                     }
                 }
-                if (conv.peer.blocked) Text(stringResource(R.string.chat_blocked_hint, ChatText.name(ctx, conv.peer)), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(horizontal = 16.dp))
+                if (conv.peer!!.blocked) Text(stringResource(R.string.chat_blocked_hint, ChatText.name(ctx, conv.peer)), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(horizontal = 16.dp))
             }
 
             // Messenger 1.21: „Wege von …“ of a person, „Mit Person zusammenführen …“ of every chat with one person
@@ -700,8 +700,8 @@ fun ChatInfoScreen(
             when {
                 // Messenger 1.14: a chat over a bridge says where it runs and what does not work there.
                 conv.bridge != null -> Column(Modifier.padding(24.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text(stringResource(R.string.chat_bridged_info_note, conv.bridge.label), style = MaterialTheme.typography.bodySmall, color = extra.muted)
-                    Text(stringResource(if (com.gatecontrol.android.chat.ChatBridgeChat.TAKES_FILE in conv.bridge.supports) R.string.chat_bridged_info_not_media else R.string.chat_bridged_info_not), style = MaterialTheme.typography.bodySmall, color = extra.muted)
+                    Text(stringResource(R.string.chat_bridged_info_note, conv.bridge!!.label), style = MaterialTheme.typography.bodySmall, color = extra.muted)
+                    Text(stringResource(if (com.gatecontrol.android.chat.ChatBridgeChat.TAKES_FILE in conv.bridge!!.supports) R.string.chat_bridged_info_not_media else R.string.chat_bridged_info_not), style = MaterialTheme.typography.bodySmall, color = extra.muted)
                 }
                 // "Alle Chats liegen nur auf deinem GateControl-Server" is not true for somebody with bridged chats.
                 !bridgeChats -> Text(stringResource(R.string.chat_footer), style = MaterialTheme.typography.bodySmall, color = extra.faint, modifier = Modifier.padding(24.dp))

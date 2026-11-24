@@ -144,6 +144,7 @@ dependencies {
     implementation(project(":core:drive-api"))
     implementation(project(":core:familie-api"))
     implementation(project(":core:notizen-api"))
+    implementation(project(":core:chat-api"))
     implementation(project(":core:gatedrop"))
     implementation(project(":core:tunnel"))
     implementation(project(":core:designsystem"))

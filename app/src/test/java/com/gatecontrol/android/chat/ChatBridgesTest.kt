@@ -408,7 +408,9 @@ class ChatBridgesTest {
 
     @Test
     fun `the page keeps screenshots out and writes nothing down`() {
-        fun source(path: String): String = listOf(File(path), File("app", path)).first { it.exists() }.readText()
+        // ChatBridges lives in core:chat-api (shared with GateControl TV)
+        fun source(path: String): String =
+            listOf(File(path), File("app", path), File("../core/chat-api", path), File("core/chat-api", path)).first { it.exists() }.readText()
         val page = source("src/main/java/com/gatecontrol/android/ui/chat/settings/ChatLinkedServices.kt")
         assertTrue(page.contains("SecureScreenEffect()"), "no screenshot of a number or a code")
         for (path in listOf(

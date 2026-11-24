@@ -96,7 +96,7 @@ fun PersonAvatar(c: ChatConversation, size: Dp, modifier: Modifier = Modifier) {
             size = size,
             modifier = modifier,
         )
-        else -> ChatPersonAvatar(c.peer.copy(name = c.title ?: c.peer.name), size, modifier)
+        else -> ChatPersonAvatar(c.peer!!.copy(name = c.title ?: c.peer!!.name), size, modifier)
     }
 }
 

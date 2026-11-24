@@ -97,7 +97,7 @@ fun LinkPreviewCard(p: ChatLinkPreview, width: Dp = 280.dp) {
     ) {
         val img = p.image
         if (img != null && img.shown) {
-            val ratio = if (img.w != null && img.h != null) (img.w.toFloat() / img.h).coerceIn(0.8f, 3f) else 16f / 9f
+            val ratio = if (img.w != null && img.h != null) (img.w!!.toFloat() / img.h!!).coerceIn(0.8f, 3f) else 16f / 9f
             val px = with(LocalDensity.current) { width.roundToPx() }
             val bmp = if (img.loading) null else rememberChatBitmap(img.mediaId, px)
             Box(Modifier.fillMaxWidth().aspectRatio(ratio).heightIn(max = 220.dp).background(extra.border), contentAlignment = Alignment.Center) {

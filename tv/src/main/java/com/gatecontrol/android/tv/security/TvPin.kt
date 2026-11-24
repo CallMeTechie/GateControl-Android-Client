@@ -9,10 +9,11 @@ import javax.crypto.spec.PBEKeySpec
 /**
  * Functions of GateControl TV that may ask for the TV PIN (decision TV 5: the PIN is not required; per function the
  * settings say "mit PIN" or "ohne PIN"). A TV in the living room is shared: the PIN keeps children and guests away
- * from the door and the settings. Drive and the vault come with stage 2, Notizen with stage 3c. [holds]: once the PIN
- * was entered, the function stays open for a while ([TvPinHold]) instead of asking each time.
+ * from the door and the settings. Drive and the vault come with stage 2, Notizen with stage 3c, Nachrichten with 3e.
+ * [holds]: once the PIN was entered, the function stays open for a while ([TvPinHold]) instead of asking each time.
+ * [defaultOn]: „mit PIN“ as soon as a PIN exists, until the settings switch it off (Frage 13 a: Nachrichten).
  */
-enum class TvPinFunction(val wire: String, val holds: Boolean = false) {
+enum class TvPinFunction(val wire: String, val holds: Boolean = false, val defaultOn: Boolean = false) {
     /** Tür öffnen, auf- und zusperren (quick action of the door plugin, the doorbell's "Tür öffnen"). */
     DOOR("door"),
 
@@ -26,11 +27,17 @@ enum class TvPinFunction(val wire: String, val holds: Boolean = false) {
     VAULT("vault"),
 
     /** Opening Notizen (Mein Tag, lists, notebooks); open for [TvPinHold.HOLD_MS] after the PIN. */
-    NOTES("notes", holds = true);
+    NOTES("notes", holds = true),
+
+    /**
+     * Opening Nachrichten (Mail and Chats, stage 3e/3f): with PIN by default, open for [TvPinHold.HOLD_MS] after it.
+     * Without a PIN the TV offers to set one the first time Nachrichten opens.
+     */
+    MESSAGES("messages", holds = true, defaultOn = true);
 
     companion object {
         /** Shown in the settings now (the vault once it exists on the TV). */
-        val AVAILABLE = listOf(DOOR, SETTINGS, DRIVE, NOTES)
+        val AVAILABLE = listOf(DOOR, SETTINGS, DRIVE, NOTES, MESSAGES)
 
         fun fromWire(raw: String?): TvPinFunction? = entries.firstOrNull { it.wire == raw }
     }
@@ -103,17 +110,27 @@ object TvPinLock {
     fun attemptsLeft(failures: Int): Int = (FREE_ATTEMPTS - failures).coerceAtLeast(0)
 }
 
-/** What the PIN store keeps: the hash, the functions that need it and the failure count. */
+/**
+ * What the PIN store keeps: the hash, the functions that need it and the failure count. [off]: functions with
+ * [TvPinFunction.defaultOn] the settings switched to „ohne PIN“; [offered]: functions whose first opening already asked
+ * whether to set a PIN.
+ */
 data class TvPinState(
     val hash: String? = null,
     val required: Set<TvPinFunction> = emptySet(),
     val failures: Int = 0,
     val lastFailureAt: Long = 0L,
+    val off: Set<TvPinFunction> = emptySet(),
+    val offered: Set<TvPinFunction> = emptySet(),
 ) {
     val hasPin: Boolean get() = hash != null
 
-    /** [function] asks for the PIN: a PIN exists and the settings say "mit PIN" for it. */
-    fun needsPin(function: TvPinFunction): Boolean = hasPin && function in required
+    /** [function] asks for the PIN: a PIN exists and the settings say "mit PIN" for it (or it is on by default). */
+    fun needsPin(function: TvPinFunction): Boolean =
+        hasPin && (function in required || (function.defaultOn && function !in off))
+
+    /** Opening [function] first asks whether to set a PIN: none exists, it is meant to have one, not asked before. */
+    fun offersPin(function: TvPinFunction): Boolean = !hasPin && function.defaultOn && function !in offered
 
     fun lockedUntil(): Long = TvPinLock.lockedUntil(failures, lastFailureAt)
 
@@ -150,15 +167,18 @@ object TvPinRules {
         required = if (state.hasPin) state.required else state.required + TvPinFunction.DOOR,
     )
 
-    /** PIN removed: nothing asks for one any more. */
-    fun removePin(state: TvPinState): TvPinState = TvPinState()
+    /** PIN removed: nothing asks for one any more (the offer of a new one is not repeated). */
+    fun removePin(state: TvPinState): TvPinState = TvPinState(offered = state.offered)
 
     /** "mit PIN" / "ohne PIN" for [function]; switching on needs a PIN to exist (the settings ask to set one first). */
     fun setRequired(state: TvPinState, function: TvPinFunction, on: Boolean): TvPinState = when {
         on && !state.hasPin -> state
-        on -> state.copy(required = state.required + function)
-        else -> state.copy(required = state.required - function)
+        on -> state.copy(required = state.required + function, off = state.off - function)
+        else -> state.copy(required = state.required - function, off = if (function.defaultOn) state.off + function else state.off)
     }
+
+    /** The first opening of [function] asked whether to set a PIN (whatever the answer): not again. */
+    fun offered(state: TvPinState, function: TvPinFunction): TvPinState = state.copy(offered = state.offered + function)
 }
 
 /**
