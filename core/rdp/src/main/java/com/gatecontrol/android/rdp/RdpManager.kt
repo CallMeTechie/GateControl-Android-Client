@@ -13,6 +13,7 @@ import com.gatecontrol.android.network.RdpHeartbeatRequest
 import com.gatecontrol.android.network.RdpRoute
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
+import retrofit2.HttpException
 import timber.log.Timber
 
 class RdpManager(
@@ -26,6 +27,13 @@ class RdpManager(
 
     companion object {
         const val ACCESS_MODE_GATEWAY = "gateway"
+
+        /** End reasons of [endServerSession] (the server keeps `[a-z0-9_-]`). */
+        const val END_USER_DISCONNECT = "user_disconnect"
+        const val END_USER_CANCEL = "user_cancel"
+        const val END_CONNECT_FAILED = "connect_failed"
+        const val END_CONNECT_TIMEOUT = "connect_timeout"
+        const val END_LAUNCH_FAILED = "launch_failed"
         private const val CLIPBOARD_LABEL = "rdp-password"
         private const val CLIPBOARD_CLEAR_MS = 60_000L
 
@@ -36,7 +44,12 @@ class RdpManager(
 
     sealed class ConnectResult {
         data class Success(val session: RdpSession, val passwordCopied: Boolean = false) : ConnectResult()
-        data class Error(val message: String, val step: RdpProgress) : ConnectResult()
+        /** [failure]: a refusal the app explains in its own words (null: show [message]). */
+        data class Error(
+            val message: String,
+            val step: RdpProgress,
+            val failure: RdpConnectFailure? = null
+        ) : ConnectResult()
         data class NeedsPassword(val username: String, val domain: String?) : ConnectResult()
         data class MaintenanceWarning(val schedule: String?) : ConnectResult()
         data class VpnRequired(val message: String) : ConnectResult()
@@ -50,12 +63,17 @@ class RdpManager(
      * 2. TCP reachability check — 5-second Socket connect.
      *    If host is unreachable and WoL is enabled, send WoL then poll until online.
      * 3. Maintenance check — return [ConnectResult.MaintenanceWarning] if enabled and bypass not forced.
-     * 4. Fetch credentials via the API (ECDH exchange).
-     *    - credential_mode "full"      → decrypt username + password.
+     * 4. Ask the server for the connection (GET /rdp/:id/connect) — always, also without credentials:
+     *    for a PC registered with Fernzugriff this call opens its Windows firewall for this app and
+     *    waits for the PC; without it port 3389 stays closed. A refusal the person can act on
+     *    (firewall_timeout, firewall_failed, code_required, …) returns [ConnectResult.Error] with
+     *    its [RdpConnectFailure].
+     *    - credential_mode "full"      → decrypt username + password (ECDH exchange).
      *    - credential_mode "user_only" → decrypt username; return [ConnectResult.NeedsPassword] if no userPassword supplied.
      *    - credential_mode "none"      → no credentials.
-     * 5. Launch the RDP client (external preferred, intent fired via Context).
-     * 6. Start the server-side session.
+     * 5. Start the server-side session (its id goes to the session window, which reports the end).
+     * 6. Launch the RDP client (embedded preferred, external as fallback). If that fails, the
+     *    server session ends at once — for a registered PC that closes the firewall rule again.
      * 7. Register the session in the monitor and return [ConnectResult.Success].
      */
     suspend fun connect(
@@ -122,8 +140,8 @@ class RdpManager(
             return ConnectResult.MaintenanceWarning(schedule = null)
         }
 
-        // Step 4: Fetch credentials
-        onProgress(RdpProgress.CREDENTIALS)
+        // Step 4: Connection data (and the PC's access), then credentials
+        onProgress(RdpProgress.HOST_ACCESS)
         val credentialMode = when (route.credentialMode.lowercase()) {
             "full" -> CredentialMode.FULL
             "user_only" -> CredentialMode.USER_ONLY
@@ -137,20 +155,37 @@ class RdpManager(
         var resolvedPassword: String? = null
         var resolvedDomain: String? = route.domain
 
-        if (credentialMode != CredentialMode.NONE) {
-            val publicKey = credentialHandler.generatePublicKey()
-            Timber.i("RDP connect: ECDH publicKey generated (${publicKey.length} chars)")
-            val connectionResponse = try {
-                apiClient.getRdpConnection(route.id, ecdhPublicKey = publicKey)
-            } catch (e: Exception) {
-                Timber.e(e, "RDP connect: auth data fetch FAILED")
-                credentialHandler.clear()
-                return ConnectResult.Error(
-                    "Failed to fetch credentials: ${e.message}",
-                    RdpProgress.CREDENTIALS
-                )
+        // Always ask for the connection: for a registered PC this opens its firewall (and waits for it).
+        val publicKey = if (credentialMode != CredentialMode.NONE) {
+            credentialHandler.generatePublicKey().also {
+                Timber.i("RDP connect: ECDH publicKey generated (${it.length} chars)")
             }
+        } else {
+            null
+        }
+        val connectionResponse = try {
+            apiClient.getRdpConnection(route.id, ecdhPublicKey = publicKey)
+        } catch (e: HttpException) {
+            val body = runCatching { e.response()?.errorBody()?.string() }.getOrNull()
+            val failure = RdpConnectFailure.from(e.code(), body)
+            Timber.w("RDP connect: connect refused HTTP %d (%s)", e.code(), failure ?: "unknown")
+            credentialHandler.clear()
+            return ConnectResult.Error(
+                "Server refused the connection: HTTP ${e.code()}${RdpConnectFailure.errorOf(body)?.let { " ($it)" } ?: ""}",
+                RdpProgress.HOST_ACCESS,
+                failure
+            )
+        } catch (e: Exception) {
+            Timber.e(e, "RDP connect: connection data fetch FAILED")
+            credentialHandler.clear()
+            return ConnectResult.Error(
+                "Failed to fetch connection data: ${e.message}",
+                RdpProgress.HOST_ACCESS
+            )
+        }
 
+        if (credentialMode != CredentialMode.NONE) {
+            onProgress(RdpProgress.CREDENTIALS)
             val connection = connectionResponse.connection
             val e2eePayload = connection.credentialsE2ee
             Timber.i("RDP connect: e2eePayload=${if (e2eePayload != null) "present (data=${e2eePayload.data.length} chars)" else "NULL"}")
@@ -203,7 +238,28 @@ class RdpManager(
             }
         }
 
-        // Step 5: Launch client (prefer embedded FreeRDP, fall back to external)
+        // Step 5: Start the server-side session before the client, so the window knows its id
+        onProgress(RdpProgress.SESSION_START)
+        val sessionResponse = try {
+            apiClient.startRdpSession(route.id)
+        } catch (e: Exception) {
+            credentialHandler.clear()
+            return ConnectResult.Error(
+                "Failed to start server session: ${e.message}",
+                RdpProgress.SESSION_START
+            )
+        }
+
+        val networkSessionId = sessionResponse.session?.id
+            ?: run {
+                credentialHandler.clear()
+                return ConnectResult.Error(
+                    "Server returned no session ID",
+                    RdpProgress.SESSION_START
+                )
+            }
+
+        // Step 6: Launch client (prefer embedded FreeRDP, fall back to external)
         onProgress(RdpProgress.CLIENT_LAUNCH)
         val useEmbedded = embeddedClient.isAvailable()
         val isExternal = !useEmbedded
@@ -217,7 +273,7 @@ class RdpManager(
                 username = resolvedUsername,
                 password = resolvedPassword,
                 domain = resolvedDomain
-            )
+            ).copy(serverSessionId = networkSessionId)
             // If route has no explicit resolution, use device screen size
             // scaled down proportionally so the longest edge is max 1920px.
             // This preserves the device's aspect ratio (critical for foldables
@@ -242,6 +298,7 @@ class RdpManager(
                 embeddedClient.launchSession(context, params)
             } catch (e: Exception) {
                 credentialHandler.clear()
+                endServerSession(apiClient, route.id, networkSessionId, END_LAUNCH_FAILED)
                 return ConnectResult.Error(
                     "Failed to launch embedded RDP client: ${e.message}",
                     RdpProgress.CLIENT_LAUNCH
@@ -264,33 +321,13 @@ class RdpManager(
                 context.startActivity(intent)
             } catch (e: Exception) {
                 credentialHandler.clear()
+                endServerSession(apiClient, route.id, networkSessionId, END_LAUNCH_FAILED)
                 return ConnectResult.Error(
                     "No RDP client could be launched: ${e.message}",
                     RdpProgress.CLIENT_LAUNCH
                 )
             }
         }
-
-        // Step 6: Start server-side session
-        onProgress(RdpProgress.SESSION_START)
-        val sessionResponse = try {
-            apiClient.startRdpSession(route.id)
-        } catch (e: Exception) {
-            credentialHandler.clear()
-            return ConnectResult.Error(
-                "Failed to start server session: ${e.message}",
-                RdpProgress.SESSION_START
-            )
-        }
-
-        val networkSessionId = sessionResponse.session?.id
-            ?: run {
-                credentialHandler.clear()
-                return ConnectResult.Error(
-                    "Server returned no session ID",
-                    RdpProgress.SESSION_START
-                )
-            }
 
         // Step 7: Register locally and return success
         onProgress(RdpProgress.COMPLETE)
@@ -303,6 +340,28 @@ class RdpManager(
 
         credentialHandler.clear()
         return ConnectResult.Success(localSession, passwordCopied = !resolvedPassword.isNullOrEmpty() && isExternal)
+    }
+
+    /**
+     * Report the end of a session to the server now (DELETE /client/rdp/:id/session) and forget it
+     * locally. For a PC registered with Fernzugriff this is what closes its firewall rule for this app
+     * (plugin `sessionEnd` → `appSessionEnded`), so the session window calls it as soon as a session
+     * ends — also when it failed, timed out or was cancelled before the first picture.
+     * [sessionId] null or ≤ 0: the server ends this caller's latest active session of the route.
+     * Best effort: false when the server could not be told.
+     */
+    suspend fun endServerSession(apiClient: ApiClient, routeId: Int, sessionId: Int?, reason: String): Boolean {
+        monitor.endSession(routeId)
+        return try {
+            apiClient.endRdpSession(
+                routeId,
+                RdpEndSessionRequest(sessionId = sessionId?.takeIf { it > 0 }, endReason = reason)
+            )
+            true
+        } catch (e: Exception) {
+            Timber.w(e, "RDP: could not report the session end for route %d", routeId)
+            false
+        }
     }
 
     /**
@@ -322,7 +381,7 @@ class RdpManager(
                     routeId,
                     RdpEndSessionRequest(
                         sessionId = session.sessionId,
-                        endReason = "user_disconnect"
+                        endReason = END_USER_DISCONNECT
                     )
                 )
             } catch (_: Exception) {

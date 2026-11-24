@@ -24,7 +24,9 @@ data class RdpConnectionParams(
     val audioMode: String,
     val adminSession: Boolean,
     val routeName: String,
-    val routeId: Int = 0
+    val routeId: Int = 0,
+    /** The server's session id (POST /client/rdp/:id/session): the window reports its end with it. 0 = unknown. */
+    val serverSessionId: Int = 0
 ) {
 
     companion object {
