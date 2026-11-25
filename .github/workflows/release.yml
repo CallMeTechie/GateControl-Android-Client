@@ -81,6 +81,13 @@ jobs:
           path: ~/.robolectric-android-all
           key: ${{ steps.robolectric-key.outputs.key }}
 
+      - name: Show Robolectric Android jars
+        if: steps.robolectric-cache.outputs.cache-hit == 'true'
+        shell: bash
+        run: |
+          echo "Cache hit (${{ steps.robolectric-cache.outputs.cache-matched-key }}): no download from Maven Central"
+          ls -l "$GC_ROBOLECTRIC_DIR"/*/
+
       - name: Download Robolectric Android jars (cache miss, with retries)
         if: steps.robolectric-cache.outputs.cache-hit != 'true'
         shell: bash
