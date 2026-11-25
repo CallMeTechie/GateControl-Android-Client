@@ -299,7 +299,9 @@ private fun problemText(p: MediaAddProblem): String = stringResource(
         MediaAddProblem.OLD_SERVER -> R.string.tv_media_problem_old
         MediaAddProblem.NO_QUICK_CONNECT -> R.string.tv_media_problem_no_quick_connect
         MediaAddProblem.WRONG_LOGIN -> R.string.tv_media_problem_login
-        MediaAddProblem.OFFLINE -> R.string.tv_media_offline
+        MediaAddProblem.OFFLINE -> R.string.tv_media_problem_unreachable
+        MediaAddProblem.OFFLINE_AWAY -> R.string.tv_media_offline
+        MediaAddProblem.CERTIFICATE -> R.string.tv_media_problem_certificate
         MediaAddProblem.FAILED -> R.string.tv_media_failed
     },
 )

@@ -27,6 +27,27 @@ class JellyfinDiscoveryTest {
     }
 
     @Test
+    fun `Jellyfin in Docker names its container address - taken where it answered from`() {
+        val answer = """{"Address":"http://172.17.0.2:8096","Id":"a1","Name":"DS918+"}"""
+        // the phone is in 192.168.2.0/24: 172.17.0.2 is private but not reachable from here
+        assertEquals("http://192.168.2.151:8096", JellyfinDiscovery.parse(answer, from = "192.168.2.151", lan = listOf("192.168.2.37" to 24))?.address)
+        // the networks unknown: the sender (it answered, so it is reachable) beats a named address it is not
+        assertEquals("http://192.168.2.151:8096", JellyfinDiscovery.parse(answer, from = "192.168.2.151")?.address)
+        // the named port and base path stay
+        val mapped = """{"Address":"http://172.17.0.2:8920/jellyfin","Id":"a1","Name":"NAS"}"""
+        assertEquals("http://192.168.2.151:8920/jellyfin", JellyfinDiscovery.parse(mapped, from = "192.168.2.151", lan = listOf("192.168.2.37" to 24))?.address)
+    }
+
+    @Test
+    fun `a named address in the own network is kept, also when another one of the server answered`() {
+        val answer = """{"Address":"http://192.168.2.151:8096","Id":"a1","Name":"NAS"}"""
+        assertEquals("http://192.168.2.151:8096", JellyfinDiscovery.parse(answer, from = "192.168.2.152", lan = listOf("192.168.2.37" to 24))?.address)
+        assertEquals("http://192.168.2.151:8096", JellyfinDiscovery.parse(answer, from = "192.168.2.151", lan = listOf("192.168.2.37" to 24))?.address)
+        // a name is kept as named
+        assertEquals("http://nas.local:8096", JellyfinDiscovery.parse("""{"Address":"http://nas.local:8096","Id":"a1"}""", from = "192.168.2.151", lan = listOf("192.168.2.37" to 24))?.address)
+    }
+
+    @Test
     fun `no answer from anything else`() {
         assertNull(JellyfinDiscovery.parse("who is JellyfinServer?"))
         assertNull(JellyfinDiscovery.parse("[1,2]"))

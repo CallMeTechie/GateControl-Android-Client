@@ -5,10 +5,54 @@ import com.gatecontrol.android.media.jellyfin.JellyfinServerHint
 import com.gatecontrol.android.media.jellyfin.JellyfinServerInfo
 import com.gatecontrol.android.media.jellyfin.JellyfinSignIn
 import kotlinx.coroutines.delay
+import java.io.IOException
+import java.net.ConnectException
+import java.net.NoRouteToHostException
+import java.net.ProtocolException
+import java.net.SocketTimeoutException
+import java.net.UnknownHostException
+import java.net.UnknownServiceException
+import java.security.cert.CertPathValidatorException
+import java.security.cert.CertificateException
 import java.util.UUID
+import javax.net.ssl.SSLException
+import javax.net.ssl.SSLPeerUnverifiedException
 
-/** Why adding a source did not work (Medien › Quellen › Quelle hinzufügen). */
-enum class MediaAddProblem { BAD_ADDRESS, NOT_FOUND, OLD_SERVER, NO_QUICK_CONNECT, WRONG_LOGIN, OFFLINE, FAILED }
+/**
+ * Why adding a source did not work (Medien › Quellen › Quelle hinzufügen). [OFFLINE]: nothing answered (timeout,
+ * connection refused, no route); [OFFLINE_AWAY]: the same away, through the tunnel (does the gateway route the home
+ * network?); [NOT_FOUND]: something answered, but no Jellyfin; [CERTIFICATE]: HTTPS with a
+ * certificate the device does not trust (self-signed, another name).
+ */
+enum class MediaAddProblem { BAD_ADDRESS, NOT_FOUND, OLD_SERVER, NO_QUICK_CONNECT, WRONG_LOGIN, OFFLINE, OFFLINE_AWAY, CERTIFICATE, FAILED }
+
+/** Which [MediaAddProblem] a connection error is. Pure, unit-tested. */
+object MediaFailure {
+    fun problemOf(e: IOException?): MediaAddProblem {
+        if (e == null) return MediaAddProblem.OFFLINE
+        if (causes(e).any { it is CertificateException || it is CertPathValidatorException || it is SSLPeerUnverifiedException }) {
+            return MediaAddProblem.CERTIFICATE
+        }
+        return when {
+            // http:// refused by the app's network security policy (cleartext)
+            e is UnknownServiceException -> MediaAddProblem.FAILED
+            e is SocketTimeoutException || e is ConnectException || e is NoRouteToHostException || e is UnknownHostException -> MediaAddProblem.OFFLINE
+            // https:// to an http port and the like: something answered, but not as asked
+            e is SSLException || e is ProtocolException -> MediaAddProblem.NOT_FOUND
+            e.message?.contains("unexpected end of stream", ignoreCase = true) == true -> MediaAddProblem.NOT_FOUND
+            else -> MediaAddProblem.OFFLINE
+        }
+    }
+
+    private fun causes(e: Throwable): Sequence<Throwable> = generateSequence(e) { t -> t.cause?.takeIf { it !== t } }.take(8)
+}
+
+/**
+ * The server search: the servers that answered, and [away] when none could (no Wi-Fi / Ethernet, or the server's
+ * home-network check says this device is not at home): the broadcast only reaches the home network itself, so away
+ * the address is typed and goes through the tunnel.
+ */
+data class MediaSearch(val servers: List<JellyfinServerHint>, val away: Boolean)
 
 /** Is a Jellyfin server at the address? */
 sealed interface MediaServerCheck {
@@ -42,14 +86,28 @@ class MediaSetup(private val hub: MediaHub) {
     /** Jellyfin servers that answer in the home network; none when the search fails. */
     suspend fun search(): List<JellyfinServerHint> = runCatching { hub.discover() }.getOrDefault(emptyList())
 
+    /** [search], and when nothing answered whether this device is away (then that is why). */
+    suspend fun searchHome(): MediaSearch {
+        val servers = search()
+        if (servers.isNotEmpty()) return MediaSearch(servers, away = false)
+        hub.check(null)
+        return MediaSearch(emptyList(), away = !hub.hasLan() || hub.link.value.atHome == false)
+    }
+
     /** Step 2: is a Jellyfin server (new enough) at [typed] ("192.168.1.20", "http://nas:8096")? */
     suspend fun check(typed: String): MediaServerCheck {
         val base = MediaAddress.normalize(typed) ?: return MediaServerCheck.Problem(MediaAddProblem.BAD_ADDRESS)
         hub.check(null)
-        return when (val r = hub.signIn(base).server()) {
+        val signIn = hub.signIn(base)
+        return when (val r = signIn.server()) {
             is MediaResult.Ok ->
                 if (r.value.supported) MediaServerCheck.Found(r.value, base) else MediaServerCheck.Problem(MediaAddProblem.OLD_SERVER)
-            MediaResult.Offline -> MediaServerCheck.Problem(MediaAddProblem.OFFLINE)
+            MediaResult.Offline -> {
+                val problem = MediaFailure.problemOf(signIn.lastFailure)
+                // away the address goes through the tunnel: not reachable there is most often the gateway's routes
+                val away = problem == MediaAddProblem.OFFLINE && hub.link.value.atHome == false
+                MediaServerCheck.Problem(if (away) MediaAddProblem.OFFLINE_AWAY else problem)
+            }
             else -> MediaServerCheck.Problem(MediaAddProblem.NOT_FOUND)
         }
     }

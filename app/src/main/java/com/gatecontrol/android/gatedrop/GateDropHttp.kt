@@ -38,6 +38,9 @@ class GdHttpException(val code: String, val connected: Boolean, message: String?
  * is the credential), which a security config cannot allow without
  * opening cleartext for the whole app. Plain sockets do not consult the
  * policy; [socketFactory] binds them to the Wi-Fi network (not the VPN).
+ * (Medien later opened cleartext for the app, limited in the code to the
+ * home network — see `res/xml/network_security_config.xml`; the transfer
+ * stays on plain sockets, independent of that policy.)
  */
 class GateDropHttp(
     private val socketFactory: SocketFactory,
