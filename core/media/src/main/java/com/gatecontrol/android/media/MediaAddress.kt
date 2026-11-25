@@ -106,6 +106,9 @@ object MediaAddress {
         MediaSourceKind.JELLYFIN -> null
     }?.lowercase(Locale.ROOT)
 
+    /** The /24 network of a private IPv4 host ("192.168.2.151" → "192.168.2.0/24"), as a hint; null for anything else. */
+    fun subnet24(host: String?): String? = host?.takeIf { isPrivateIpv4(it) }?.substringBeforeLast('.')?.let { "$it.0/24" }
+
     /** The host of a base URL ("192.168.1.20"); null when it is not one. */
     fun host(baseUrl: String): String? = baseUrl.toHttpUrlOrNull()?.host
 

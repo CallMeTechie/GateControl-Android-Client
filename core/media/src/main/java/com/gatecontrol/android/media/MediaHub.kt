@@ -50,7 +50,7 @@ data class MediaLink(val atHome: Boolean? = null, val bps: Long? = null, val mea
  * per source (a share set up as SMB and as WebDAV is one: at home SMB, away WebDAV), the connection (at home straight
  * through the Wi-Fi, also while the tunnel is up; away through the tunnel), the bandwidth, what the device plays
  * ([MediaDevice.caps]), the posters and the progress reports (which outlive the player). Shared by the pages, the
- * start page's "Weiterschauen" and the player. No UI state: the pages keep theirs ([MediaBrowse], [MediaSetup]).
+ * start page's "Weiterschauen" and the player. No UI state: the pages keep theirs ([MediaBrowse]); the sources come from [com.gatecontrol.android.media.server.MediaServerSources].
  */
 @Singleton
 class MediaHub @Inject constructor(

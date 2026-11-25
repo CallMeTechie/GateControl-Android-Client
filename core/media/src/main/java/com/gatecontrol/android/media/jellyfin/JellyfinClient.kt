@@ -36,6 +36,11 @@ class JellyfinClient(
 ) {
     val base: HttpUrl = baseUrl.trimEnd('/').toHttpUrl()
 
+    /** Why the last call did not reach the server (null: it did); for telling "not reachable" from a certificate. */
+    @Volatile
+    var lastFailure: IOException? = null
+        private set
+
     /**
      * The header of every call: who asks and, once signed in, with which access. The values are URL-encoded (as
      * `encodeURIComponent`): Jellyfin decodes them, and a name with „·“ or an umlaut sent raw is refused with 400.
@@ -123,8 +128,10 @@ class JellyfinClient(
             throw e
         } catch (e: IOException) {
             Timber.d("Jellyfin: %s not reached (%s)", request.url.encodedPath, e.javaClass.simpleName)
+            lastFailure = e
             return@withContext MediaResult.Offline
         }
+        lastFailure = null
         response.use { r ->
             when {
                 r.code == 401 || r.code == 403 -> MediaResult.Unauthorized
