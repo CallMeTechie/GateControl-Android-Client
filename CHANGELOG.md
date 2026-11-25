@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.157.2] - 2026-11-25
+
+### Fixes
+- Medien – Ordner zeigt Jellyfin-Bibliotheken, kein Servername im Kopf, Statusleiste im hellen Design lesbar (#301)
+
+---
+
 ## [1.157.1] - 2026-11-25
 
 ### Fixes
