@@ -6,7 +6,7 @@ import com.gatecontrol.android.ui.network.NetworkTabs
 
 /**
  * Entries of the bottom bar / navigation rail (pure, unit-tested): Start,
- * Chats (messenger plugin), Mail (mail plugin), Vault (vault plugin), Drive (drive plugin), Netzwerk (Dienste, DNS-Schutz and Remote as its
+ * Chats (messenger plugin), Mail (mail plugin), Vault (vault plugin), Medien (a source of the own NAS), Drive (drive plugin), Netzwerk (Dienste, DNS-Schutz and Remote as its
  * segments) and Familie. The door plugin gets no tab (its screen opens from
  * pushes and its quick actions, docs/DOOR.md). The settings are no tab
  * since 1.35: they open from the profile (gear top right).
@@ -23,15 +23,20 @@ internal object MainTabs {
         Screen.Vault.route,
         Screen.Drive.route,
         NotizenRoutes.TAB,
+        MediaRoutes.TAB,
     )
 
-    /** Routes of the tabs in their order: Start, Chats, Mail, Aufgaben (Notizen & Aufgaben), Vault, Drive, Netzwerk, Familie. */
-    fun routes(network: Boolean, plugins: PluginAvailability): List<String> = buildList {
+    /**
+     * Routes of the tabs in their order: Start, Chats, Mail, Aufgaben (Notizen & Aufgaben), Vault, Medien, Drive,
+     * Netzwerk, Familie. Medien ([media]) once a source of the own NAS is set up (question 21).
+     */
+    fun routes(network: Boolean, plugins: PluginAvailability, media: Boolean = false): List<String> = buildList {
         add(Screen.Vpn.route)
         if (plugins.messengerTab) add(Screen.Chats.route)
         if (plugins.mail) add(Screen.Mail.route)
         if (plugins.notizen) add(NotizenRoutes.TAB)
         if (plugins.vault) add(Screen.Vault.route)
+        if (media) add(MediaRoutes.TAB)
         if (plugins.drive) add(Screen.Drive.route)
         if (network) add(Screen.Network.route)
         if (plugins.familieTab) add(Screen.Familie.route)
@@ -59,6 +64,7 @@ internal object MainTabs {
         Screen.Vault.route -> StartPages.VAULT
         Screen.Drive.route -> StartPages.DRIVE
         NotizenRoutes.TAB -> StartPages.NOTIZEN
+        MediaRoutes.TAB -> StartPages.MEDIA
         Screen.Network.route -> StartPages.NETWORK
         Screen.Familie.route -> StartPages.FAMILIE
         else -> null
@@ -71,6 +77,7 @@ internal object MainTabs {
         StartPages.VAULT -> Screen.Vault.route
         StartPages.DRIVE -> Screen.Drive.route
         StartPages.NOTIZEN -> NotizenRoutes.TAB
+        StartPages.MEDIA -> MediaRoutes.TAB
         StartPages.NETWORK -> Screen.Network.route
         StartPages.FAMILIE -> Screen.Familie.route
         else -> null
@@ -87,6 +94,7 @@ internal object MainTabs {
         Screen.Vault.route -> StartPages.VAULT
         Screen.Drive.route -> StartPages.DRIVE
         NotizenRoutes.TAB -> StartPages.NOTIZEN
+        MediaRoutes.TAB -> StartPages.MEDIA
         Screen.Network.BASE -> StartPages.NETWORK
         Screen.Familie.BASE -> StartPages.FAMILIE
         else -> null

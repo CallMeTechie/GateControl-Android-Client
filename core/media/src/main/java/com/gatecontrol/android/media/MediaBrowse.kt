@@ -1,10 +1,24 @@
 package com.gatecontrol.android.media
 
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 
 /** Why a media page shows nothing. */
 enum class MediaProblem { OFFLINE, SIGNED_OUT, FAILED }
+
+/** What a failed answer of [source] means for a page; a Jellyfin server's refused access is dropped. */
+internal fun mediaProblemOf(hub: MediaHub, r: MediaResult<*>, source: MediaSource): MediaProblem? = when (r) {
+    is MediaResult.Ok -> null
+    MediaResult.Offline -> MediaProblem.OFFLINE
+    MediaResult.Unauthorized -> {
+        // a share keeps its password (it may be the NAS that refuses just now); Jellyfin's token is gone
+        if (source.kind == MediaSourceKind.JELLYFIN) hub.store.dropToken(source.id)
+        MediaProblem.SIGNED_OUT
+    }
+    else -> MediaProblem.FAILED
+}
 
 /**
  * Rows of Medien: one source's as loaded (Jellyfin page by page, a share whole), or all sources' in one
@@ -171,15 +185,22 @@ class MediaBrowse(private val hub: MediaHub, private val onChange: () -> Unit) {
     }
 
     /** What a failed answer of [source] means for the page; a Jellyfin server's refused access is dropped. */
-    fun problemOf(r: MediaResult<*>, source: MediaSource): MediaProblem? = when (r) {
-        is MediaResult.Ok -> null
-        MediaResult.Offline -> MediaProblem.OFFLINE
-        MediaResult.Unauthorized -> {
-            // a share keeps its password (it may be the NAS that refuses just now); Jellyfin's token is gone
-            if (source.kind == MediaSourceKind.JELLYFIN) hub.store.dropToken(source.id)
-            MediaProblem.SIGNED_OUT
+    fun problemOf(r: MediaResult<*>, source: MediaSource): MediaProblem? = mediaProblemOf(hub, r, source)
+
+    /**
+     * The search over all sources (each Jellyfin server signed in and each share): films and series whose name holds
+     * [text]; a title of a share that a Jellyfin server has too once, Jellyfin's. Blank: none.
+     */
+    suspend fun search(text: String, limit: Int = SEARCH): List<MediaTitle> {
+        if (text.isBlank()) return emptyList()
+        val servers = hub.store.sources.value.filter { it.kind == MediaSourceKind.JELLYFIN && it.token != null }
+        val shares = hub.shares()
+        return coroutineScope {
+            val fromServers = servers.map { s -> async { hub.library(s).search(text, limit).valueOrNull().orEmpty() } }
+            val fromShares = shares.map { s -> async { hub.library(s).search(text, limit).valueOrNull().orEmpty() } }
+            val j = fromServers.awaitAll().flatten()
+            j + MediaLogic.withoutDuplicates(fromShares.awaitAll().flatten(), j)
         }
-        else -> MediaProblem.FAILED
     }
 
     /**
@@ -247,6 +268,7 @@ class MediaBrowse(private val hub: MediaHub, private val onChange: () -> Unit) {
     companion object {
         const val RESUME = 12
         const val LATEST = 16
+        const val SEARCH = 40
 
         /** A share's rows are loaded whole (its index is on the device already). */
         const val SHARE_ALL = 2_000

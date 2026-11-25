@@ -2,7 +2,7 @@ package com.gatecontrol.android.layout
 
 /**
  * Pages beside the start tab (pure, unit-tested): functions that are a tab
- * otherwise (Chats, Mail, Vault, Drive, Netzwerk, Familie) pinned to Start, and
+ * otherwise (Chats, Mail, Vault, Medien, Drive, Netzwerk, Familie) pinned to Start, and
  * widget pages ("Widgets 2", "Widgets 3" …) holding quick actions and
  * widgets like Start does.
  *
@@ -25,6 +25,8 @@ object StartPages {
     const val MAIL = "mail"
     const val VAULT = "vault"
     const val DRIVE = "drive"
+    /** Medien of the own NAS (Jellyfin, SMB, WebDAV): a tab once a source is set up. */
+    const val MEDIA = "media"
     /** „Notizen & Aufgaben“ (its tab „Aufgaben“). */
     const val NOTIZEN = "notizen"
     const val NETWORK = "network"
@@ -34,7 +36,7 @@ object StartPages {
     const val CONTACTS = "contacts"
 
     /** Functions that can be pages, in the order of the tab bar (calendar and contacts after Mail). */
-    val FEATURES = listOf(CHATS, MAIL, CALENDAR, CONTACTS, NOTIZEN, VAULT, DRIVE, NETWORK, FAMILIE)
+    val FEATURES = listOf(CHATS, MAIL, CALENDAR, CONTACTS, NOTIZEN, VAULT, MEDIA, DRIVE, NETWORK, FAMILIE)
 
     /** Functions that are a page or nothing (no tab): taking them off leaves them in their tab (Mail). */
     val PAGE_ONLY = setOf(CALENDAR, CONTACTS)

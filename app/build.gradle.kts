@@ -148,6 +148,9 @@ dependencies {
     implementation(project(":core:chat-api"))
     implementation(project(":core:gatedrop"))
     implementation(project(":core:tunnel"))
+    // Medien of the own NAS (stage 4): Jellyfin, SMB and WebDAV shares, the hub; the player's Media3 parts
+    implementation(project(":core:media"))
+    implementation(project(":core:media-player"))
     implementation(project(":core:designsystem"))
     implementation(project(":core:rdp"))
     implementation(project(":termux-terminal"))

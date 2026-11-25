@@ -103,6 +103,8 @@ internal data class OverviewActions(
     val memories: (() -> Unit)? = null,
     /** A card of the picks (Drive 1.28, `memoryPicks`): that collection on the page „Erinnerungen“. */
     val pick: (DMemoryCollection) -> Unit = {},
+    /** "Medien von der NAS einrichten" (stage 4) while Medien has no source; null: not shown. */
+    val mediaSetup: (() -> Unit)? = null,
 )
 
 /** The small map of "Orte": a still picture this big (the mockup's 120 × 84, wide enough for the attribution). */
@@ -174,6 +176,13 @@ internal fun OverviewPage(
                     Section.PEOPLE -> item(key = "people", contentType = "people") { PeopleSection(overview.people!!, actions) }
                     Section.PLACES -> item(key = "places", contentType = "places") { PlacesSection(overview.places!!, stillKey, actions) }
                     Section.ACTIVITY -> item(key = "activity", contentType = "activity") { ActivitySection(overview.activity, actions) }
+                }
+            }
+            actions.mediaSetup?.let { setup ->
+                item(key = "media-setup", contentType = "media-setup") {
+                    Box(Modifier.padding(top = 18.dp)) {
+                        OverviewCard { com.gatecontrol.android.ui.media.MediaSetupRow(onClick = setup) }
+                    }
                 }
             }
             if (sections.size == 1) {
