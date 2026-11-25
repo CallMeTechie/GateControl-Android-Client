@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.152.0] - 2026-11-25
+
+### Features
+- Medien-Tab am Handy (Stufe 4b) (#291)
+
+---
+
 ## [1.151.0] - 2026-11-24
 
 ### Features
