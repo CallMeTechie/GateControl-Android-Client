@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.155.1] - 2026-11-25
+
+### Fixes
+- Jellyfin per http:// in der Handy-App erreichbar, klarere Fehler beim Hinzufügen (#297)
+
+---
+
 ## [1.155.0] - 2026-11-25
 
 ### Features
