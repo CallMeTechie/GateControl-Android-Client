@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- „Abspielen auf …“ (Stufe 4, Frage 23a): ein eigenes Gerät mit GateControl spielt, das Handy ist Fernbedienung -->
+    <string name="media_cast">Abspielen auf …</string>
+    <string name="media_cast_this_phone">Diesem Handy</string>
+    <string name="media_cast_from">ab %1$s</string>
+    <string name="media_cast_from_start">von vorn</string>
+    <string name="media_cast_tv">GateControl TV</string>
+    <string name="media_cast_pc">GateControl für Windows</string>
+    <string name="media_cast_starts_there">%1$s · startet dort %2$s</string>
+    <string name="media_cast_online">%1$s · online</string>
+    <string name="media_cast_offline">%1$s · offline</string>
+    <string name="media_cast_running">Läuft auf %1$s</string>
+    <string name="media_cast_open_remote">Fernbedienung öffnen</string>
+    <string name="media_cast_hint">Das Gerät holt das Video selbst von der NAS. Das Handy bleibt Fernbedienung: Pause, Spulen, Ton und Untertitel.</string>
+    <string name="media_cast_none">Kein eigenes Gerät mit GateControl TV oder GateControl für Windows gefunden.</string>
+    <string name="media_cast_no_gatedrop">Eigene Geräte werden über GateDrop erreicht, das auf diesem Server für dich nicht da ist.</string>
+    <string name="media_cast_offline_list">Keine Verbindung zum Server.</string>
+    <string name="media_cast_send_failed">Konnte nicht an %1$s gesendet werden.</string>
+    <string name="media_cast_remote">Fernbedienung</string>
+    <string name="media_cast_close_remote">Fernbedienung schließen</string>
+    <string name="media_cast_connecting">Verbinde mit %1$s …</string>
+    <string name="media_cast_loading">Startet …</string>
+    <string name="media_cast_playing">Läuft</string>
+    <string name="media_cast_paused">Pausiert</string>
+    <string name="media_cast_buffering">Lädt nach …</string>
+    <string name="media_cast_ended">Zu Ende</string>
+    <string name="media_cast_stopped">Beendet</string>
+    <string name="media_cast_stop">Stopp</string>
+    <string name="media_cast_audio">Ton</string>
+    <string name="media_cast_subtitles">Untertitel</string>
+    <string name="media_cast_go_on_here">Auf diesem Handy weiter ab %1$s</string>
+    <string name="media_cast_done">Schließen</string>
+    <string name="media_cast_error_source_missing">Die Quelle ist auf %1$s nicht eingerichtet. Richte sie dort unter Medien › Quellen ein oder melde das Gerät an: Quellen › Gerät anmelden.</string>
+    <string name="media_cast_error_signed_out">%1$s ist bei der Quelle nicht mehr angemeldet. Melde es neu an: Medien › Quellen › Gerät anmelden.</string>
+    <string name="media_cast_error_not_found">%1$s findet den Titel in seiner Quelle nicht.</string>
+    <string name="media_cast_error_offline">%1$s erreicht die Quelle gerade nicht.</string>
+    <string name="media_cast_error_unsupported">%1$s kann diesen Titel nicht abspielen.</string>
+    <string name="media_cast_error_blocked">GateControl ist auf %1$s nicht im Vordergrund. Öffne GateControl dort und versuche es noch einmal.</string>
+    <string name="media_cast_error_taken_over">Ein anderes Gerät hat die Wiedergabe übernommen.</string>
+    <string name="media_cast_error_closed">Auf %1$s beendet.</string>
+    <string name="media_cast_error_failed">Die Wiedergabe auf %1$s ist gestört.</string>
+    <string name="media_cast_no_answer">%1$s antwortet nicht. Ist GateControl dort offen und aktuell?</string>
+</resources>

@@ -324,6 +324,14 @@
             android:resizeableActivity="true"
             android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|keyboard|keyboardHidden|navigation" />
 
+        <!-- Medien: the remote of a film playing on an own device ("Abspielen auf …", GateControl TV / PC) -->
+        <activity
+            android:name=".ui.media.MediaCastActivity"
+            android:exported="false"
+            android:theme="@style/Theme.GateControl"
+            android:launchMode="singleTop"
+            android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|keyboard|keyboardHidden|navigation" />
+
         <!-- Medien: the media session (lock screen, notification, headphone buttons, sound with the screen locked).
              Not exported: the system reaches it through the session in its notification; started only by the app. -->
         <service

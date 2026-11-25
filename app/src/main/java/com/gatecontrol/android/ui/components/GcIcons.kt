@@ -270,5 +270,9 @@ object GcIcons {
     val Ahead10 = icon("Ahead10", 2f, "M21 12a9 9 0 1 1-3-6.7L21 8", "M21 3v5h-5")
     val SkipNext = icon("SkipNext", 2.2f, "M6 5.5v13l9-6.5z", "M18 5.5v13")
 
+    /** "Abspielen auf …" (stage 4, question 23a): a screen with waves at its corner; the remote's stop. */
+    val Cast = icon("Cast", 2f, "M2 8V6a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-6", "M2 12a9 9 0 0 1 8 8", "M2 16a5 5 0 0 1 4 4", "M2 20h.01")
+    val Stop = icon("Stop", 2.4f, rect(6f, 6f, 12f, 12f, 2f))
+
     fun fromPath(name: String, path: String): ImageVector = icon(name, 2f, path)
 }

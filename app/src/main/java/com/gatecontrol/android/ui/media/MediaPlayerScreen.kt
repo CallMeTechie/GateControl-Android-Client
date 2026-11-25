@@ -122,6 +122,8 @@ class MediaPlayerActions(
     val onCancelCountdown: () -> Unit = {},
     val onRetry: () -> Unit = {},
     val onMobileHintRead: () -> Unit = {},
+    /** "Abspielen auf …" (question 23a); null: not offered. */
+    val onCast: (() -> Unit)? = null,
 )
 
 /** The parts of the info line with their tone: the network, what the NAS does, the sound. */
@@ -391,6 +393,7 @@ private fun BoxScope.Controls(
             }
         }
         RoundButton(GcIcons.Captions, stringResource(R.string.media_player_tracks), modifier = Modifier.testTag(TRACKS_TAG)) { onSheet() }
+        actions.onCast?.let { cast -> RoundButton(GcIcons.Cast, stringResource(R.string.media_cast), modifier = Modifier.testTag(PLAYER_CAST_TAG)) { cast() } }
         RoundButton(GcIcons.Pip, stringResource(R.string.media_player_pip)) { actions.onPip() }
         RoundButton(GcIcons.Lock, stringResource(R.string.media_player_lock)) { onLock() }
     }
@@ -745,6 +748,7 @@ private fun setVolume(context: Context, level: Float) {
 internal const val CONTROLS_TAG = "media-player-controls"
 internal const val LINE_TAG = "media-player-line"
 internal const val TRACKS_TAG = "media-player-tracks"
+internal const val PLAYER_CAST_TAG = "media-player-cast"
 internal const val SHEET_TAG = "media-player-sheet"
 internal const val QUALITY_TAG = "media-player-quality"
 internal const val COUNTDOWN_TAG = "media-player-countdown"

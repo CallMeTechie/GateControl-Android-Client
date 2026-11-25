@@ -37,6 +37,7 @@ class GateDropPushHandler @Inject constructor(
     private val notifier: GateDropNotifier,
     private val store: GateDropStore,
     private val repository: dagger.Lazy<GateDropRepository>,
+    private val cast: dagger.Lazy<com.gatecontrol.android.media.PhoneCast>,
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO + CrashReports.coroutineHandler)
 
@@ -53,7 +54,10 @@ class GateDropPushHandler @Inject constructor(
         val data = GateDropJson.pushData(message.dataJson) ?: return false
         if (data.has("transfer")) {
             val offer = GateDropJson.offer(data)
-            if (offer != null) {
+            if (offer != null && offer.itemCount == 0 && offer.sendId != null) {
+                // a text only, perhaps a device message of an own device ("Auf GateControl TV / PC abspielen")
+                scope.launch { textOffer(offer, data.toString()) }
+            } else if (offer != null) {
                 GateDropReceiveWorker.enqueueOffer(context, offer, data.toString())
             } else {
                 // Unusable: tell the plugin now, the sender must not wait for this device.
@@ -68,7 +72,31 @@ class GateDropPushHandler @Inject constructor(
             }
             return true
         }
+        // a device message of an own device (the TV or PC playing for the remote): never shown, never in the inbox
+        if (com.gatecontrol.android.common.DeviceMessage.looksLike(message.body)) {
+            GateDropJson.noticeSendId(data)?.let { sendId ->
+                store.markHandled(sendId)
+                cast.get().onPush(sendId)
+            }
+            return true
+        }
         return false
+    }
+
+    /**
+     * A direct transfer of a text without files: a device message is taken from the send itself and the transfer
+     * confirmed (nothing to move), any other text goes the usual way.
+     */
+    private suspend fun textOffer(offer: GdTransferOffer, raw: String) {
+        val sendId = offer.sendId ?: return
+        val detail = runCatching { repository.get().api.sendDetail(sendId) }.getOrNull()?.valueOrNull()
+        if (detail != null && GateDropDeviceMessages.isDeviceMessage(detail)) {
+            store.markHandled(sendId)
+            runCatching { repository.get().api.transferResult(offer.transferId, true, bytes = 0) }
+            cast.get().onEntry(detail)
+            return
+        }
+        GateDropReceiveWorker.enqueueOffer(context, offer, raw)
     }
 
     /** Send id of a GateDrop delivery push; null for anything else. */

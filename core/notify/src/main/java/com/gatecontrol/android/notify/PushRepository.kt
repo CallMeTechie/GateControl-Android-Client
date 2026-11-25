@@ -267,6 +267,8 @@ class PushRepository @Inject constructor(
         return try {
             val response = endpoint.api(url).pushInbox(limit = InboxCache.MAX_ITEMS)
             val items = response.items.orEmpty().mapNotNull { PushEventParser.toMessage(it) }
+                // a device message between own devices (GateDrop text, "Auf GateControl TV / PC abspielen") is no notification
+                .filterNot { it.topic.startsWith("plugin:gatecontrol-gatedrop:") && com.gatecontrol.android.common.DeviceMessage.looksLike(it.body) }
             val before = inbox.replaceAll(items)
             val stillUnread = items.filter { it.isUnread }.map { it.id }.toSet()
             val gone = before.filter { it.isUnread && it.id !in stillUnread }.map { it.id }

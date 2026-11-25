@@ -281,6 +281,10 @@ data class GdEntry(
     val removed: Boolean = false,
     /** Every recipient picked it up (GateDrop 1.5). */
     val pickedAt: Long? = null,
+    /** The server says it came from the caller's own account (`from.own`); null: it does not say. */
+    val fromOwn: Boolean? = null,
+    /** The sending device (`from.deviceId`); null: sent from the portal or not said. */
+    val fromDevice: String? = null,
 )
 
 /** One link for externals (`GET inbox?kind=links`). */

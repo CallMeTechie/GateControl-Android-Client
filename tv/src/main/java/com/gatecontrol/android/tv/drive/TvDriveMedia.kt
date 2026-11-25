@@ -124,6 +124,7 @@ class TvMediaSelection @Inject constructor() {
         private set
 
     fun setPhotos(source: com.gatecontrol.android.tv.ui.drive.TvPhotoSource, at: Int) {
+        cast = null
         items = emptyList()
         document = false
         local = emptyList()
@@ -133,7 +134,13 @@ class TvMediaSelection @Inject constructor() {
         this.at = at.coerceIn(0, (source.count - 1).coerceAtLeast(0))
     }
 
-    fun setMedia(queue: com.gatecontrol.android.media.MediaQueue) {
+    /** The session of a phone that plays [media] here and controls it ("Auf GateControl TV abspielen"); null: none. */
+    @Volatile
+    var cast: String? = null
+        private set
+
+    fun setMedia(queue: com.gatecontrol.android.media.MediaQueue, cast: String? = null) {
+        this.cast = cast
         photos = null
         items = emptyList()
         document = false
@@ -144,6 +151,7 @@ class TvMediaSelection @Inject constructor() {
     }
 
     fun set(items: List<DNode>, at: Int, document: Boolean = false) {
+        cast = null
         photos = null
         this.items = items
         this.at = at.coerceIn(0, (items.size - 1).coerceAtLeast(0))
@@ -155,6 +163,7 @@ class TvMediaSelection @Inject constructor() {
 
     /** The pictures or videos of a GateDrop send kept on the TV ([sendId]), from [at]. */
     fun setLocal(sendId: String, files: List<Pair<Int, com.gatecontrol.android.tv.ui.drive.TvLocalFile>>, at: Int) {
+        cast = null
         photos = null
         items = emptyList()
         document = false
@@ -165,6 +174,7 @@ class TvMediaSelection @Inject constructor() {
     }
 
     fun clear() {
+        cast = null
         photos = null
         items = emptyList()
         at = 0

@@ -72,6 +72,10 @@ app
 tv (GateControl TV) → alle core-Module außer core:rdp
 ```
 
+Gerätenachrichten zwischen den eigenen Geräten (`core:common` `DeviceMessage`, `core:gatedrop`
+`GateDropDeviceMessages`) laufen als GateDrop-Texte ohne Server-Änderung; erste Nutzung ist „Auf GateControl TV / PC
+abspielen“ (`core:media` `cast/*`, Handy `PhoneCast`, TV `TvCast`), Vertrag in [CAST_PROTOCOL.md](CAST_PROTOCOL.md).
+
 Jedes Modul stellt seine Abhängigkeiten über ein Hilt-`@Module` mit `@InstallIn(SingletonComponent::class)` bereit.
 
 ---

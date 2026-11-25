@@ -441,6 +441,9 @@ object GateDropJson {
             expired = root.flag("expired") == true || root.flag("removed") == true,
             removed = root.flag("removed") == true,
             pickedAt = root.time("pickedAt"),
+            fromOwn = fromEl?.takeIf { it.isJsonObject }?.asJsonObject?.flag("own"),
+            fromDevice = fromEl?.takeIf { it.isJsonObject }?.asJsonObject?.str("deviceId")
+                ?.takeIf { it.length in 1..64 && it.all { c -> c.isLetterOrDigit() || c == '-' || c == '_' } },
         )
     }
 

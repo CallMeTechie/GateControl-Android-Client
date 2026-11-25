@@ -57,7 +57,9 @@ class TvGateDropTest {
         coEvery { api.opened(any()) } returns GdResult.Ok(Unit)
     }
 
-    private fun drop() = TvGateDrop(context, api, drive)
+    private val cast = mockk<com.gatecontrol.android.tv.cast.TvCast>(relaxed = true)
+
+    private fun drop() = TvGateDrop(context, api, drive) { cast }
 
     private fun send(items: List<GdItem>, text: String? = null) = GdEntry(sendId, at = 1_000L, from = "Mila", text = text, items = items)
 
@@ -116,8 +118,8 @@ class TvGateDropTest {
         assertFalse(file.exists())
     }
 
-    private fun push(data: String, kind: String? = PushMessage.KIND_DATA, topic: String = "plugin:$GATEDROP_PLUGIN:send") = PushMessage(
-        seq = 1, id = 1, eventId = "e1", topic = topic, priority = "normal", title = "", body = "", createdAt = null, expiresAt = null,
+    private fun push(data: String, kind: String? = PushMessage.KIND_DATA, topic: String = "plugin:$GATEDROP_PLUGIN:send", body: String = "") = PushMessage(
+        seq = 1, id = 1, eventId = "e1", topic = topic, priority = "normal", title = "", body = body, createdAt = null, expiresAt = null,
         collapseKey = null, silent = true, route = null, actions = emptyList(), dataJson = data, kind = kind,
     )
 
@@ -128,6 +130,22 @@ class TvGateDropTest {
         assertTrue(gd.consume(push("""{"gatedrop":{"transfer":"$transfer","mode":"pull"}}""")))
         coVerify(timeout = 2_000) { api.transferResult(transfer, false, null, TvGateDrop.DIRECT_UNSUPPORTED) }
         assertFalse("not GateDrop's", gd.consume(push("""{"gatedrop":{"transfer":"$transfer"}}""", topic = "plugin:other:x")))
+    }
+
+    @Test
+    fun `a device message of the phone goes to the cast, never asked about`() {
+        val gd = drop()
+        // the visible push of the plugin: its body is the start of the text
+        assertTrue(gd.consume(push("""{"gatedrop":{"send":"$sendId"}}""", kind = null, topic = "plugin:$GATEDROP_PLUGIN:received", body = "gcmsg/1 {\"v\":1,\"type\":\"cast.play\"…")))
+        io.mockk.verify { cast.onPush(sendId) }
+        assertNull(gd.offer.value)
+        // found in pending: handed over once, never on the page
+        val message = send(emptyList(), text = "gcmsg/1 {\"v\":1}")
+        coEvery { api.pending() } returns GdResult.Ok(listOf(message))
+        gd.poll()
+        io.mockk.verify(timeout = 2_000) { cast.onPending(message) }
+        assertNull(gd.offer.value)
+        assertTrue(gd.waiting.value.isEmpty())
     }
 
     @Test

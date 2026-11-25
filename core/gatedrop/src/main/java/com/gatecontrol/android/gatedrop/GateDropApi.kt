@@ -151,7 +151,12 @@ class GateDropApi @Inject constructor(
 
     // ─── inbox, links ───────────────────────────────────────────────
 
-    suspend fun inbox(kind: GdInboxKind): GdResult<List<GdEntry>> = get("inbox", mapOf("kind" to kind.wire), GateDropJson::entries)
+    /** The sends of [kind]; device messages between own devices ([GateDropDeviceMessages]) are left out. */
+    suspend fun inbox(kind: GdInboxKind): GdResult<List<GdEntry>> =
+        when (val r = get("inbox", mapOf("kind" to kind.wire), GateDropJson::entries)) {
+            is GdResult.Ok -> GdResult.Ok(r.value.filterNot(GateDropDeviceMessages::isDeviceMessage))
+            else -> r
+        }
 
     suspend fun links(): GdResult<List<GdLink>> = get("inbox", mapOf("kind" to GdInboxKind.LINKS.wire), GateDropJson::links)
 

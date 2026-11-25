@@ -86,9 +86,11 @@ fun MediaDetailScreen(onBack: () -> Unit, onOpen: (MediaTitle) -> Unit, viewMode
         onPauseOrDispose { }
     }
     var sheet by remember { mutableStateOf<TrackSheet?>(null) }
+    // "Abspielen auf …" (question 23a)
+    var cast by remember { mutableStateOf(false) }
     CompositionLocalProvider(LocalMediaPictures provides viewModel.pictures) {
         LazyColumn(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).testTag(DETAIL_TAG), contentPadding = PaddingValues(bottom = 32.dp)) {
-            item(key = "head") { DetailHead(ui.title, onBack) }
+            item(key = "head") { DetailHead(ui.title, onBack, onCast = { cast = true }.takeIf { ui.title.playable && ui.detail != null }) }
             when {
                 ui.loading && ui.detail == null -> item(key = "loading") {
                     Box(Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(Modifier.size(24.dp), strokeWidth = 2.dp) }
@@ -114,6 +116,10 @@ fun MediaDetailScreen(onBack: () -> Unit, onOpen: (MediaTitle) -> Unit, viewMode
                 }
             }
         }
+        if (cast) {
+            val t = ui.title
+            MediaCastSheet(t, positionMs = if (t.resumable) t.positionMs else 0, audio = ui.audio, subtitle = ui.subtitle, onDismiss = { cast = false }, onStarted = { cast = false })
+        }
         sheet?.let { which ->
             TrackChooser(which, ui, onPick = { index ->
                 if (which == TrackSheet.AUDIO) index?.let(viewModel::chooseAudio) else viewModel.chooseSubtitle(index)
@@ -127,7 +133,7 @@ private enum class TrackSheet { AUDIO, SUBTITLE }
 
 /** Backdrop with the way back, then the poster beside the name and the line "2025 · 1 Std. 48 Min. · Drama". */
 @Composable
-private fun DetailHead(t: MediaTitle, onBack: () -> Unit) {
+private fun DetailHead(t: MediaTitle, onBack: () -> Unit, onCast: (() -> Unit)? = null) {
     val x = GateControlTheme.extraColors
     val backdrop = rememberMediaPicture(t, backdrop = true)
     val poster = rememberMediaPicture(t)
@@ -137,6 +143,11 @@ private fun DetailHead(t: MediaTitle, onBack: () -> Unit) {
             Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color.Transparent, MaterialTheme.colorScheme.background))))
             Box(Modifier.statusBarsPadding().padding(8.dp).clip(CircleShape).background(Color.Black.copy(alpha = 0.35f))) {
                 GcIconButton(GcIcons.Back, contentDescription = stringResource(R.string.common_back), onClick = onBack, tint = Color.White)
+            }
+            if (onCast != null) {
+                Box(Modifier.align(Alignment.TopEnd).statusBarsPadding().padding(8.dp).clip(CircleShape).background(Color.Black.copy(alpha = 0.35f))) {
+                    GcIconButton(GcIcons.Cast, contentDescription = stringResource(R.string.media_cast), onClick = onCast, tint = Color.White, modifier = Modifier.testTag(CAST_TAG))
+                }
             }
         }
         Row(Modifier.padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.Bottom) {
@@ -374,5 +385,6 @@ private fun EpisodeRow(e: MediaTitle, onPlay: () -> Unit, onOpen: () -> Unit, on
 }
 
 internal const val DETAIL_TAG = "media-detail"
+internal const val CAST_TAG = "media-cast"
 internal const val PLAY_TAG = "media-play"
 internal const val PLAYED_TAG = "media-played"

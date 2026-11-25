@@ -5,7 +5,9 @@ import androidx.core.content.edit
 import com.gatecontrol.android.drive.DNode
 import com.gatecontrol.android.drive.DResult
 import com.gatecontrol.android.drive.DriveApi
+import com.gatecontrol.android.common.DeviceMessage
 import com.gatecontrol.android.gatedrop.GATEDROP_PLUGIN
+import com.gatecontrol.android.gatedrop.GateDropDeviceMessages
 import com.gatecontrol.android.gatedrop.GateDropApi
 import com.gatecontrol.android.gatedrop.GateDropJson
 import com.gatecontrol.android.gatedrop.GdEntry
@@ -58,6 +60,7 @@ class TvGateDrop @Inject constructor(
     @ApplicationContext private val context: Context,
     private val api: GateDropApi,
     private val drive: DriveApi,
+    private val cast: dagger.Lazy<com.gatecontrol.android.tv.cast.TvCast>,
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val dir: File get() = File(context.filesDir, DIR).apply { mkdirs() }
@@ -125,6 +128,11 @@ class TvGateDrop @Inject constructor(
             GateDropJson.noticeSendId(data)?.let(::ask)
             return true
         }
+        // a device message of an own device ("Auf GateControl TV abspielen"): never a question, never in the inbox
+        if (DeviceMessage.looksLike(message.body)) {
+            GateDropJson.noticeSendId(data)?.let { cast.get().onPush(it) }
+            return true
+        }
         return false
     }
 
@@ -146,6 +154,14 @@ class TvGateDrop @Inject constructor(
     }
 
     private fun offer(send: GdEntry) {
+        if (GateDropDeviceMessages.isDeviceMessage(send)) {
+            // read once (the remote's start or key), then gone: never asked about, never kept on the page
+            if (send.id !in handled()) {
+                markHandled(send.id)
+                cast.get().onPending(send)
+            }
+            return
+        }
         if (!TvDropLogic.shouldAsk(send, handled(), _entries.value)) return
         // one question at a time: the others wait on the page
         if (_offer.value == null) _offer.value = TvDropOffer(send) else _waiting.update { w -> if (w.any { it.id == send.id }) w else w + send }

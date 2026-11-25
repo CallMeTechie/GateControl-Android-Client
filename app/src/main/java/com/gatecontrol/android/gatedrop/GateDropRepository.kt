@@ -73,6 +73,7 @@ class GateDropRepository @Inject constructor(
     val store: GateDropStore,
     private val notifier: GateDropNotifier,
     pluginDirectory: PluginDirectory,
+    private val cast: dagger.Lazy<com.gatecontrol.android.media.PhoneCast>,
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO + CrashReports.coroutineHandler)
 
@@ -385,6 +386,13 @@ class GateDropRepository @Inject constructor(
             return true
         }
         val detail = api.sendDetail(sendId).valueOrNull()
+        if (detail != null && GateDropDeviceMessages.isDeviceMessage(detail)) {
+            // a device message of an own device ("Auf GateControl TV / PC abspielen"): to the remote, never shown
+            store.markHandled(sendId)
+            if (notificationId != null) notifier.cancel(notificationId)
+            cast.get().onEntry(detail)
+            return true
+        }
         val known = store.get(key)
         if (detail == null && known == null) return false
         var entry = if (detail != null) {
@@ -447,6 +455,11 @@ class GateDropRepository @Inject constructor(
         override fun local(sendId: String) = store.get("s:$sendId") ?: store.bySend(sendId)
         override fun markHandled(sendId: String) = store.markHandled(sendId)
         override suspend fun process(send: GdEntry) {
+            if (GateDropDeviceMessages.isDeviceMessage(send)) {
+                store.markHandled(send.id)
+                cast.get().onEntry(send)
+                return
+            }
             GateDropReceiveWorker.enqueueSend(context, send.id, save = false, autoSave = true, show = true)
         }
         override suspend fun ack(sendId: String) = api.opened(sendId) is GdResult.Ok
