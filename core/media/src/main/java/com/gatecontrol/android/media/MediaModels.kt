@@ -203,8 +203,19 @@ enum class PlayMethod(val wire: String) {
     TRANSCODE("Transcode"),
 }
 
-/** A subtitle the player loads beside the video (a URL of the server). */
-data class MediaSideSubtitle(val index: Int, val url: String, val mime: String, val language: String?, val label: String?)
+/**
+ * A subtitle the player loads beside the video (a URL of the server, or a file beside a share's video). [default]:
+ * shown at once (Jellyfin's choice); a share's file is only offered. [forced]: only the foreign parts.
+ */
+data class MediaSideSubtitle(
+    val index: Int,
+    val url: String,
+    val mime: String,
+    val language: String?,
+    val label: String?,
+    val default: Boolean = true,
+    val forced: Boolean = false,
+)
 
 /**
  * The answer of the server for [MediaPlay]: the URL the player streams ([hls]: an HLS playlist), how, and the session

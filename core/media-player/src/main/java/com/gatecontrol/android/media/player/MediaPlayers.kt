@@ -14,6 +14,7 @@ import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import com.gatecontrol.android.media.MediaAddress
 import com.gatecontrol.android.media.MediaHub
 import com.gatecontrol.android.media.MediaPlan
+import com.gatecontrol.android.media.MediaSideSubtitle
 import com.gatecontrol.android.media.MediaSource
 
 /**
@@ -38,7 +39,10 @@ object MediaPlayers {
     fun player(context: Context, factory: DataSource.Factory): ExoPlayer =
         ExoPlayer.Builder(context).setMediaSourceFactory(DefaultMediaSourceFactory(factory)).build()
 
-    /** The item of [plan] (with [mediaId]): HLS when converted, the side subtitles of Jellyfin with it. */
+    /**
+     * The item of [plan] (with [mediaId]): HLS when converted, the side subtitles with it (Jellyfin's shown at once,
+     * the subtitle files beside a share's video only offered).
+     */
     fun item(plan: MediaPlan, mediaId: String): MediaItem {
         val builder = MediaItem.Builder().setUri(plan.url).setMediaId(mediaId)
         if (plan.hls) builder.setMimeType(MimeTypes.APPLICATION_M3U8)
@@ -49,11 +53,15 @@ object MediaPlayers {
                         .setMimeType(sub.mime)
                         .setLanguage(sub.language)
                         .setLabel(sub.label)
-                        .setSelectionFlags(C.SELECTION_FLAG_DEFAULT)
+                        .setSelectionFlags(flags(sub))
                         .build()
                 },
             )
         }
         return builder.build()
     }
+
+    /** Media3's selection flags of a side subtitle. */
+    internal fun flags(sub: MediaSideSubtitle): Int =
+        (if (sub.default) C.SELECTION_FLAG_DEFAULT else 0) or (if (sub.forced) C.SELECTION_FLAG_FORCED else 0)
 }

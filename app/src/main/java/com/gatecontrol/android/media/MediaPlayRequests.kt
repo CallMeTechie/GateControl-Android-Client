@@ -8,7 +8,8 @@ import javax.inject.Singleton
 
 /**
  * The one way the phone's media pages start playing (detail page, "Weiterschauen" in Medien and on Start, the search):
- * the queue is made here ([MediaBrowse.queue]: an episode with the rest of its series), then handed to the host in the
+ * the queue is made here ([MediaBrowse.queue]: an episode with the rest of its series; the page "Ordner" makes its
+ * own, the videos of the folder), then handed to the host in the
  * app's navigation, which gives it to [MediaPlayback] (the phone's player, [MediaPlayerSession]).
  */
 @Singleton
@@ -27,5 +28,10 @@ class MediaPlayRequests @Inject constructor(
         val q = MediaBrowse(hub) {}.queue(title, fromStart) ?: return false
         _queues.emit(q.copy(audioIndex = audio, subtitleIndex = subtitle, original = original))
         return true
+    }
+
+    /** Plays [queue] as it is (the videos of a share's folder from the one tapped: the page "Ordner"). */
+    suspend fun play(queue: MediaQueue) {
+        _queues.emit(queue)
     }
 }

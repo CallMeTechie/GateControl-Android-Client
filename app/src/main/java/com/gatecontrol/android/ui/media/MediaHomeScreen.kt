@@ -58,7 +58,6 @@ import com.gatecontrol.android.ui.components.GcCard
 import com.gatecontrol.android.ui.components.GcFilterChip
 import com.gatecontrol.android.ui.components.GcIconButton
 import com.gatecontrol.android.ui.components.GcIcons
-import com.gatecontrol.android.ui.components.GcListRow
 import com.gatecontrol.android.ui.components.GcPrimaryButton
 import com.gatecontrol.android.ui.components.GcSegmented
 import com.gatecontrol.android.ui.drive.TabBar
@@ -118,7 +117,7 @@ fun MediaHomeScreen(nav: MediaHomeNav, viewModel: MediaHomeViewModel = hiltViewM
                 MediaTab.OVERVIEW -> MediaOverview(ui, viewModel, nav, onSeries = { tab = MediaTab.SERIES }, onSignIn = signIn)
                 MediaTab.MOVIES -> MediaGridPage(movies = true, viewModel = viewModel, nav = nav, onSignIn = signIn)
                 MediaTab.SERIES -> MediaGridPage(movies = false, viewModel = viewModel, nav = nav, onSignIn = signIn)
-                MediaTab.FOLDERS -> MediaFolders(ui.shares)
+                MediaTab.FOLDERS -> MediaFolderPage()
             }
         }
     }
@@ -338,33 +337,6 @@ private fun OrderChips(movies: Boolean, g: MediaGridUi, onOrder: (MediaOrder) ->
                 style = MaterialTheme.typography.bodySmall,
                 color = GateControlTheme.extraColors.muted,
             )
-        }
-    }
-}
-
-/** "Ordner": the shares' folders come with the next stage (4d); until then what is set up. */
-@Composable
-private fun MediaFolders(shares: List<MediaSource>) {
-    val x = GateControlTheme.extraColors
-    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        item(key = "soon") {
-            GcCard {
-                Text(stringResource(R.string.media_folders_soon_title), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                Text(stringResource(R.string.media_folders_soon_text), style = MaterialTheme.typography.bodyMedium, color = x.muted)
-            }
-        }
-        if (shares.isNotEmpty()) {
-            item(key = "shares") {
-                GcCard(contentPadding = PaddingValues(vertical = 4.dp), verticalArrangement = Arrangement.Top) {
-                    shares.forEach { s ->
-                        GcListRow(
-                            title = MediaLogic.shareAddress(s),
-                            description = stringResource(if (s.pairWith != null) R.string.media_pair_note else if (s.kind == com.gatecontrol.android.media.MediaSourceKind.SMB) R.string.media_type_smb else R.string.media_type_webdav),
-                            leading = { Icon(GcIcons.Folder, contentDescription = null, tint = x.muted, modifier = Modifier.size(22.dp)) },
-                        )
-                    }
-                }
-            }
         }
     }
 }
