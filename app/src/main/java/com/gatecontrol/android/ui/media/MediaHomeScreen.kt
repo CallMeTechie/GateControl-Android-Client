@@ -71,6 +71,8 @@ data class MediaHomeNav(
     val add: () -> Unit,
     /** "Neu anmelden" of a server that signed this phone out. */
     val signInAgain: (MediaSource) -> Unit,
+    /** The page "Offline" (question 22 a). */
+    val offline: () -> Unit = {},
 )
 
 /**
@@ -81,6 +83,7 @@ data class MediaHomeNav(
 fun MediaHomeScreen(nav: MediaHomeNav, viewModel: MediaHomeViewModel = hiltViewModel()) {
     val ui by viewModel.ui.collectAsStateWithLifecycle()
     val link by viewModel.link.collectAsStateWithLifecycle()
+    val anyOffline by viewModel.anyOffline.collectAsStateWithLifecycle()
     var tab by rememberSaveable { mutableStateOf(MediaTab.OVERVIEW) }
     LifecycleResumeEffect(viewModel) {
         viewModel.refresh()
@@ -93,6 +96,9 @@ fun MediaHomeScreen(nav: MediaHomeNav, viewModel: MediaHomeViewModel = hiltViewM
                 onMenu = null,
                 onSearch = if (ui.any) nav.search else null,
                 actions = {
+                    if (ui.servers.isNotEmpty() || anyOffline) {
+                        GcIconButton(GcIcons.DownloadTray, contentDescription = stringResource(R.string.media_offline_title), onClick = nav.offline, tint = MaterialTheme.colorScheme.onBackground, modifier = Modifier.testTag(OFFLINE_OPEN_TAG))
+                    }
                     GcIconButton(GcIcons.Sliders, contentDescription = stringResource(R.string.media_sources), onClick = nav.sources, tint = MaterialTheme.colorScheme.onBackground)
                 },
             )
@@ -188,8 +194,12 @@ private fun SourceLine(ui: MediaHomeUi, link: MediaLink, onSelect: (MediaSource)
 /** "Übersicht": Weiterschauen, Zuletzt hinzugefügt, Serien (mockup 2). */
 @Composable
 private fun MediaOverview(ui: MediaHomeUi, viewModel: MediaHomeViewModel, nav: MediaHomeNav, onSeries: () -> Unit, onSignIn: () -> Unit) {
+    val offline by viewModel.offlineReady.collectAsStateWithLifecycle()
     LazyColumn(Modifier.fillMaxSize().testTag(OVERVIEW_TAG), contentPadding = PaddingValues(bottom = 24.dp)) {
         ui.problem?.let { p -> item(key = "problem") { MediaProblemCard(p, onRetry = viewModel::refresh, onSignIn = onSignIn) } }
+        // the downloads first without a connection, else after "Weiterschauen"
+        val offlineFirst = ui.problem == com.gatecontrol.android.media.MediaProblem.OFFLINE
+        if (offlineFirst && offline.isNotEmpty()) offlineRow(offline, nav)
         if (ui.resume.isNotEmpty()) {
             item(key = "resume-head") {
                 MediaRowHead(stringResource(R.string.media_row_resume), end = pluralStringResource(R.plurals.media_titles, ui.resume.size, ui.resume.size))
@@ -202,6 +212,7 @@ private fun MediaOverview(ui: MediaHomeUi, viewModel: MediaHomeViewModel, nav: M
                 }
             }
         }
+        if (!offlineFirst && offline.isNotEmpty()) offlineRow(offline, nav)
         if (ui.latest.isNotEmpty()) {
             item(key = "latest-head") { MediaRowHead(stringResource(R.string.media_row_latest)) }
             item(key = "latest") {
@@ -225,7 +236,7 @@ private fun MediaOverview(ui: MediaHomeUi, viewModel: MediaHomeViewModel, nav: M
                 }
             }
         }
-        if (!ui.loading && ui.problem == null && ui.resume.isEmpty() && ui.latest.isEmpty() && ui.series.isEmpty()) {
+        if (!ui.loading && ui.problem == null && ui.resume.isEmpty() && ui.latest.isEmpty() && ui.series.isEmpty() && offline.isEmpty()) {
             item(key = "nothing") {
                 Text(
                     stringResource(R.string.media_library_empty),
@@ -234,6 +245,18 @@ private fun MediaOverview(ui: MediaHomeUi, viewModel: MediaHomeViewModel, nav: M
                     modifier = Modifier.padding(16.dp),
                 )
             }
+        }
+    }
+}
+
+/** "Offline verfügbar": the ready downloads as posters, "Alle" opens the page "Offline". */
+private fun androidx.compose.foundation.lazy.LazyListScope.offlineRow(titles: List<MediaTitle>, nav: MediaHomeNav) {
+    item(key = "offline-head") {
+        MediaRowHead(stringResource(R.string.media_offline_row), end = titles.size.toString(), onEnd = nav.offline)
+    }
+    item(key = "offline") {
+        LazyRow(Modifier.testTag(OFFLINE_ROW_TAG), contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            items(titles, key = { "off:${it.sourceId}:${it.id}" }) { t -> MediaPoster(t, onClick = { nav.detail(t) }, width = 112.dp) }
         }
     }
 }
@@ -342,6 +365,8 @@ private fun OrderChips(movies: Boolean, g: MediaGridUi, onOrder: (MediaOrder) ->
 }
 
 internal const val OVERVIEW_TAG = "media-overview"
+internal const val OFFLINE_ROW_TAG = "media-offline-row"
+internal const val OFFLINE_OPEN_TAG = "media-offline-open"
 internal const val MOVIES_TAG = "media-movies"
 internal const val SERIES_TAG = "media-series"
 

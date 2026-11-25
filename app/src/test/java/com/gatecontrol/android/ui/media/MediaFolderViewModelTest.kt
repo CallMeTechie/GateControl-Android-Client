@@ -90,7 +90,7 @@ class MediaFolderViewModelTest {
         // no AC3 decoder, no HEVC
         every { caps() } returns MediaDeviceCaps.fromDecoders(listOf("video/avc", "audio/mp4a-latm"), hdrScreen = false, name = "GateControl")
     }
-    private val requests = MediaPlayRequests(hub, mockk<MediaPlayback>(relaxed = true))
+    private val requests = MediaPlayRequests(hub, mockk<MediaPlayback>(relaxed = true), fakeOffline())
     private val pictures = mockk<MediaPictures>(relaxed = true)
 
     private fun vm() = MediaFolderViewModel(hub, requests, MediaShareProbes(dispatcher), pictures).also { models += it }

@@ -40,6 +40,8 @@ import com.gatecontrol.android.media.MediaQuality
 import com.gatecontrol.android.media.MediaSource
 import com.gatecontrol.android.media.MediaSourceKind
 import com.gatecontrol.android.media.jellyfin.JellyfinAuthorize
+import com.gatecontrol.android.media.offline.MediaOfflineLogic
+import com.gatecontrol.android.media.offline.OfflineQuality
 import com.gatecontrol.android.ui.components.GcCard
 import com.gatecontrol.android.ui.components.GcIconButton
 import com.gatecontrol.android.ui.components.GcIconSquare
@@ -59,7 +61,13 @@ import com.gatecontrol.android.ui.theme.GateControlTheme
  * code confirmed with this phone's access).
  */
 @Composable
-fun MediaSourcesScreen(onBack: () -> Unit, onAdd: () -> Unit, onSignInAgain: (MediaSource) -> Unit, viewModel: MediaSourcesViewModel = hiltViewModel()) {
+fun MediaSourcesScreen(
+    onBack: () -> Unit,
+    onAdd: () -> Unit,
+    onSignInAgain: (MediaSource) -> Unit,
+    onOffline: () -> Unit = {},
+    viewModel: MediaSourcesViewModel = hiltViewModel(),
+) {
     val sources by viewModel.sources.collectAsStateWithLifecycle()
     val cap by viewModel.mobileCap.collectAsStateWithLifecycle()
     val startCard by viewModel.startCard.collectAsStateWithLifecycle()
@@ -115,6 +123,27 @@ fun MediaSourcesScreen(onBack: () -> Unit, onAdd: () -> Unit, onSignInAgain: (Me
                         checked = startCard,
                         onCheckedChange = viewModel::setStartCard,
                     )
+                }
+            }
+
+            // --- downloads for offline (question 22 a: Jellyfin only) ---
+            if (sources.any { it.kind == MediaSourceKind.JELLYFIN }) {
+                val quality by viewModel.offlineQuality.collectAsStateWithLifecycle()
+                val limitGb by viewModel.offlineLimitGb.collectAsStateWithLifecycle()
+                val used by viewModel.offlineUsed.collectAsStateWithLifecycle()
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    GcSectionLabel(stringResource(R.string.media_offline_settings), modifier = Modifier.padding(horizontal = 4.dp, vertical = 8.dp))
+                    GcCard(contentPadding = PaddingValues(vertical = 4.dp), verticalArrangement = Arrangement.Top) {
+                        OfflineQualityRow(quality, onQuality = viewModel::setOfflineQuality)
+                        OfflineLimitRow(limitGb, used, onLimit = viewModel::setOfflineLimitGb)
+                        GcListRow(
+                            title = stringResource(R.string.media_offline_open),
+                            description = MediaOfflineLogic.usedText(used, MediaOfflineLogic.gb(limitGb)),
+                            onClick = onOffline,
+                            trailing = { Icon(GcIcons.ChevronRight, contentDescription = null, tint = x.faint, modifier = Modifier.size(18.dp)) },
+                            modifier = Modifier.testTag(OFFLINE_SETTINGS_TAG),
+                        )
+                    }
                 }
             }
 
@@ -243,6 +272,62 @@ private fun MobileCapRow(cap: Long?, onCap: (Long?) -> Unit) {
     )
 }
 
+/** "Qualität für Downloads · 1080p ▾". */
+@Composable
+private fun OfflineQualityRow(quality: OfflineQuality, onQuality: (OfflineQuality) -> Unit) {
+    var open by remember { mutableStateOf(false) }
+    GcListRow(
+        title = stringResource(R.string.media_offline_setting_quality),
+        description = stringResource(R.string.media_offline_setting_quality_desc),
+        onClick = { open = true },
+        trailing = {
+            Box {
+                Text(qualityName(quality), style = MaterialTheme.typography.labelLarge, color = GateControlTheme.extraColors.accentText)
+                DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+                    OfflineQuality.entries.forEach { q ->
+                        DropdownMenuItem(
+                            text = { Text(qualityName(q)) },
+                            onClick = {
+                                open = false
+                                onQuality(q)
+                            },
+                            trailingIcon = if (q == quality) { { Icon(GcIcons.Check, contentDescription = null, modifier = Modifier.size(18.dp)) } } else null,
+                        )
+                    }
+                }
+            }
+        },
+    )
+}
+
+/** "Speichergrenze · 20 GB ▾ · Belegt 7,4 GB". */
+@Composable
+private fun OfflineLimitRow(limitGb: Int, used: Long, onLimit: (Int) -> Unit) {
+    var open by remember { mutableStateOf(false) }
+    GcListRow(
+        title = stringResource(R.string.media_offline_setting_limit),
+        description = stringResource(R.string.media_offline_setting_limit_desc, MediaOfflineLogic.sizeText(used)),
+        onClick = { open = true },
+        trailing = {
+            Box {
+                Text(stringResource(R.string.media_offline_gb, limitGb), style = MaterialTheme.typography.labelLarge, color = GateControlTheme.extraColors.accentText)
+                DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+                    MediaOfflineLogic.LIMITS_GB.forEach { gb ->
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.media_offline_gb, gb)) },
+                            onClick = {
+                                open = false
+                                onLimit(gb)
+                            },
+                            trailingIcon = if (gb == limitGb) { { Icon(GcIcons.Check, contentDescription = null, modifier = Modifier.size(18.dp)) } } else null,
+                        )
+                    }
+                }
+            }
+        },
+    )
+}
+
 @Composable
 private fun authorizeText(r: JellyfinAuthorize): String = stringResource(
     when (r) {
@@ -256,3 +341,4 @@ private fun authorizeText(r: JellyfinAuthorize): String = stringResource(
 )
 
 internal const val CODE_TAG = "media-code"
+internal const val OFFLINE_SETTINGS_TAG = "media-offline-settings"

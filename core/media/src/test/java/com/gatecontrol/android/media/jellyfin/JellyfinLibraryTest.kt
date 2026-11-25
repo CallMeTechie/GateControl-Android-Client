@@ -11,6 +11,7 @@ import com.gatecontrol.android.media.MediaTitle
 import com.gatecontrol.android.media.PlayMethod
 import com.google.gson.JsonParser
 import kotlinx.coroutines.test.runTest
+import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.OkHttpClient
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
@@ -332,5 +333,47 @@ class JellyfinLibraryTest {
         val tv = JellyfinDeviceCaps(passthrough = setOf("dts"))
         assertEquals(listOf("aac", "ac3", "eac3", "dts"), JellyfinProfile.convertedAudio(tv))
         assertTrue("eac3" in JellyfinProfile.directAudio(tv))
+    }
+
+    @Test
+    fun `downloads - the user's permission, the original, the converted file, a subtitle, progress watched offline`() = runTest {
+        server.enqueue(json("""{"Name":"Mila","Policy":{"EnableContentDownloading":false}}"""))
+        assertEquals(MediaResult.Ok(false), library.canDownload())
+        assertEquals("/Users/Me", server.takeRequest().requestUrl!!.encodedPath)
+        // an old server that does not say: allowed
+        server.enqueue(json("""{"Name":"Mila"}"""))
+        assertEquals(MediaResult.Ok(true), library.canDownload())
+        server.takeRequest()
+
+        val original = library.downloadUrl("m1", "v1").toHttpUrl()
+        assertEquals("/Items/m1/Download", original.encodedPath)
+        assertEquals("v1", original.queryParameter("mediaSourceId"))
+        val converted = library.convertedUrl("m1", "v1", 8_000_000, 1920, 1080, audioIndex = 2, burnSubtitle = 5).toHttpUrl()
+        assertEquals("/Videos/m1/stream.ts", converted.encodedPath)
+        assertEquals("8000000", converted.queryParameter("videoBitRate"))
+        assertEquals("1080", converted.queryParameter("maxHeight"))
+        assertEquals("2", converted.queryParameter("audioStreamIndex"))
+        assertEquals("5", converted.queryParameter("subtitleStreamIndex"))
+        assertEquals("Encode", converted.queryParameter("subtitleMethod"))
+        assertEquals("dev-1234", converted.queryParameter("deviceId"))
+        assertFalse(converted.toString().contains("tok-secret"), "the access goes in the header, never in the URL")
+        assertTrue(library.subtitleUrl("m1", "v1", 3).endsWith("/Videos/m1/v1/Subtitles/3/Stream.vtt"))
+
+        server.enqueue(MockResponse().setResponseCode(204))
+        assertEquals(MediaResult.Ok(Unit), library.saveUserData("m1", positionMs = 2_530_000, played = false, playedAt = 1_764_000_000_000))
+        val r = server.takeRequest()
+        assertEquals("/UserItems/m1/UserData", r.requestUrl!!.encodedPath)
+        assertEquals("u1", r.requestUrl!!.queryParameter("userId"))
+        val body = JsonParser.parseString(r.body.readUtf8()).asJsonObject
+        assertEquals(25_300_000_000, body.get("PlaybackPositionTicks").asLong)
+        assertFalse(body.get("Played").asBoolean)
+        assertEquals("2025-11-24T16:00:00Z", body.get("LastPlayedDate").asString)
+    }
+
+    @Test
+    fun `a version's size is read`() = runTest {
+        server.enqueue(json("""{"Id":"m1","Name":"Kobaltnacht","Type":"Movie","MediaSources":[{"Id":"v1","Container":"mkv","Size":3100000000}]}"""))
+        val d = library.detail("m1").valueOrNull()!!
+        assertEquals(3_100_000_000, d.version?.size)
     }
 }

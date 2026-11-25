@@ -2,6 +2,7 @@ package com.gatecontrol.android.media
 
 import android.graphics.Bitmap
 import android.util.LruCache
+import com.gatecontrol.android.media.offline.MediaOffline
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import java.util.concurrent.ConcurrentHashMap
@@ -10,10 +11,10 @@ import javax.inject.Singleton
 
 /**
  * Posters and backdrops of the media pages, kept while the app runs (a few MB): from Jellyfin by URL with its access,
- * from a share the picture beside the film. Away smaller ones.
+ * from a share the picture beside the film. Away smaller ones. A downloaded title's from the phone (also offline).
  */
 @Singleton
-class MediaPictures @Inject constructor(private val hub: MediaHub) {
+class MediaPictures @Inject constructor(private val hub: MediaHub, private val offline: MediaOffline) {
     private val cache = object : LruCache<String, Bitmap>(CACHE_BYTES) {
         override fun sizeOf(key: String, value: Bitmap): Int = value.byteCount
     }
@@ -36,6 +37,7 @@ class MediaPictures @Inject constructor(private val hub: MediaHub) {
             val lib = hub.library(source)
             val away = hub.link.value.atHome != true
             val height = if (backdrop) (if (away) 480 else 720) else (if (away) 300 else 450)
+            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { offline.picture(title, backdrop) }?.let { bytes -> hub.decode(bytes, height)?.let { b -> cache.put(key, b); return@withLock b } }
             val url = lib.imageUrl(title, backdrop, height)
             val b = if (url != null) {
                 hub.picture(url, lib.headers(), MediaAddress.host(source.address))

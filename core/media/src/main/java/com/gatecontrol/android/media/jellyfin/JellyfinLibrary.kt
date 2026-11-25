@@ -247,6 +247,67 @@ class JellyfinLibrary(
         return (if (played) client.post(path, q) else client.delete(path, q)).map { }
     }
 
+    // ── downloads for offline (question 22 a: Jellyfin only) ──
+
+    /**
+     * Whether the server lets this user download (`Policy.EnableContentDownloading` of `GET Users/Me`, the
+     * dashboard's "Allow media downloading"); a server that does not say counts as yes.
+     */
+    suspend fun canDownload(): MediaResult<Boolean> =
+        client.get("Users/Me").map { e ->
+            e?.takeIf { it.isJsonObject }?.asJsonObject?.let { o ->
+                o.get("Policy")?.takeIf { it.isJsonObject }?.asJsonObject?.bool("EnableContentDownloading")
+            } ?: true
+        }
+
+    /** The original file of [itemId] (`Items/{id}/Download`: the file as it is, with ranges). */
+    fun downloadUrl(itemId: String, versionId: String?): String =
+        client.url("Items/$itemId/Download", mapOf("mediaSourceId" to versionId)).toString()
+
+    /**
+     * [itemId] converted on the NAS into one MPEG-TS file (H.264 at most [videoBps] and [maxHeight] px, AAC stereo), the
+     * sound of [audioIndex]; a picture subtitle [burnSubtitle] burnt in. MPEG-TS because a file written as it is
+     * converted can still be wound through (MP4 and Matroska put their index at the end).
+     */
+    fun convertedUrl(itemId: String, versionId: String?, videoBps: Long, maxWidth: Int, maxHeight: Int, audioIndex: Int?, burnSubtitle: Int?): String =
+        client.url(
+            "Videos/$itemId/stream.ts",
+            mapOf(
+                "static" to false,
+                "mediaSourceId" to versionId,
+                "deviceId" to info.deviceId,
+                "container" to "ts",
+                "videoCodec" to "h264",
+                "audioCodec" to "aac",
+                "videoBitRate" to videoBps,
+                "audioBitRate" to DOWNLOAD_AUDIO_BPS,
+                "maxAudioChannels" to 2,
+                "maxWidth" to maxWidth,
+                "maxHeight" to maxHeight,
+                "audioStreamIndex" to audioIndex,
+                "subtitleStreamIndex" to burnSubtitle,
+                "subtitleMethod" to burnSubtitle?.let { "Encode" },
+                "breakOnNonKeyFrames" to false,
+            ),
+        ).toString()
+
+    /** A text subtitle of the file as WebVTT (the server converts SRT, ASS and embedded ones). */
+    fun subtitleUrl(itemId: String, versionId: String, index: Int): String =
+        client.url("Videos/$itemId/$versionId/Subtitles/$index/Stream.vtt").toString()
+
+    /**
+     * Progress watched offline, sent at the next contact (`POST UserItems/{id}/UserData`): the place, whether it was
+     * seen and when.
+     */
+    suspend fun saveUserData(itemId: String, positionMs: Long, played: Boolean, playedAt: Long): MediaResult<Unit> {
+        val body = JsonObject().apply {
+            addProperty("PlaybackPositionTicks", JellyfinJson.msToTicks(if (played) 0 else positionMs))
+            addProperty("Played", played)
+            addProperty("LastPlayedDate", java.time.Instant.ofEpochMilli(playedAt).toString())
+        }
+        return client.post("UserItems/$itemId/UserData", mapOf("userId" to user), body).map { }
+    }
+
     override suspend fun measure(): Long? = client.measure("Playback/BitrateTest", mapOf("size" to MEASURE_BYTES))
 
     override fun imageUrl(title: MediaTitle, backdrop: Boolean, maxHeight: Int): String? {
@@ -304,6 +365,9 @@ class JellyfinLibrary(
 
         /** The bytes of one bandwidth measurement (about a second at 20 Mbit/s). */
         const val MEASURE_BYTES = 2_500_000
+
+        /** The sound of a converted download: AAC stereo at this bit rate. */
+        const val DOWNLOAD_AUDIO_BPS = 192_000L
     }
 }
 

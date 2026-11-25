@@ -58,8 +58,10 @@ class MediaSourcesUiTest {
         val settings = mockk<MediaPhoneSettings>(relaxed = true) {
             every { mobileCap } returns MutableStateFlow(3_000_000L)
             every { startCard } returns MutableStateFlow(true)
+            every { offlineQuality } returns MutableStateFlow(com.gatecontrol.android.media.offline.OfflineQuality.P1080)
+            every { offlineLimitGb } returns MutableStateFlow(20)
         }
-        val vm = MediaSourcesViewModel(hub, settings)
+        val vm = MediaSourcesViewModel(hub, settings, fakeOffline())
         rule.setContent {
             GateControlTheme(darkTheme = false) {
                 MediaSourcesScreen(onBack = {}, onAdd = {}, onSignInAgain = {}, viewModel = vm)

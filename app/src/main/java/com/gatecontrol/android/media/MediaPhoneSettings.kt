@@ -3,6 +3,8 @@ package com.gatecontrol.android.media
 import android.content.Context
 import android.content.SharedPreferences
 import androidx.core.content.edit
+import com.gatecontrol.android.media.offline.MediaOfflineLogic
+import com.gatecontrol.android.media.offline.OfflineQuality
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -32,6 +34,26 @@ class MediaPhoneSettings @Inject constructor(@ApplicationContext context: Contex
     /** "Weiterschauen auf Start" (on by default). */
     val startCard: StateFlow<Boolean> = _startCard.asStateFlow()
 
+    private val _offlineQuality = MutableStateFlow(OfflineQuality.fromWire(prefs.getString(KEY_OFFLINE_QUALITY, null)))
+
+    /** The quality a download is offered in first (question 22 a: 1080p, the NAS converts before). */
+    val offlineQuality: StateFlow<OfflineQuality> = _offlineQuality.asStateFlow()
+
+    private val _offlineLimitGb = MutableStateFlow(prefs.getInt(KEY_OFFLINE_LIMIT, MediaOfflineLogic.DEFAULT_LIMIT_GB))
+
+    /** The storage limit of the downloads in GB (20 by default). */
+    val offlineLimitGb: StateFlow<Int> = _offlineLimitGb.asStateFlow()
+
+    fun setOfflineQuality(value: OfflineQuality) {
+        prefs.edit { putString(KEY_OFFLINE_QUALITY, value.wire) }
+        _offlineQuality.value = value
+    }
+
+    fun setOfflineLimitGb(gb: Int) {
+        prefs.edit { putInt(KEY_OFFLINE_LIMIT, gb) }
+        _offlineLimitGb.value = gb
+    }
+
     /** The note on the data volume (question 28) was shown once, at the first playback on mobile data. */
     val mobileHintSeen: Boolean get() = prefs.getBoolean(KEY_MOBILE_HINT, false)
 
@@ -58,5 +80,7 @@ class MediaPhoneSettings @Inject constructor(@ApplicationContext context: Contex
         const val KEY_MOBILE_CAP = "mobile_cap_bps"
         const val KEY_START_CARD = "start_card"
         const val KEY_MOBILE_HINT = "mobile_hint_seen"
+        const val KEY_OFFLINE_QUALITY = "offline_quality"
+        const val KEY_OFFLINE_LIMIT = "offline_limit_gb"
     }
 }

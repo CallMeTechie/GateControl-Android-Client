@@ -78,7 +78,7 @@ class MediaFolderUiTest {
             every { library(smb) } returns lib
             every { caps() } returns MediaDeviceCaps.fromDecoders(listOf("video/avc", "audio/mp4a-latm"), hdrScreen = false, name = "GateControl")
         }
-        val vm = MediaFolderViewModel(hub, MediaPlayRequests(hub, mockk<MediaPlayback>(relaxed = true)), MediaShareProbes(Dispatchers.Unconfined), mockk<MediaPictures>(relaxed = true))
+        val vm = MediaFolderViewModel(hub, MediaPlayRequests(hub, mockk<MediaPlayback>(relaxed = true), fakeOffline()), MediaShareProbes(Dispatchers.Unconfined), mockk<MediaPictures>(relaxed = true))
         rule.setContent {
             GateControlTheme(darkTheme = false) { MediaFolderPage(viewModel = vm) }
         }

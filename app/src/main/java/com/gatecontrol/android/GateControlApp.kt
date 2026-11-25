@@ -84,6 +84,14 @@ class GateControlApp : Application() {
         } catch (e: Throwable) {
             Timber.w(e, "Drive backup: not ensured")
         }
+        // Medien offline: waiting downloads and progress watched offline keep their work (off the main thread: the index is read).
+        kotlin.concurrent.thread(name = "media-offline-ensure") {
+            try {
+                EntryPointAccessors.fromApplication(this, com.gatecontrol.android.media.offline.MediaOfflineEntryPoint::class.java).mediaOffline().ensure()
+            } catch (e: Throwable) {
+                Timber.w(e, "Medien offline: not ensured")
+            }
+        }
         // Drive folder backup: the same for the phone folders backed up.
         try {
             com.gatecontrol.android.drive.backup.DriveFolderBackupWork.ensure(this)

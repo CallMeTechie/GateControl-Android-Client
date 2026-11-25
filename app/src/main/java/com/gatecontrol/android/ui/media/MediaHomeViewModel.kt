@@ -12,6 +12,10 @@ import com.gatecontrol.android.media.MediaPlayRequests
 import com.gatecontrol.android.media.MediaProblem
 import com.gatecontrol.android.media.MediaSource
 import com.gatecontrol.android.media.MediaTitle
+import com.gatecontrol.android.media.offline.MediaOffline
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.coroutineScope
@@ -65,7 +69,17 @@ class MediaHomeViewModel @Inject constructor(
     private val hub: MediaHub,
     private val requests: MediaPlayRequests,
     val pictures: MediaPictures,
+    private val offline: MediaOffline,
 ) : ViewModel() {
+
+    /** "Offline verfügbar": the ready downloads, the newest first (also without a connection). */
+    val offlineReady: StateFlow<List<MediaTitle>> = offline.items
+        .map { list -> list.filter { it.ready }.sortedByDescending { it.addedAt }.map { it.titleNow() } }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    /** Any download at all (the icon to the page "Offline"). */
+    val anyOffline: StateFlow<Boolean> = offline.items.map { it.isNotEmpty() }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+
 
     private val browse = MediaBrowse(hub) { publish() }
     private val movieGrid = MediaGrid(hub, movies = true)
