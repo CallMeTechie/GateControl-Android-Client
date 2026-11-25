@@ -1,6 +1,7 @@
 package com.gatecontrol.android.media.jellyfin
 
 import com.gatecontrol.android.media.MediaAddress
+import com.gatecontrol.android.network.HomeCache
 import com.google.gson.JsonParser
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -28,20 +29,31 @@ object JellyfinDiscovery {
     private const val MAX_SERVERS = 16
 
     /**
-     * One answer → a hint, or null when it is not one. The address must be a home-network address
-     * ([MediaAddress.isHomeHost]); a server that names another one (its public URL) is taken at the address it
-     * answered from ([from]) on Jellyfin's HTTP port.
+     * One answer → a hint, or null when it is not one. [from]: the address the answer came from; [lan]: this device's
+     * own Wi-Fi / Ethernet networks (address and prefix).
+     *
+     * The address the server names is taken when it is a home-network address ([MediaAddress.isHomeHost]) that this
+     * device can reach. Jellyfin in Docker (bridge network) names its container's address (`http://172.17.0.2:8096`):
+     * private, but not in this device's network and not reachable. So a named private IPv4 address that is not in one
+     * of [lan] and is not the sender is replaced by the sender (scheme, port and path stay as named: the mapped port is
+     * the same in the usual setup). A server that names another address (its public URL) is taken at the address it
+     * answered from on Jellyfin's HTTP port.
      */
-    fun parse(text: String, from: String? = null): JellyfinServerHint? {
+    fun parse(text: String, from: String? = null, lan: List<Pair<String, Int>> = emptyList()): JellyfinServerHint? {
         if (text.length > 4096) return null
         val o = runCatching { JsonParser.parseString(text) }.getOrNull()?.takeIf { it.isJsonObject }?.asJsonObject ?: return null
         fun s(key: String): String? = o.get(key)?.takeIf { it.isJsonPrimitive }?.asString?.filterNot { it.isISOControl() }?.trim()?.ifEmpty { null }
         val id = s("Id")?.takeIf { it.length <= 64 && it.all { c -> c.isLetterOrDigit() || c == '-' } } ?: return null
         val named = s("Address")?.toHttpUrlOrNull()
+        val sender = from?.takeIf { MediaAddress.isPrivateIpv4(it) }
+        val namedIp = named?.host?.takeIf { MediaAddress.isPrivateIpv4(it) }
+        val elsewhere = namedIp != null && sender != null && namedIp != sender && lan.none { (a, p) -> HomeCache.inSubnet(namedIp, a, p) }
         val base = when {
+            // a container's (or another network's) address: the sender with the named port
+            named != null && elsewhere -> MediaAddress.normalize(named.newBuilder().host(sender!!).build().toString())
             named != null && MediaAddress.isHomeHost(named.host) -> MediaAddress.normalize(named.toString())
             // its LAN address with Jellyfin's HTTP port (the named one is the public one)
-            from != null && MediaAddress.isPrivateIpv4(from) -> MediaAddress.normalize("http://$from:${MediaAddress.JELLYFIN_HTTP_PORT}")
+            sender != null -> MediaAddress.normalize("http://$sender:${MediaAddress.JELLYFIN_HTTP_PORT}")
             else -> null
         } ?: return null
         val name = (s("Name") ?: MediaAddress.host(base) ?: return null).take(MAX_NAME)
@@ -62,19 +74,22 @@ object JellyfinDiscovery {
 
     /**
      * Sends the question to each of [targets] and collects the answers for [timeoutMs]; the same server once. [bind]
-     * may tie the socket to the Wi-Fi network (not the VPN). Never throws except for cancellation.
+     * may tie the socket to the Wi-Fi network (not the VPN); [lan]: this device's networks for [parse]. Never throws
+     * except for cancellation.
      */
     suspend fun discover(
         targets: List<String>,
         port: Int = PORT,
         timeoutMs: Int = TIMEOUT_MS,
         bind: (DatagramSocket) -> Unit = {},
+        lan: List<Pair<String, Int>> = emptyList(),
     ): List<JellyfinServerHint> = withContext(Dispatchers.IO) {
         val found = LinkedHashMap<String, JellyfinServerHint>()
         try {
             DatagramSocket().use { socket ->
                 socket.broadcast = true
-                runCatching { bind(socket) }
+                // tied to the Wi-Fi before the first packet: the questions and the answers (same socket) never go through the tunnel
+                runCatching { bind(socket) }.onFailure { Timber.d("Jellyfin search: not bound to the Wi-Fi (%s)", it.javaClass.simpleName) }
                 val question = MESSAGE.toByteArray(Charsets.UTF_8)
                 for (t in targets.distinct()) {
                     runCatching { socket.send(DatagramPacket(question, question.size, InetAddress.getByName(t), port)) }
@@ -93,7 +108,7 @@ object JellyfinDiscovery {
                         break
                     }
                     val text = String(packet.data, packet.offset, packet.length, Charsets.UTF_8)
-                    parse(text, packet.address?.hostAddress)?.let { found.putIfAbsent(it.id, it) }
+                    parse(text, packet.address?.hostAddress, lan)?.let { found.putIfAbsent(it.id, it) }
                 }
             }
         } catch (e: CancellationException) {

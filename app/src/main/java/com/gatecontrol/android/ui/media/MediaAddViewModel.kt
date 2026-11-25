@@ -34,6 +34,8 @@ data class MediaAddUi(
     val kind: MediaSourceKind = MediaSourceKind.JELLYFIN,
     val searching: Boolean = false,
     val searched: Boolean = false,
+    /** Nothing answered because this device is not in the home network (the search only works there). */
+    val away: Boolean = false,
     val found: List<JellyfinServerHint> = emptyList(),
     val address: String = "",
     val checking: Boolean = false,
@@ -77,15 +79,16 @@ class MediaAddViewModel @Inject constructor(
     fun chooseKind(kind: MediaSourceKind) {
         if (kind == _ui.value.kind) return
         quickJob?.cancel()
-        _ui.update { MediaAddUi(kind = kind, found = it.found, searched = it.searched) }
+        _ui.update { MediaAddUi(kind = kind, found = it.found, searched = it.searched, away = it.away) }
         if (kind == MediaSourceKind.JELLYFIN && !_ui.value.searched) search()
     }
 
     fun search() {
         _ui.update { it.copy(searching = true) }
         viewModelScope.launch {
-            val found = setup.search()
-            _ui.update { a -> a.copy(searching = false, searched = true, found = found, address = a.address.ifEmpty { found.firstOrNull()?.address.orEmpty() }) }
+            val search = setup.searchHome()
+            val found = search.servers
+            _ui.update { a -> a.copy(searching = false, searched = true, found = found, away = search.away, address = a.address.ifEmpty { found.firstOrNull()?.address.orEmpty() }) }
             if (found.size == 1 && _ui.value.server == null && _ui.value.kind == MediaSourceKind.JELLYFIN) check()
         }
     }

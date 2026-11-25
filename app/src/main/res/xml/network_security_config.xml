@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Medien: Jellyfin (and WebDAV) runs on plain HTTP in the home network (http://192.168.1.20:8096), and Android cannot
+  allow cleartext for an address range. Without this file every http:// request of OkHttp and ExoPlayer was refused
+  before a packet left (UnknownServiceException "CLEARTEXT communication … not permitted"). So cleartext is allowed
+  here and limited in the code instead, as in the TV app:
+  - MediaAddress (core/media) only accepts http:// for a home-network host (private IPv4, .local / .lan, a name without
+    dots); every other host must use HTTPS. Away the connection goes through the WireGuard tunnel.
+  - GateControl's own server is always HTTPS (Validation.validateServerUrl); its token and fingerprint only go to the
+    stored server with the same scheme (AuthInterceptor, ServerScopedHeadersInterceptor), never to an http:// hop.
+  - Updates and the gateway's home cache refuse http (ApkUpdateLogic, HomeCache.parse, followSslRedirects off).
+  - Mail's WebView loads nothing from the network (every request is intercepted).
+  Only the system's certificate authorities are trusted (no user CAs).
+-->
+<network-security-config xmlns:tools="http://schemas.android.com/tools">
+    <!-- deliberate (see above): the code limits cleartext to the home network -->
+    <base-config cleartextTrafficPermitted="true" tools:ignore="InsecureBaseConfiguration">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>

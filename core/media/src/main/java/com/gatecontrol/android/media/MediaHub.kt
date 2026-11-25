@@ -211,12 +211,15 @@ class MediaHub @Inject constructor(
         return lib.authorize(code)
     }
 
+    /** Whether this device is in a Wi-Fi / Ethernet network at all (else the search cannot find anything). */
+    fun hasLan(): Boolean = homeLan.lanLinks().isNotEmpty()
+
     /** Jellyfin servers that answer in the home network (the Wi-Fi's broadcast, not through the tunnel). */
     suspend fun discover(): List<JellyfinServerHint> {
         val links = homeLan.lanLinks()
         val targets = links.mapNotNull { JellyfinDiscovery.broadcastOf(it.address, it.prefix) } + "255.255.255.255"
         val network = links.firstOrNull()?.network
-        return JellyfinDiscovery.discover(targets, bind = { socket -> network?.bindSocket(socket) })
+        return JellyfinDiscovery.discover(targets, bind = { socket -> network?.bindSocket(socket) }, lan = links.map { it.address to it.prefix })
     }
 
     /** A poster or backdrop of [url] (with [headers]); null when it cannot be loaded. 16-bit colour: half the memory (a TV stick has little). */

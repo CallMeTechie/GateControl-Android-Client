@@ -317,6 +317,9 @@ enum class JellyfinAuthorize { CONFIRMED, DISABLED, UNKNOWN_CODE, SIGNED_OUT, OF
 class JellyfinSignIn(baseUrl: String, http: OkHttpClient, info: MediaClientInfo) {
     private val client = JellyfinClient(baseUrl, http, info)
 
+    /** Why the last call did not reach the server (null: it did, or no call yet). */
+    val lastFailure: java.io.IOException? get() = client.lastFailure
+
     suspend fun server(): MediaResult<JellyfinServerInfo> {
         val r = client.get("System/Info/Public")
         if (r !is MediaResult.Ok) return r.map { error("unreachable") }

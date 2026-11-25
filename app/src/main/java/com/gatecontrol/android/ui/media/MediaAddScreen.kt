@@ -40,6 +40,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.gatecontrol.android.R
 import com.gatecontrol.android.media.MediaAddProblem
+import com.gatecontrol.android.media.MediaAddress
 import com.gatecontrol.android.media.MediaLogic
 import com.gatecontrol.android.media.MediaSourceKind
 import com.gatecontrol.android.ui.components.GcCard
@@ -131,7 +132,7 @@ private fun JellyfinSteps(ui: MediaAddUi, viewModel: MediaAddViewModel) {
         }
     }
     if (ui.searched && ui.found.isEmpty() && !ui.searching) {
-        Text(stringResource(R.string.media_none_found), style = MaterialTheme.typography.bodySmall, color = x.muted, modifier = Modifier.padding(horizontal = 4.dp))
+        Text(stringResource(if (ui.away) R.string.media_search_away else R.string.media_none_found), style = MaterialTheme.typography.bodySmall, color = x.muted, modifier = Modifier.padding(horizontal = 4.dp))
     }
     GcTextField(
         value = ui.address,
@@ -140,7 +141,7 @@ private fun JellyfinSteps(ui: MediaAddUi, viewModel: MediaAddViewModel) {
         placeholder = "192.168.1.20:8096",
         mono = true,
         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri, imeAction = ImeAction.Go),
-        error = ui.problem?.takeIf { ui.server == null }?.let { problemText(it, MediaSourceKind.JELLYFIN) },
+        error = ui.problem?.takeIf { ui.server == null }?.let { problemText(it, MediaSourceKind.JELLYFIN, ui.address) },
         hint = ui.server?.let { stringResource(R.string.media_found, it.name, it.version ?: "?") },
         modifier = Modifier.testTag(ADDRESS_TAG),
     )
@@ -176,7 +177,7 @@ private fun JellyfinSteps(ui: MediaAddUi, viewModel: MediaAddViewModel) {
                 color = x.muted,
             )
         }
-        ui.problem?.let { Text(problemText(it, MediaSourceKind.JELLYFIN), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error) }
+        ui.problem?.let { Text(problemText(it, MediaSourceKind.JELLYFIN, ui.address), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error) }
     } else {
         LoginFields(ui, onSubmit = viewModel::signIn, submit = stringResource(R.string.media_sign_in))
     }
@@ -245,7 +246,16 @@ private fun Done(ui: MediaAddUi, onDone: () -> Unit) {
 internal fun formatCode(code: String): String = if (code.length == 6 && code.all { it.isDigit() }) code.substring(0, 3) + " " + code.substring(3) else code
 
 @Composable
-private fun problemText(p: MediaAddProblem, kind: MediaSourceKind): String = stringResource(
+private fun problemText(p: MediaAddProblem, kind: MediaSourceKind, address: String = ""): String {
+    if (p == MediaAddProblem.OFFLINE_AWAY && !kind.share) {
+        val host = MediaAddress.normalize(address)?.let(MediaAddress::host)
+        return stringResource(R.string.media_problem_unreachable_away, MediaAddress.subnet24(host) ?: host ?: "192.168.1.0/24")
+    }
+    return problemTextOf(p, kind)
+}
+
+@Composable
+private fun problemTextOf(p: MediaAddProblem, kind: MediaSourceKind): String = stringResource(
     when (p) {
         MediaAddProblem.BAD_ADDRESS -> when (kind) {
             MediaSourceKind.JELLYFIN -> R.string.media_problem_address
@@ -256,7 +266,9 @@ private fun problemText(p: MediaAddProblem, kind: MediaSourceKind): String = str
         MediaAddProblem.OLD_SERVER -> R.string.media_problem_old
         MediaAddProblem.NO_QUICK_CONNECT -> R.string.media_problem_no_quick_connect
         MediaAddProblem.WRONG_LOGIN -> R.string.media_problem_login
-        MediaAddProblem.OFFLINE -> if (kind.share) R.string.media_problem_share_offline else R.string.media_problem_offline
+        MediaAddProblem.OFFLINE -> if (kind.share) R.string.media_problem_share_offline else R.string.media_problem_unreachable
+        MediaAddProblem.OFFLINE_AWAY -> R.string.media_problem_share_offline
+        MediaAddProblem.CERTIFICATE -> R.string.media_problem_certificate
         MediaAddProblem.FAILED -> R.string.media_problem_failed
     },
 )

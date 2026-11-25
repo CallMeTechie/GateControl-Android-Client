@@ -113,7 +113,7 @@
     <string name="media_type_webdav_text">HTTPS, robust unterwegs, nur direkt</string>
     <string name="media_searching">Suche im WLAN …</string>
     <string name="media_search_again">Erneut suchen</string>
-    <string name="media_none_found">Kein Jellyfin-Server hat geantwortet. Gib seine Adresse ein.</string>
+    <string name="media_none_found">Kein Jellyfin-Server hat geantwortet. Gib seine Adresse ein, z. B. 192.168.1.20:8096. Für die Suche in Jellyfin unter Netzwerk die automatische Erkennung einschalten und UDP-Port 7359 in der Firewall (z. B. DSM) erlauben, in Docker auch freigeben.</string>
     <string name="media_found_name">%1$s (Jellyfin)</string>
     <string name="media_address">Adresse</string>
     <string name="media_check">Prüfen</string>
@@ -132,7 +132,11 @@
     <string name="media_share_login_hint">Am besten ein NAS-Benutzer nur mit Leserecht. Ohne Benutzer als Gast.</string>
     <string name="media_smb_webdav_hint">Dieselbe Freigabe einmal als SMB und einmal als WebDAV einrichten: zu Hause nimmt die App SMB, unterwegs WebDAV.</string>
     <string name="media_problem_address">Keine Adresse. Im Heimnetz z. B. 192.168.1.20:8096, sonst nur mit https://.</string>
-    <string name="media_problem_not_found">Unter dieser Adresse antwortet kein Jellyfin-Server.</string>
+    <string name="media_problem_not_found">Unter dieser Adresse antwortet kein Jellyfin-Server. Stimmen Port (meist 8096) und http/https?</string>
+    <string name="media_problem_unreachable">Unter dieser Adresse antwortet nichts (Zeitüberschreitung oder Verbindung abgelehnt). Läuft Jellyfin, stimmt der Port (meist 8096)? Zu Hause das WLAN prüfen, unterwegs den Tunnel.</string>
+    <string name="media_problem_unreachable_away">Über den Tunnel nicht erreichbar. Leitet das Gateway das Heimnetz %1$s weiter? Läuft Jellyfin, stimmt der Port (meist 8096)?</string>
+    <string name="media_search_away">Die Suche geht nur im WLAN zu Hause. Unterwegs die Adresse eingeben, z. B. 192.168.1.20:8096 – sie geht durch den Tunnel.</string>
+    <string name="media_problem_certificate">Dem Zertifikat des Servers vertraut dieses Gerät nicht (selbst signiert oder anderer Name). Im Heimnetz geht auch http://, z. B. http://192.168.1.20:8096.</string>
     <string name="media_problem_old">Dieses Jellyfin ist zu alt. GateControl braucht Jellyfin 10.9 oder neuer.</string>
     <string name="media_problem_no_quick_connect">Quick Connect ist in Jellyfin aus. Melde dich mit Benutzer und Passwort an oder schalte es ein (Dashboard › Allgemein).</string>
     <string name="media_problem_login">Benutzer oder Passwort stimmt nicht.</string>
