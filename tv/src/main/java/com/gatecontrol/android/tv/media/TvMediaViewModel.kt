@@ -8,7 +8,9 @@ import com.gatecontrol.android.media.MediaBrowse
 import com.gatecontrol.android.media.MediaDetail
 import com.gatecontrol.android.media.MediaGate
 import com.gatecontrol.android.media.MediaHub
+import com.gatecontrol.android.media.server.MediaPairEnd
 import com.gatecontrol.android.media.server.MediaServerSources
+import com.gatecontrol.android.media.server.MediaSignIn
 import com.gatecontrol.android.media.server.MediaServerState
 import com.gatecontrol.android.media.server.MediaSourceStatus
 import com.gatecontrol.android.media.server.MediaSourcesLogic
@@ -19,6 +21,7 @@ import com.gatecontrol.android.media.MediaSource
 import com.gatecontrol.android.media.MediaTitle
 import com.gatecontrol.android.tv.drive.TvMediaSelection
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -51,6 +54,12 @@ data class TvMediaUi(
     val series: List<MediaTitle> = emptyList(),
     val seriesTotal: Int = 0,
     val seriesNext: Int? = null,
+    /** „Neu anmelden“ is running („Anmelden …“). */
+    val signingIn: Boolean = false,
+    /** Why „Neu anmelden“ did not work (a code as in Medien › Quellen); null: it did or was not tried. */
+    val signInProblem: String? = null,
+    /** A source set up by hand: Medien › Quellen opens (once; [TvMediaViewModel.sourcesOpened]). */
+    val openSources: Boolean = false,
 ) {
     val any: Boolean get() = source != null || shares.isNotEmpty()
 }
@@ -120,7 +129,15 @@ class TvMediaViewModel @Inject constructor(
     init {
         viewModelScope.launch {
             media.store.sources.collect { list ->
+                val before = _ui.value.source
                 _ui.update { it.copy(sources = list, source = media.currentSource(), shares = media.shares()) }
+                // signed in again in the background (after a revocation, by „Neu laden“): the page loads anew
+                val now = _ui.value
+                if (before != null && before.token == null && now.source?.id == before.id && now.source?.token != null &&
+                    now.problem == MediaProblem.SIGNED_OUT && !now.signingIn
+                ) {
+                    refresh()
+                }
             }
         }
     }
@@ -170,7 +187,8 @@ class TvMediaViewModel @Inject constructor(
                     }
                 }
             }
-            _ui.update { it.copy(loading = false) }
+            // signed in now (or another problem): the reason of a failed sign-in no longer counts
+            _ui.update { it.copy(loading = false, signInProblem = it.signInProblem.takeIf { _ -> it.problem == MediaProblem.SIGNED_OUT }) }
         }
     }
 
@@ -367,11 +385,37 @@ class TvMediaViewModel @Inject constructor(
         }
     }
 
-    /** Jellyfin refused the TV's access: signed in again by itself (the plugin's Quick Connect, no code on the screen). */
+    /**
+     * „Neu anmelden“: the TV is signed in again at the Jellyfin server shown (the plugin's Quick Connect, no code on the
+     * screen; the server's list first when it may be old), waited for with „Anmelden …“; then the rows load anew. Did
+     * it not work, the page says why („Erneut versuchen“); a source set up by hand opens Medien › Quellen.
+     */
     fun repair() {
-        servers.repair()
-        refresh()
+        if (_ui.value.signingIn) return
+        val source = media.currentSource() ?: return refresh()
+        _ui.update { it.copy(signingIn = true, signInProblem = null) }
+        viewModelScope.launch {
+            val end = try {
+                media.prepare(source)
+                servers.signIn(source.id)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                MediaSignIn.Problem(MediaPairEnd.FAILED)
+            }
+            when (end) {
+                MediaSignIn.Done -> {
+                    _ui.update { it.copy(signingIn = false, signInProblem = null) }
+                    refresh()
+                }
+                MediaSignIn.Manual -> _ui.update { it.copy(signingIn = false, openSources = true) }
+                is MediaSignIn.Problem -> _ui.update { it.copy(signingIn = false, signInProblem = end.code) }
+            }
+        }
     }
+
+    /** Medien › Quellen was opened for [TvMediaUi.openSources]. */
+    fun sourcesOpened() = _ui.update { it.copy(openSources = false) }
 
     /** Android's VPN consent was asked: given → the VPN starts and the page loads. */
     fun consent(granted: Boolean) {

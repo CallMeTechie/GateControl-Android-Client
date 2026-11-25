@@ -19,9 +19,11 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
@@ -66,6 +68,8 @@ import com.gatecontrol.android.ui.theme.GateControlTheme
 fun MediaSourcesScreen(
     onBack: () -> Unit,
     onOffline: () -> Unit = {},
+    /** The id of a source whose dialog opens at once („Neu anmelden“ of a source set up by hand). */
+    openSource: String? = null,
     viewModel: MediaSourcesViewModel = hiltViewModel(),
 ) {
     val rows by viewModel.rows.collectAsStateWithLifecycle()
@@ -75,6 +79,14 @@ fun MediaSourcesScreen(
     val startCard by viewModel.startCard.collectAsStateWithLifecycle()
     val x = GateControlTheme.extraColors
     var open by remember { mutableStateOf<MediaSourceStatus?>(null) }
+    var asked by rememberSaveable { mutableStateOf(openSource) }
+    LaunchedEffect(asked, rows) {
+        val id = asked ?: return@LaunchedEffect
+        rows.firstOrNull { it.source.id == id }?.let {
+            open = it
+            asked = null
+        }
+    }
     LifecycleResumeEffect(viewModel) {
         viewModel.onShown()
         onPauseOrDispose { }
@@ -187,7 +199,7 @@ internal fun wayText(route: MediaRoute): String = stringResource(
 
 /** A problem of a source (a code of the plugin or of the sign-in) in plain words. */
 @Composable
-internal fun sourceProblemText(code: String, source: MediaSource): String = when (code) {
+internal fun sourceProblemText(code: String, source: MediaSource?): String = when (code) {
     "no_mapping" -> stringResource(R.string.media_pp_no_mapping)
     "quick_connect_off" -> stringResource(R.string.media_pp_quick_connect_off)
     "admin_user", "user_disabled" -> stringResource(R.string.media_pp_admin_user)
@@ -195,10 +207,11 @@ internal fun sourceProblemText(code: String, source: MediaSource): String = when
     "rate_limited" -> stringResource(R.string.media_pp_rate_limited)
     "jellyfin_unreachable", "jellyfin_error", "key_invalid" -> stringResource(R.string.media_pp_unreachable)
     com.gatecontrol.android.media.server.MediaPairEnd.OFFLINE ->
-        stringResource(R.string.media_pp_offline, MediaAddress.host(source.address)?.takeIf { MediaAddress.isPrivateIpv4(it) }?.substringBeforeLast('.')?.let { "$it.0/24" } ?: "192.168.1.0/24")
+        stringResource(R.string.media_pp_offline, source?.let { MediaAddress.host(it.address) }?.takeIf { MediaAddress.isPrivateIpv4(it) }?.substringBeforeLast('.')?.let { "$it.0/24" } ?: "192.168.1.0/24")
     com.gatecontrol.android.media.server.MediaPairEnd.BLOCKED -> stringResource(R.string.media_pp_vpn)
     MediaSourcesText.NO_PASSWORD -> stringResource(R.string.media_pp_no_password)
     MediaSourcesText.SIGNED_OUT -> stringResource(R.string.media_pp_signed_out)
+    MediaSourcesText.UNAVAILABLE -> stringResource(R.string.media_server_off)
     else -> stringResource(R.string.media_pp_failed)
 }
 

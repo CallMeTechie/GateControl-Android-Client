@@ -7,6 +7,8 @@ import com.gatecontrol.android.media.MediaGrid
 import com.gatecontrol.android.media.MediaGate
 import com.gatecontrol.android.media.MediaHub
 import com.gatecontrol.android.media.server.MediaMigration
+import com.gatecontrol.android.media.server.MediaPairEnd
+import com.gatecontrol.android.media.server.MediaSignIn
 import com.gatecontrol.android.media.server.MediaServerSources
 import com.gatecontrol.android.media.MediaLink
 import com.gatecontrol.android.media.MediaOrder
@@ -20,6 +22,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -46,6 +49,10 @@ data class MediaHomeUi(
     val latest: List<MediaTitle> = emptyList(),
     val series: List<MediaTitle> = emptyList(),
     val seriesTotal: Int = 0,
+    /** „Neu anmelden“: running, or why it did not work. */
+    val signIn: MediaSignInState = MediaSignInState(),
+    /** A source set up by hand to show on Medien › Quellen (once; [MediaHomeViewModel.sourceOpened]). */
+    val openSource: String? = null,
 ) {
     val any: Boolean get() = sources.isNotEmpty()
 }
@@ -118,11 +125,38 @@ class MediaHomeViewModel @Inject constructor(
         }
     }
 
-    /** A Jellyfin server refused the access (401): signed in again automatically (the plugin's Quick Connect). */
+    /**
+     * „Neu anmelden“: the Jellyfin server shown is signed in again (the plugin's Quick Connect, the list of the server
+     * first when it may be old), waited for with „Anmelden …“; then the overview and the grids opened load anew. Did it
+     * not work, the card says why („Erneut versuchen“); a source set up by hand opens on Medien › Quellen.
+     */
     fun repair() {
-        servers.repair()
-        refresh()
+        if (_ui.value.signIn.running) return
+        val source = hub.currentSource() ?: return refresh()
+        _ui.update { it.copy(signIn = MediaSignInState(running = true, source = source)) }
+        viewModelScope.launch {
+            val end = try {
+                // away the VPN first, when a source needs it
+                hub.prepare(source)
+                servers.signIn(source.id)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                MediaSignIn.Problem(MediaPairEnd.FAILED)
+            }
+            when (end) {
+                MediaSignIn.Done -> {
+                    _ui.update { it.copy(signIn = MediaSignInState()) }
+                    refresh()
+                }
+                MediaSignIn.Manual -> _ui.update { it.copy(signIn = MediaSignInState(), openSource = source.id) }
+                is MediaSignIn.Problem -> _ui.update { it.copy(signIn = MediaSignInState(problem = end.code, source = source)) }
+            }
+        }
     }
+
+    /** Medien › Quellen was opened for [MediaHomeUi.openSource]. */
+    fun sourceOpened() = _ui.update { it.copy(openSource = null) }
 
     private var loadJob: Job? = null
     private val gridJobs = HashMap<Boolean, Job>()
@@ -130,7 +164,17 @@ class MediaHomeViewModel @Inject constructor(
 
     init {
         viewModelScope.launch {
-            hub.store.sources.collect { list -> _ui.update { sourcesInto(it, list) } }
+            hub.store.sources.collect { list ->
+                val before = _ui.value.source
+                _ui.update { sourcesInto(it, list) }
+                // signed in again in the background (after a revocation, by Medien › Quellen): the page loads anew
+                val now = _ui.value
+                if (before != null && before.token == null && now.source?.id == before.id && now.source?.token != null &&
+                    now.problem == MediaProblem.SIGNED_OUT && !now.signIn.running
+                ) {
+                    refresh()
+                }
+            }
         }
     }
 
@@ -174,7 +218,8 @@ class MediaHomeViewModel @Inject constructor(
                     }
                 }
             }
-            _ui.update { it.copy(loading = false) }
+            // signed in now (or another problem): the reason of a failed sign-in no longer counts
+            _ui.update { it.copy(loading = false, signIn = if (it.problem == MediaProblem.SIGNED_OUT) it.signIn else MediaSignInState()) }
             if (_movies.value.loaded) grid(true, _movies.value.order)
             if (_series.value.loaded) grid(false, _series.value.order)
         }

@@ -69,6 +69,8 @@ data class MediaHomeNav(
     val sources: () -> Unit,
     /** The page "Offline" (question 22 a). */
     val offline: () -> Unit = {},
+    /** Medien › Quellen with the dialog of one source (by id) open. */
+    val source: (String) -> Unit = { sources() },
 )
 
 /**
@@ -86,6 +88,13 @@ fun MediaHomeScreen(nav: MediaHomeNav, viewModel: MediaHomeViewModel = hiltViewM
     LifecycleResumeEffect(viewModel) {
         viewModel.refresh()
         onPauseOrDispose { }
+    }
+    // „Neu anmelden“ of a source set up by hand: its sign-in is on Medien › Quellen
+    LaunchedEffect(ui.openSource) {
+        ui.openSource?.let { id ->
+            viewModel.sourceOpened()
+            nav.source(id)
+        }
     }
     CompositionLocalProvider(LocalMediaPictures provides viewModel.pictures) {
         Column(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
@@ -195,7 +204,7 @@ private fun SourceLine(ui: MediaHomeUi, link: MediaLink, onSelect: (MediaSource)
 private fun MediaOverview(ui: MediaHomeUi, viewModel: MediaHomeViewModel, nav: MediaHomeNav, onSeries: () -> Unit, onSignIn: () -> Unit) {
     val offline by viewModel.offlineReady.collectAsStateWithLifecycle()
     LazyColumn(Modifier.fillMaxSize().testTag(OVERVIEW_TAG), contentPadding = PaddingValues(bottom = 24.dp)) {
-        ui.problem?.let { p -> item(key = "problem") { MediaProblemCard(p, onRetry = viewModel::refresh, onSignIn = onSignIn) } }
+        ui.problem?.let { p -> item(key = "problem") { MediaProblemCard(p, onRetry = viewModel::refresh, onSignIn = onSignIn, signIn = ui.signIn) } }
         // the downloads first without a connection, else after "Weiterschauen"
         val offlineFirst = ui.problem == com.gatecontrol.android.media.MediaProblem.OFFLINE
         if (offlineFirst && offline.isNotEmpty()) offlineRow(offline, nav)
@@ -264,6 +273,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.offlineRow(titles: Li
 @Composable
 private fun MediaGridPage(movies: Boolean, viewModel: MediaHomeViewModel, nav: MediaHomeNav, onSignIn: () -> Unit) {
     val g by (if (movies) viewModel.movies else viewModel.series).collectAsStateWithLifecycle()
+    val ui by viewModel.ui.collectAsStateWithLifecycle()
     LaunchedEffect(movies) { viewModel.openGrid(movies) }
     val state = rememberLazyGridState()
     val nearEnd by remember(g.items.size) {
@@ -282,7 +292,7 @@ private fun MediaGridPage(movies: Boolean, viewModel: MediaHomeViewModel, nav: M
             OrderChips(movies, g, onOrder = { viewModel.setOrder(movies, it) })
         }
         g.problem?.let { p ->
-            item(key = "problem", span = { GridItemSpan(maxLineSpan) }) { MediaProblemCard(p, onRetry = { viewModel.reloadGrid(movies) }, onSignIn = onSignIn) }
+            item(key = "problem", span = { GridItemSpan(maxLineSpan) }) { MediaProblemCard(p, onRetry = { viewModel.reloadGrid(movies) }, onSignIn = onSignIn, signIn = ui.signIn) }
         }
         items(g.items, key = { "${it.sourceId}:${it.id}" }) { t -> MediaPoster(t, onClick = { nav.detail(t) }) }
         if (g.loading || g.hasMore) {

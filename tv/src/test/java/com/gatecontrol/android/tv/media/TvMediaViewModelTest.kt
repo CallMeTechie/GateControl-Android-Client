@@ -6,6 +6,7 @@ import com.gatecontrol.android.media.MediaHub
 import com.gatecontrol.android.media.MediaRoute
 import com.gatecontrol.android.media.server.MediaServerSources
 import com.gatecontrol.android.media.server.MediaServerState
+import com.gatecontrol.android.media.server.MediaSignIn
 import com.gatecontrol.android.media.MediaLibrary
 import com.gatecontrol.android.media.MediaLink
 import com.gatecontrol.android.media.MediaPage
@@ -24,6 +25,7 @@ import io.mockk.every
 import io.mockk.mockk
 import io.mockk.slot
 import io.mockk.verify
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -199,8 +201,6 @@ class TvMediaViewModelTest {
         vm.reload()
         advanceUntilIdle()
         coVerify { servers.refresh(true) }
-        vm.repair()
-        verify { servers.repair() }
         vm.consent(true)
         advanceUntilIdle()
         coVerify { media.consent(true) }
@@ -208,6 +208,83 @@ class TvMediaViewModelTest {
         verify { servers.acknowledgeMigration() }
         vm.setAlwaysOriginal(source, true)
         verify { store.setAlwaysOriginal("s1", true) }
+    }
+
+    // --- „Neu anmelden“ ---
+
+    private fun emptyLibrary() {
+        coEvery { lib.resume(any()) } returns MediaResult.Ok(listOf(kobalt))
+        coEvery { lib.latest(any()) } returns MediaResult.Ok(emptyList())
+        coEvery { lib.movies(0, any()) } returns MediaResult.Ok(MediaPage(emptyList(), total = 0, start = 0))
+        coEvery { lib.series(0, any()) } returns MediaResult.Ok(MediaPage(emptyList(), total = 0, start = 0))
+    }
+
+    /** The TV signed out at Jellyfin: the page shows „Neu anmelden“. */
+    private fun signedOut(): MediaSource {
+        val out = source.copy(token = null)
+        sources.value = listOf(out)
+        shown = out
+        return out
+    }
+
+    @Test
+    fun `Neu anmelden - waited for with Anmelden, then the rows anew`() = runTest(dispatcher) {
+        emptyLibrary()
+        signedOut()
+        val answer = CompletableDeferred<MediaSignIn>()
+        coEvery { servers.signIn("s1") } coAnswers { answer.await() }
+        val vm = TvMediaViewModel(media, selection, servers)
+        vm.refresh()
+        advanceUntilIdle()
+        assertEquals(MediaProblem.SIGNED_OUT, vm.ui.value.problem)
+        vm.repair()
+        advanceUntilIdle()
+        assertTrue(vm.ui.value.signingIn)
+        vm.repair()
+        shown = source
+        answer.complete(MediaSignIn.Done)
+        advanceUntilIdle()
+        assertFalse(vm.ui.value.signingIn)
+        assertNull(vm.ui.value.problem)
+        assertEquals(listOf("m1"), vm.ui.value.resume.map { it.id })
+        coVerify(exactly = 1) { servers.signIn("s1") }
+        verify(exactly = 0) { servers.repair() }
+    }
+
+    @Test
+    fun `Neu anmelden - it fails, the reason is shown, a source by hand opens Quellen`() = runTest(dispatcher) {
+        signedOut()
+        coEvery { servers.signIn("s1") } returns MediaSignIn.Problem("no_mapping")
+        val vm = TvMediaViewModel(media, selection, servers)
+        vm.refresh()
+        advanceUntilIdle()
+        vm.repair()
+        advanceUntilIdle()
+        assertEquals("no_mapping", vm.ui.value.signInProblem)
+        assertFalse(vm.ui.value.signingIn)
+        assertEquals(MediaProblem.SIGNED_OUT, vm.ui.value.problem)
+
+        coEvery { servers.signIn("s1") } returns MediaSignIn.Manual
+        vm.repair()
+        advanceUntilIdle()
+        assertTrue(vm.ui.value.openSources)
+        vm.sourcesOpened()
+        assertFalse(vm.ui.value.openSources)
+    }
+
+    @Test
+    fun `signed in again in the background (after a revocation) - the rows load by themselves`() = runTest(dispatcher) {
+        emptyLibrary()
+        signedOut()
+        val vm = TvMediaViewModel(media, selection, servers)
+        vm.refresh()
+        advanceUntilIdle()
+        assertEquals(MediaProblem.SIGNED_OUT, vm.ui.value.problem)
+        shown = source
+        sources.value = listOf(source)
+        advanceUntilIdle()
+        assertNull(vm.ui.value.problem)
+        assertEquals(listOf("m1"), vm.ui.value.resume.map { it.id })
     }
 
     @Test

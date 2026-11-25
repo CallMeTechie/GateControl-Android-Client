@@ -354,6 +354,8 @@
     <string name="tv_media_signed_out">Die Anmeldung am Medienserver ist abgelaufen.</string>
     <string name="tv_media_signed_out_short">neu anmelden</string>
     <string name="tv_media_sign_in_again">Neu anmelden</string>
+    <string name="tv_media_signing_in">Anmelden …</string>
+    <string name="tv_media_sign_in_retry">Erneut versuchen</string>
     <string name="tv_media_row_resume">Weiterschauen</string>
     <string name="tv_media_row_latest">Zuletzt hinzugefügt</string>
     <string name="tv_media_row_movies">Filme</string>

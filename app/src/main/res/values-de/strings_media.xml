@@ -44,6 +44,7 @@
     <string name="media_problem_failed">Die Medien konnten nicht geladen werden.</string>
     <string name="media_problem_signed_out">Die Anmeldung am Medienserver ist abgelaufen.</string>
     <string name="media_sign_in_again">Neu anmelden</string>
+    <string name="media_signing_in">Anmelden …</string>
     <string name="media_retry">Erneut versuchen</string>
     <string name="media_play">Abspielen</string>
     <string name="media_resume_from">Weiter ab %1$s</string>

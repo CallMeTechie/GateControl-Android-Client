@@ -145,6 +145,18 @@ data class MediaServerState(
     }
 }
 
+/** How „Neu anmelden“ of a page ended ([MediaServerSources.signIn]). */
+sealed interface MediaSignIn {
+    /** Signed in (or nothing to sign in any more): the page loads anew. */
+    data object Done : MediaSignIn
+
+    /** A source set up on this device by hand: the way on is Medien › Quellen (its dialog). */
+    data object Manual : MediaSignIn
+
+    /** Why not: a code as in [MediaServerState.pairProblems] (the plugin's, [MediaPairEnd]'s or [MediaSourcesText]'s). */
+    data class Problem(val code: String) : MediaSignIn
+}
+
 /**
  * The media sources from the server (plugin „Medien“, App-API v1): the list (`v1/sources`, with `?since=<rev>`) merged
  * into [com.gatecontrol.android.media.MediaSourceStore] and kept there encrypted (the cache: without the server the last
@@ -174,6 +186,9 @@ class MediaServerSources internal constructor(
     val state: StateFlow<MediaServerState> = _state.asStateFlow()
 
     private val mutex = Mutex()
+
+    /** One automatic sign-in at a time (the list's and „Neu anmelden“'s would race for the same source). */
+    private val pairLock = Mutex()
 
     @Volatile
     private var lastAttempt = 0L
@@ -215,7 +230,10 @@ class MediaServerSources internal constructor(
      * Asks the server for the list and merges it; then the passwords and the sign-in at Jellyfin. Without an answer the
      * cached list stays. Never throws except for cancellation.
      */
-    suspend fun refresh(force: Boolean = false) {
+    suspend fun refresh(force: Boolean = false) = refresh(force, pair = true)
+
+    /** [refresh]; with [pair] false the sign-in at Jellyfin is left to the caller ([signIn]). */
+    private suspend fun refresh(force: Boolean, pair: Boolean) {
         var answered = false
         mutex.withLock {
             if (!force && now() - lastAttempt < MIN_MS) return@withLock
@@ -243,7 +261,7 @@ class MediaServerSources internal constructor(
         // the passwords only with an answer of the list (not offline, not unavailable)
         if (answered && _state.value.visible) {
             syncSecrets()
-            pairAll()
+            if (pair) pairAll()
         }
     }
 
@@ -352,26 +370,35 @@ class MediaServerSources internal constructor(
         for (s in todo) {
             val last = pairTried[s.id] ?: 0
             if (!force && now() - last < PAIR_EVERY_MS) continue
-            if (hub.route(s) == MediaRoute.BLOCKED) {
-                change { it.copy(pairProblems = it.pairProblems + (s.id to MediaPairEnd.BLOCKED)) }
-                continue
-            }
-            pairTried[s.id] = now()
-            change { it.copy(pairing = it.pairing + s.id) }
-            val end = try {
-                pair.pair(s)
-            } finally {
-                change { it.copy(pairing = it.pairing - s.id) }
-            }
-            change {
-                when (end) {
-                    MediaPairEnd.Paired -> it.copy(pairProblems = it.pairProblems - s.id)
-                    is MediaPairEnd.Problem -> it.copy(pairProblems = it.pairProblems + (s.id to end.code))
-                }
-            }
-            if (end is MediaPairEnd.Problem && end.code == "no_access") removeAll(listOf(s))
-            if (end is MediaPairEnd.Problem && end.code == MediaPairEnd.OFFLINE) onReach(s, hub.route(s), false)
+            pairOne(s.id)
         }
+    }
+
+    /** The automatic sign-in at one source (as it is in the store now); its end is kept in [MediaServerState.pairProblems]. */
+    private suspend fun pairOne(id: String): MediaPairEnd = pairLock.withLock {
+        val s = store.sources.value.firstOrNull { it.id == id } ?: return@withLock MediaPairEnd.Problem(MediaPairEnd.FAILED)
+        // signed in meanwhile (the list's sign-in ran first)
+        if (s.token != null) return@withLock MediaPairEnd.Paired
+        if (hub.route(s) == MediaRoute.BLOCKED) {
+            change { it.copy(pairProblems = it.pairProblems + (s.id to MediaPairEnd.BLOCKED)) }
+            return@withLock MediaPairEnd.Problem(MediaPairEnd.BLOCKED)
+        }
+        pairTried[s.id] = now()
+        change { it.copy(pairing = it.pairing + s.id) }
+        val end = try {
+            pair.pair(s)
+        } finally {
+            change { it.copy(pairing = it.pairing - s.id) }
+        }
+        change {
+            when (end) {
+                MediaPairEnd.Paired -> it.copy(pairProblems = it.pairProblems - s.id)
+                is MediaPairEnd.Problem -> it.copy(pairProblems = it.pairProblems + (s.id to end.code))
+            }
+        }
+        if (end is MediaPairEnd.Problem && end.code == "no_access") removeAll(listOf(s))
+        if (end is MediaPairEnd.Problem && end.code == MediaPairEnd.OFFLINE) onReach(s, hub.route(s), false)
+        end
     }
 
     /**
@@ -380,6 +407,45 @@ class MediaServerSources internal constructor(
      */
     fun repair() {
         scope.launch { pairAll(force = true) }
+    }
+
+    /**
+     * „Neu anmelden“ of a page for the source [sourceId], waited for: a source set up by hand → [MediaSignIn.Manual]
+     * (its sign-in is on Medien › Quellen); one of the server → the list again first when it may be old (revoked, a
+     * new device or mapping in the plugin, no answer for a while), then the automatic sign-in at once. The VPN, when
+     * needed away, was started by the page ([MediaHub.prepare]). Never throws except for cancellation.
+     */
+    suspend fun signIn(sourceId: String): MediaSignIn {
+        var s = store.source(sourceId) ?: return MediaSignIn.Done
+        if (!s.managed) return if (s.token != null || s.kind != MediaSourceKind.JELLYFIN) MediaSignIn.Done else MediaSignIn.Manual
+        if (s.kind != MediaSourceKind.JELLYFIN) return MediaSignIn.Done
+        if (listOld(s)) {
+            refresh(force = true, pair = false)
+            if (_state.value.unavailable) return MediaSignIn.Problem(MediaSourcesText.UNAVAILABLE)
+            // gone from the list (revoked, removed): the page shows what is left
+            s = store.source(sourceId) ?: return MediaSignIn.Done
+        }
+        if (s.token != null) return MediaSignIn.Done
+        val code = when {
+            s.problem != null -> s.problem
+            s.linkedUserId == null -> "no_mapping"
+            s.deviceId == null -> MediaPairEnd.FAILED
+            else -> null
+        }
+        if (code != null) {
+            change { it.copy(pairProblems = it.pairProblems + (s.id to code)) }
+            return MediaSignIn.Problem(code)
+        }
+        return when (val end = pairOne(s.id)) {
+            MediaPairEnd.Paired -> MediaSignIn.Done
+            is MediaPairEnd.Problem -> MediaSignIn.Problem(end.code)
+        }
+    }
+
+    /** The list may be old for [s]: revoked (no rev), what the sign-in needs is missing, or no answer for a while. */
+    private fun listOld(s: MediaSource): Boolean {
+        val st = _state.value
+        return !st.known || st.rev == null || s.deviceId == null || s.linkedUserId == null || s.problem != null || now() - st.lastContact > OPEN_MS
     }
 
     /**
