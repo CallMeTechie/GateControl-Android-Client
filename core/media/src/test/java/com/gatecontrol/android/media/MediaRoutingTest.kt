@@ -42,7 +42,7 @@ class MediaRoutingTest {
     }
 
     @Test
-    fun `home is where a probe answers on the local network - a private address alone is not`() = runTest {
+    fun `the probes only confirm - the first local network where one answers`() = runTest {
         val probes = listOf(MediaHomeProbe.Jellyfin("http://192.168.1.20:8096/System/Info/Public", "4F1C-A9"), MediaHomeProbe.Tls("https://192.168.1.20:5006/filme", "ab".repeat(32)))
         val asked = ArrayList<String>()
         val found = MediaHomeCheck.first(listOf("hotel-wifi", "home-wifi"), probes) { net, p ->

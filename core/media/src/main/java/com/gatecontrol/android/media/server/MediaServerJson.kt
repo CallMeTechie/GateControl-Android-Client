@@ -16,7 +16,11 @@ const val MEDIA_PLUGIN = "gatecontrol-medien"
 /** The topic of its silent data pushes (`media.revoke`, `media.cast`). */
 const val MEDIA_SIGNAL_TOPIC = "plugin:$MEDIA_PLUGIN:media_signal"
 
-/** How the device finds out that it is at home: one answer over the local network (never through the tunnel). */
+/**
+ * A probe of the plugin (`network.home.probes`): only an additional confirmation of GateControl's own home-network
+ * check, over the local network (never the tunnel). Only probes that identify the NAS itself are taken (Jellyfin's
+ * `Id`, the certificate); a `tcp` probe (an open port) is passed over: any device with that address would pass it.
+ */
 sealed interface MediaHomeProbe {
     /** `GET url` answers within 1.5 s with `Id == serverId` (Jellyfin's `System/Info/Public`). */
     data class Jellyfin(val url: String, val serverId: String) : MediaHomeProbe

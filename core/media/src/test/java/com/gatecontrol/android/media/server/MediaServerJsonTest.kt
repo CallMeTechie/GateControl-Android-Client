@@ -20,6 +20,7 @@ class MediaServerJsonTest {
               { "kind": "jellyfin", "url": "http://192.168.1.20:8096/System/Info/Public", "serverId": "4f1ca9" },
               { "kind": "tls", "url": "https://192.168.1.20:5006/filme", "certSha256": "${"9c41".repeat(16)}" },
               { "kind": "jellyfin", "url": "http://media.example.test/System/Info/Public", "serverId": "x" },
+              { "kind": "tcp", "host": "192.168.1.20", "port": 445, "url": "tcp://192.168.1.20:445" },
               { "kind": "other", "url": "http://192.168.1.20" } ] } },
           "cast": { "enabled": true },
           "future": { "x": 1 },
@@ -51,7 +52,7 @@ class MediaServerJsonTest {
         assertEquals(30, l.offlineHintDays)
         assertTrue(l.cast)
         assertTrue(l.network.vpnRequiredAway)
-        // a probe to a host outside the home network and an unknown kind are left out
+        // a probe outside the home network, a tcp probe (any device with the address passes it) and an unknown kind are left out
         assertEquals(2, l.network.probes.size)
         assertEquals(MediaHomeProbe.Jellyfin("http://192.168.1.20:8096/System/Info/Public", "4f1ca9"), l.network.probes[0])
         assertEquals("9c41".repeat(16), (l.network.probes[1] as MediaHomeProbe.Tls).certSha256)

@@ -253,39 +253,40 @@ class MediaHub @Inject constructor(
     @Volatile
     private var homeAt = 0L
 
-    @Volatile
-    private var homeWas = false
-
     /**
-     * At home: a probe of the server's list answers over the local network (never the tunnel): Jellyfin's
-     * `System/Info/Public` with its `Id`, or the NAS's certificate. A private address in a Wi-Fi alone is no home (other
-     * 192.168.1.x networks). Kept while the networks stay the same, at most [HOME_MS]. Without probes (no list from the
-     * server yet) the server's home-network check decides, as before.
+     * At home: GateControl's own home-network check decides ([HomeCacheLan.localHeader], the same as „Internet zu
+     * Hause“, the home cache and the trusted networks; the server compares the WireGuard endpoint or the gateway's site,
+     * so another 192.168.1.x network is no home). Only then the server's probes of the plugin (`network.home.probes`:
+     * Jellyfin's `Id`, the NAS's certificate) are asked over the local networks, as an additional confirmation that
+     * tells which Wi-Fi / Ethernet network the NAS is in (media are bound to it). A probe alone never makes „home“, and a
+     * plain `tcp` probe is not used at all (any device with that address would pass it). Kept while the networks stay
+     * the same, at most [HOME_MS].
      */
     private suspend fun atHome(): Boolean {
+        val home = try {
+            homeLan.localHeader() != null
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            false
+        }
         val list = probes
-        if (list.isEmpty()) {
+        if (!home || list.isEmpty()) {
             homeNetwork = null
-            return try {
-                homeLan.localHeader() != null
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                false
-            }
+            homeKey = null
+            return home
         }
         val links = homeLan.lanLinks()
         val key = links.joinToString(",") { "${it.network}:${it.address}" } + "|" + vpnUp()
         val now = System.currentTimeMillis()
-        if (key == homeKey && now - homeAt < HOME_MS) return homeWas
-        val networks = links.map { it.network }.distinct()
-        val found = MediaHomeCheck.first(networks, list) { net, probe -> probe(net, probe) }
-        homeNetwork = found
-        homeKey = key
-        homeAt = now
-        homeWas = found != null
-        Timber.d("Medien: home network %s", if (found != null) "yes" else "no")
-        return found != null
+        if (key != homeKey || now - homeAt >= HOME_MS) {
+            val networks = links.map { it.network }.distinct()
+            homeNetwork = MediaHomeCheck.first(networks, list) { net, probe -> probe(net, probe) }
+            homeKey = key
+            homeAt = now
+            Timber.d("Medien: home network confirmed by a probe: %s", if (homeNetwork != null) "yes" else "no")
+        }
+        return true
     }
 
     private suspend fun probe(network: Network, probe: MediaHomeProbe): Boolean = withContext(Dispatchers.IO) {
