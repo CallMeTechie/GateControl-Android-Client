@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.153.0] - 2026-11-25
+
+### Features
+- Player für Medien am Handy (Stufe 4c) (#292)
+
+---
+
 ## [1.152.0] - 2026-11-25
 
 ### Features
