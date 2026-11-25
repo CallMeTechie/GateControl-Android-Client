@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.157.0] - 2026-11-25
+
+### Features
+- Auf GateControl TV / PC abspielen über das Medien-Plugin (Cast A3) (#299)
+
+---
+
 ## [1.156.0] - 2026-11-25
 
 ### Features
