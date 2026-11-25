@@ -19,10 +19,50 @@ jobs:
         with:
           distribution: temurin
           java-version: 17
-          cache: gradle
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@8da46b539cd8fe6ab27ca75128919a18d757604c # v6.4.1
+
+      - name: Robolectric cache key
+        id: robolectric-key
+        shell: bash
+        run: |
+          # From the Robolectric version and the Android jars of :app and :tv only (the build files
+          # change with every release, these lines do not).
+          HASH=$( { grep -E '^robolectric = ' gradle/libs.versions.toml; grep -h 'val robolectricAndroidAll' app/build.gradle.kts tv/build.gradle.kts; } | sha256sum | cut -c1-16)
+          echo "key=robolectric-android-all-$HASH" >> "$GITHUB_OUTPUT"
+          echo "GC_ROBOLECTRIC_DIR=$HOME/.robolectric-android-all" >> "$GITHUB_ENV"
+
+      - name: Restore Robolectric Android jars
+        id: robolectric-cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.robolectric-android-all
+          key: ${{ steps.robolectric-key.outputs.key }}
+
+      - name: Download Robolectric Android jars (cache miss, with retries)
+        if: steps.robolectric-cache.outputs.cache-hit != 'true'
+        shell: bash
+        run: |
+          # Maven Central answers 429 at times: back off 30, 60, 120 s.
+          for attempt in 1 2 3 4; do
+            if ./gradlew :app:robolectricDeps :tv:robolectricDeps; then
+              exit 0
+            fi
+            if [ "$attempt" -lt 4 ]; then
+              WAIT=$(( 30 * (1 << (attempt - 1)) ))
+              echo "::warning::Robolectric jar download failed (attempt $attempt), retrying in ${WAIT}s"
+              sleep "$WAIT"
+            fi
+          done
+          exit 1
+
+      - name: Save Robolectric Android jars
+        if: steps.robolectric-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.robolectric-android-all
+          key: ${{ steps.robolectric-key.outputs.key }}
 
       - name: Run unit tests
         run: ./gradlew test --continue
