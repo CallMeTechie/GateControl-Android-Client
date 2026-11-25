@@ -29,6 +29,7 @@ import com.gatecontrol.android.ui.adaptive.LocalInDetailPane
 import com.gatecontrol.android.ui.chat.ChatImageViewer
 import com.gatecontrol.android.ui.chat.ConversationScreen
 import com.gatecontrol.android.ui.theme.GateControlTheme
+import com.gatecontrol.android.ui.theme.GcSystemBars
 import dagger.hilt.android.AndroidEntryPoint
 import java.util.Locale
 import javax.inject.Inject
@@ -66,6 +67,7 @@ class ChatBubbleActivity : ComponentActivity() {
                 "light" -> false
                 else -> isSystemInDarkTheme()
             }
+            GcSystemBars(dark)
             GateControlTheme(darkTheme = dark) {
                 var image by rememberSaveable { mutableStateOf<String?>(null) }
                 Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).windowInsetsPadding(WindowInsets.systemBars)) {

@@ -109,6 +109,8 @@
     <string name="media_folder_search">Im Ordner suchen</string>
     <string name="media_folder_search_hint">Dateiname, auch in Unterordnern</string>
     <string name="media_folder_empty">In diesem Ordner sind keine Videos.</string>
+    <string name="media_type_jellyfin_library">Jellyfin-Bibliothek</string>
+    <string name="media_folders_none">Noch keine Ordner. Hier erscheinen die Bibliotheken deines Jellyfin-Kontos und die NAS-Freigaben.</string>
     <string name="media_folder_more">Mehr</string>
     <string name="media_folder_subtitles">Untertitel: %1$s</string>
     <string name="media_video_unplayable">Bild %1$s: am Handy kein Bild</string>

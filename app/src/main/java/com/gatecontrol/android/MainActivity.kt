@@ -22,6 +22,7 @@ import com.gatecontrol.android.familie.PluginDirectory
 import com.gatecontrol.android.navigation.AppNavigation
 import com.gatecontrol.android.push.PushController
 import com.gatecontrol.android.ui.theme.GateControlTheme
+import com.gatecontrol.android.ui.theme.GcSystemBars
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
 
@@ -79,6 +80,7 @@ class MainActivity : FragmentActivity() {
                 "light" -> false
                 else -> systemDark // "system" or first launch
             }
+            GcSystemBars(isDark)
             GateControlTheme(darkTheme = isDark) {
                 val navController = rememberNavController()
                 val isSetupComplete =

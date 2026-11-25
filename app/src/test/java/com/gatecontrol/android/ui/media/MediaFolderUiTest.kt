@@ -23,6 +23,15 @@ import com.gatecontrol.android.media.MediaPictures
 import com.gatecontrol.android.media.MediaPlayRequests
 import com.gatecontrol.android.media.MediaPlayback
 import com.gatecontrol.android.media.MediaShareProbes
+import com.gatecontrol.android.media.MediaResult
+import com.gatecontrol.android.media.MediaRoute
+import com.gatecontrol.android.media.MediaTitle
+import com.gatecontrol.android.media.jellyfin.JellyfinFolder
+import com.gatecontrol.android.media.jellyfin.JellyfinFolderPage
+import com.gatecontrol.android.media.jellyfin.JellyfinLibrary
+import io.mockk.coEvery
+import androidx.compose.ui.test.onNodeWithTag
+import org.junit.Assert.assertEquals
 import com.gatecontrol.android.media.MediaSource
 import com.gatecontrol.android.media.MediaSourceKind
 import com.gatecontrol.android.media.MediaSourceStore
@@ -70,6 +79,7 @@ class MediaFolderUiTest {
         val store = mockk<MediaSourceStore>(relaxed = true) {
             every { source("nas") } returns smb
             every { source("dav") } returns dav
+            every { sources } returns MutableStateFlow(listOf(smb, dav))
         }
         val hub = mockk<MediaHub>(relaxed = true) {
             every { this@mockk.store } returns store
@@ -80,7 +90,7 @@ class MediaFolderUiTest {
         }
         val vm = MediaFolderViewModel(hub, MediaPlayRequests(hub, mockk<MediaPlayback>(relaxed = true), fakeOffline()), MediaShareProbes(Dispatchers.Unconfined), mockk<MediaPictures>(relaxed = true))
         rule.setContent {
-            GateControlTheme(darkTheme = false) { MediaFolderPage(viewModel = vm) }
+            GateControlTheme(darkTheme = false) { MediaFolderPage(viewModel = vm, libraries = MediaLibraryFolderViewModel(hub)) }
         }
         rule.waitForIdle()
         rule.onNodeWithText("Familie").performClick()
@@ -100,5 +110,85 @@ class MediaFolderUiTest {
         ShadowLooper.idleMainLooper(1, TimeUnit.SECONDS)
         rule.waitForIdle()
         rule.onNodeWithText("Strand.mp4").assertIsDisplayed()
+    }
+
+    private val jelly = MediaSource("jf", MediaSourceKind.JELLYFIN, "nas-1", "http://192.168.1.20:8096", userId = "u1", token = "tok")
+
+    /** Jellyfin alone (no share): the page "Ordner" with [lib] as the server's library. */
+    private fun jellyfinOnly(lib: JellyfinLibrary, onDetail: (MediaTitle) -> Unit = {}) {
+        val store = mockk<MediaSourceStore>(relaxed = true) {
+            every { sources } returns MutableStateFlow(listOf(jelly))
+        }
+        val hub = mockk<MediaHub>(relaxed = true) {
+            every { this@mockk.store } returns store
+            every { shares() } returns emptyList()
+            every { link } returns MutableStateFlow(MediaLink(atHome = true))
+            every { library(jelly) } returns lib
+            every { route(jelly) } returns MediaRoute.HOME
+        }
+        val vm = MediaFolderViewModel(hub, MediaPlayRequests(hub, mockk<MediaPlayback>(relaxed = true), fakeOffline()), MediaShareProbes(Dispatchers.Unconfined), mockk<MediaPictures>(relaxed = true))
+        rule.setContent {
+            GateControlTheme(darkTheme = false) { MediaFolderPage(onDetail = onDetail, viewModel = vm, libraries = MediaLibraryFolderViewModel(hub)) }
+        }
+        rule.waitForIdle()
+    }
+
+    @Test
+    fun `Jellyfin alone - its libraries, a folder, a film opens its page`() {
+        val film = MediaTitle("m1", "jf", MediaTitle.Kind.MOVIE, "Kobaltnacht", year = 2024, runtimeMs = 6_480_000)
+        val episode = MediaTitle("e1", "jf", MediaTitle.Kind.VIDEO, "Sommerfest")
+        val lib = mockk<JellyfinLibrary>(relaxed = true) {
+            coEvery { views() } returns MediaResult.Ok(listOf(JellyfinFolder("v1", "Filme"), JellyfinFolder("v2", "Heimvideos")))
+            coEvery { children("v1", any()) } returns MediaResult.Ok(JellyfinFolderPage(listOf(JellyfinFolder("f1", "Familie")), listOf(film)))
+            coEvery { children("f1", any()) } returns MediaResult.Ok(JellyfinFolderPage(emptyList(), listOf(episode)))
+        }
+        val opened = mutableListOf<String>()
+        jellyfinOnly(lib, onDetail = { opened += it.id })
+        rule.onNodeWithText("Filme").assertIsDisplayed()
+        rule.onNodeWithText("Heimvideos").assertIsDisplayed()
+        rule.onNodeWithTag(FOLDER_ROOTS_EMPTY_TAG).assertDoesNotExist()
+
+        rule.onNodeWithText("Filme").performClick()
+        rule.waitForIdle()
+        rule.onNodeWithText("Familie").assertIsDisplayed()
+        rule.onNodeWithText("Kobaltnacht").assertIsDisplayed()
+        rule.onNode(hasText("2024 · 1 Std. 48 Min.", substring = true)).assertIsDisplayed()
+
+        rule.onNodeWithText("Familie").performClick()
+        rule.waitForIdle()
+        rule.onNodeWithText("Sommerfest").assertIsDisplayed()
+        // the path bar: back to the library
+        rule.onNodeWithText("Filme").performClick()
+        rule.waitForIdle()
+        rule.onNodeWithText("Kobaltnacht").performClick()
+        assertEquals(listOf("m1"), opened)
+        // up: the list of libraries again
+        rule.onNodeWithContentDescription(context.getString(R.string.media_folder_all_shares)).performClick()
+        rule.waitForIdle()
+        rule.onNodeWithText("Heimvideos").assertIsDisplayed()
+    }
+
+    @Test
+    fun `nothing to show - a line says so, not an empty card`() {
+        val lib = mockk<JellyfinLibrary>(relaxed = true) {
+            coEvery { views() } returns MediaResult.Ok(emptyList())
+        }
+        jellyfinOnly(lib)
+        rule.onNodeWithTag(FOLDER_ROOTS_EMPTY_TAG).assertIsDisplayed()
+        rule.onNodeWithText(context.getString(R.string.media_folders_none)).assertIsDisplayed()
+    }
+
+    @Test
+    fun `the server not reached - why, with a retry`() {
+        val lib = mockk<JellyfinLibrary>(relaxed = true) {
+            coEvery { views() } returns MediaResult.Offline
+        }
+        jellyfinOnly(lib)
+        rule.onNodeWithText(context.getString(R.string.media_problem_offline)).assertIsDisplayed()
+        rule.onNodeWithTag(FOLDER_ROOTS_EMPTY_TAG).assertDoesNotExist()
+        coEvery { lib.views() } returns MediaResult.Ok(listOf(JellyfinFolder("v1", "Filme")))
+        rule.onNodeWithText(context.getString(R.string.media_retry)).performClick()
+        rule.waitForIdle()
+        rule.onNodeWithText("Filme").assertIsDisplayed()
     }
 }

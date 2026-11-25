@@ -81,7 +81,9 @@ class TvMediaPageTest {
                 )
             }
         }
-        rule.onNodeWithText("Jellyfin · DS918+").assertExists()
+        // the kind only, never the server's name
+        rule.onNodeWithText("Jellyfin").assertExists()
+        rule.onNodeWithText("Jellyfin · DS918+").assertDoesNotExist()
         rule.onNodeWithText("Away · 18 Mbit/s").assertExists()
         rule.onNodeWithText("Continue watching").assertExists()
         rule.onNodeWithText("2 titles").assertExists()
@@ -239,8 +241,9 @@ class TvMediaPageTest {
         )
         val opened = mutableListOf<String>()
         rule.setContent { GateControlTvTheme { TvMediaPage(TvMediaScreen(ui, link = MediaLink(atHome = true)), TvMediaActions(onOpen = { opened += it.id })) } }
-        rule.onNodeWithText("Jellyfin · DS918+").assertExists()
-        rule.onNodeWithText("NAS share · \\\\nas\\filme").assertExists()
+        rule.onNodeWithText("Jellyfin").assertExists()
+        rule.onNodeWithText("NAS share").assertExists()
+        rule.onNodeWithText("NAS share · \\\\nas\\filme").assertDoesNotExist()
         // the share's two titles carry the mark, Jellyfin's none
         assertEquals(2, rule.onAllNodesWithText("NAS").fetchSemanticsNodes().size)
         rule.onNodeWithText("Kupferstadt").assertExists()
@@ -250,7 +253,7 @@ class TvMediaPageTest {
     fun `a share that cannot be read says so in the header`() {
         val ui = TvMediaUi(sources = listOf(share), shares = listOf(share), shareProblems = setOf("smb1"))
         rule.setContent { GateControlTvTheme { TvMediaPage(TvMediaScreen(ui), TvMediaActions()) } }
-        rule.onNodeWithText("NAS share · \\\\nas\\filme not reachable").assertExists()
+        rule.onNodeWithText("NAS share not reachable").assertExists()
         rule.onNodeWithText("Nothing in this library yet.").assertExists()
     }
 

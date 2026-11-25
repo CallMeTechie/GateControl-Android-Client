@@ -52,6 +52,12 @@ object MediaLogic {
         else -> "Jellyfin · ${s.name}"
     }
 
+    /**
+     * Only the kind of a source for the head of the Medien page: "Jellyfin", "NAS-Freigabe" ([shareWord]). Never its
+     * host, address or server name (those are for the list of sources).
+     */
+    fun kindLabel(s: MediaSource, shareWord: String = "NAS-Freigabe"): String = if (s.kind.share) shareWord else "Jellyfin"
+
     /** A share's address as people write it: `\\nas\filme`, `192.168.1.20:5006/filme`. */
     fun shareAddress(s: MediaSource): String = when (s.kind) {
         MediaSourceKind.SMB -> MediaAddress.parseSmb(s.address)?.unc ?: s.address

@@ -78,9 +78,11 @@ class MediaFolderViewModelTest {
     private val davLib = ShareLibrary(smb, davFs, progress, "nas")
     private val link = MutableStateFlow(MediaLink(atHome = true))
 
+    private val sources = MutableStateFlow(listOf(smb, dav))
     private val store = mockk<MediaSourceStore>(relaxed = true) {
         every { source("nas") } returns smb
         every { source("dav") } returns dav
+        every { sources } returns this@MediaFolderViewModelTest.sources
     }
     private val hub = mockk<MediaHub>(relaxed = true) {
         every { store } returns this@MediaFolderViewModelTest.store
@@ -94,6 +96,21 @@ class MediaFolderViewModelTest {
     private val pictures = mockk<MediaPictures>(relaxed = true)
 
     private fun vm() = MediaFolderViewModel(hub, requests, MediaShareProbes(dispatcher), pictures).also { models += it }
+
+    @Test
+    fun `beside Jellyfin's libraries one share is not opened by itself, its root leads back`() = runTest(dispatcher) {
+        sources.value = listOf(MediaSource("jf", MediaSourceKind.JELLYFIN, "nas-1", "http://192.168.1.20:8096"), smb, dav)
+        val vm = vm()
+        vm.refresh()
+        advanceUntilIdle()
+        assertNull(vm.ui.value.share)
+        assertTrue(vm.ui.value.withLibraries)
+        vm.openShare(smb)
+        advanceUntilIdle()
+        assertTrue(vm.ui.value.canGoUp)
+        assertTrue(vm.up())
+        assertNull(vm.ui.value.share)
+    }
 
     @Test
     fun `one share opens at once, its folders and videos with size, length, time left and the mark`() = runTest(dispatcher) {

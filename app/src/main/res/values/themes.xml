@@ -3,6 +3,9 @@
     <!-- Window background matches the Compose theme's page color (light: bg #F3F5F8). -->
     <style name="Theme.GateControl" parent="android:Theme.Material.Light.NoActionBar">
         <item name="android:windowBackground">@color/gc_window_bg</item>
+        <!-- Dark bar icons on the light page, light ones on the dark page (until the app's own design is applied). -->
+        <item name="android:windowLightStatusBar">@bool/gc_light_bars</item>
+        <item name="android:windowLightNavigationBar">@bool/gc_light_bars</item>
     </style>
 
     <!-- Invisible host for Quick Settings tile actions (TileActionActivity):
@@ -13,4 +16,5 @@
     </style>
 
     <color name="gc_window_bg">#F3F5F8</color>
+    <bool name="gc_light_bars">true</bool>
 </resources>
