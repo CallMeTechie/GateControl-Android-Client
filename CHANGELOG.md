@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.157.1] - 2026-11-25
+
+### Fixes
+- "Neu anmelden" in Medien signs in visibly and reloads the page (#300)
+
+---
+
 ## [1.157.0] - 2026-11-25
 
 ### Features
