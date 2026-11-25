@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.156.0] - 2026-11-25
+
+### Features
+- Medien-Quellen vom Server-Plugin am Handy und TV (Teilstufen A1 + A2) (#298)
+
+---
+
 ## [1.155.1] - 2026-11-25
 
 ### Fixes
