@@ -13,6 +13,10 @@
          notification, started by the person (share sheet, "Speichern") or
          by a GateDrop push. -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <!-- Medien (stage 4c, question 29 a): films and episodes of the own NAS go on with the screen locked, with the
+         controls on the lock screen (media session); the player keeps the CPU and Wi-Fi awake while it plays. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <!-- Drive photo backup: the camera's photos and videos as originals
          (with their location data), Android 14 partial access included. -->
@@ -306,6 +310,30 @@
             android:launchMode="singleTop"
             android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|keyboard|keyboardHidden|navigation|uiMode"
             android:windowSoftInputMode="adjustResize" />
+
+        <!-- Medien (stage 4c): the player of the own NAS. Turns, folds and picture-in-picture do not make it anew
+             (the player itself lives in MediaPlayerSession); its own task, so the small window comes back alone. -->
+        <activity
+            android:name=".ui.media.MediaPlayerActivity"
+            android:exported="false"
+            android:theme="@style/Theme.GateControl"
+            android:launchMode="singleTask"
+            android:taskAffinity="com.gatecontrol.android.mediaplayer"
+            android:autoRemoveFromRecents="true"
+            android:supportsPictureInPicture="true"
+            android:resizeableActivity="true"
+            android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|keyboard|keyboardHidden|navigation" />
+
+        <!-- Medien: the media session (lock screen, notification, headphone buttons, sound with the screen locked).
+             Not exported: the system reaches it through the session in its notification; started only by the app. -->
+        <service
+            android:name=".media.MediaPlaybackService"
+            android:foregroundServiceType="mediaPlayback"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="androidx.media3.session.MediaSessionService" />
+            </intent-filter>
+        </service>
 
         <service
             android:name=".service.RdpSessionService"

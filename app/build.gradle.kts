@@ -235,6 +235,8 @@ dependencies {
     implementation(libs.media3.exoplayer.hls)
     implementation(libs.media3.datasource.okhttp)
     implementation(libs.media3.ui)
+    // Medien (stage 4c): the media session (lock screen, headphone buttons, sound with the screen locked)
+    implementation(libs.media3.session)
 
     // ML Kit
     implementation(libs.mlkit.barcode)

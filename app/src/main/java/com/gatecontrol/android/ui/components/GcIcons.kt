@@ -263,5 +263,12 @@ object GcIcons {
     /** A status (a ring around a dot). */
     val StatusRing = icon("StatusRing", 2f, circle(12f, 12f, 9f), circle(12f, 12f, 3f))
 
+    /** The player of Medien (stage 4c): subtitles (a speech bubble with lines), picture-in-picture, ±10 s, next. */
+    val Captions = icon("Captions", 2f, "M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z", "M7 9h6M7 13h10")
+    val Pip = icon("Pip", 2f, rect(2f, 4f, 20f, 16f, 2f), rect(12f, 12f, 7f, 5f, 1f))
+    val Back10 = icon("Back10", 2f, "M3 12a9 9 0 1 0 3-6.7L3 8", "M3 3v5h5")
+    val Ahead10 = icon("Ahead10", 2f, "M21 12a9 9 0 1 1-3-6.7L21 8", "M21 3v5h-5")
+    val SkipNext = icon("SkipNext", 2.2f, "M6 5.5v13l9-6.5z", "M18 5.5v13")
+
     fun fromPath(name: String, path: String): ImageVector = icon(name, 2f, path)
 }

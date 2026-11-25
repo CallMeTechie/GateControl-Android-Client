@@ -69,7 +69,6 @@
     <string name="media_subtitle_burn_in">NAS brennt ein, dann immer umgerechnet</string>
     <string name="media_forced">erzwungen</string>
     <string name="media_chosen">Gewählt</string>
-    <string name="media_player_pending">Der Player kommt mit dem nächsten Update.</string>
     <string name="media_search_title">Suchen</string>
     <string name="media_search_label">In allen Quellen suchen</string>
     <string name="media_search_hint">Film oder Serie</string>

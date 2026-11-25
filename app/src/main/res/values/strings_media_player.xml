@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The player of Medien on the phone (stage 4c): upright and full screen, sheet "Sound & subtitles", info line -->
+    <string name="media_player_close">Close the player</string>
+    <string name="media_player_play">Play</string>
+    <string name="media_player_pause">Pause</string>
+    <string name="media_player_back10">10 s back</string>
+    <string name="media_player_ahead10">10 s ahead</string>
+    <string name="media_player_back_short">−10 s</string>
+    <string name="media_player_ahead_short">+10 s</string>
+    <string name="media_player_tracks">Sound &amp; subtitles</string>
+    <string name="media_player_pip">Picture-in-picture</string>
+    <string name="media_player_lock">Lock the controls</string>
+    <string name="media_player_unlock">Unlock</string>
+    <string name="media_player_locked">Controls locked</string>
+    <string name="media_player_fullscreen">Full screen</string>
+    <string name="media_player_fullscreen_exit">Leave full screen</string>
+    <string name="media_player_next">Next episode</string>
+    <string name="media_player_next_in">Next episode in %1$d s</string>
+    <string name="media_player_next_now">Play now</string>
+    <string name="media_player_next_cancel">Cancel</string>
+    <string name="media_player_up_next">Next episodes</string>
+    <string name="media_player_quality_chip">Quality: %1$s</string>
+    <string name="media_player_quality">Quality</string>
+    <string name="media_player_quality_auto">Automatic</string>
+    <string name="media_player_quality_original">Original (direct)</string>
+    <string name="media_player_quality_home">at home original</string>
+    <string name="media_player_quality_now">now %1$s</string>
+    <string name="media_player_quality_now_original">now original</string>
+    <string name="media_player_quality_fixed">%1$s · %2$s</string>
+    <string name="media_player_quality_only_original">This source always plays the original.</string>
+    <string name="media_player_audio_converts">NAS converts to AAC %1$s</string>
+    <string name="media_player_direct">direct</string>
+    <string name="media_player_net_home">At home</string>
+    <string name="media_player_net_away">Away</string>
+    <string name="media_player_net_cellular">Mobile data</string>
+    <string name="media_player_line_direct">Direct</string>
+    <string name="media_player_line_direct_video">Direct · %1$s</string>
+    <string name="media_player_line_converted">NAS converts: %1$s · %2$s</string>
+    <string name="media_player_line_converted_plain">NAS converts</string>
+    <string name="media_player_line_audio">Sound converted · %1$s</string>
+    <string name="media_player_line_share">Original · %1$s</string>
+    <string name="media_player_resumed">Resumed from %1$s</string>
+    <string name="media_player_network">The NAS cannot be reached. At home check the Wi-Fi, away the tunnel.</string>
+    <string name="media_player_signed_out">Signed out of Jellyfin. Sign in again under Media › Sources.</string>
+    <string name="media_player_failed">This video cannot be played.</string>
+    <string name="media_player_cannot_play">This phone cannot play the video’s format.</string>
+    <string name="media_player_retry">Try again</string>
+    <string name="media_player_brightness">Brightness %1$d %%</string>
+    <string name="media_player_volume">Volume %1$d %%</string>
+    <string name="media_player_mobile_title">On mobile data</string>
+    <string name="media_player_mobile_text">On mobile data GateControl plays at most %1$s, about %2$s GB an hour. The NAS converts to that. You can change the limit under Media › Sources.</string>
+    <string name="media_player_mobile_text_none">On mobile data GateControl plays without a limit. In a 5G network a film can quickly use 10 GB. You can set a limit under Media › Sources.</string>
+    <string name="media_player_mobile_ok">Got it</string>
+    <string name="media_player_episode">Season %1$d · Episode %2$d</string>
+</resources>
