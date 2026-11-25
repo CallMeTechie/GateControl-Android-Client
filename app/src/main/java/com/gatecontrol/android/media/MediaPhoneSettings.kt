@@ -32,6 +32,11 @@ class MediaPhoneSettings @Inject constructor(@ApplicationContext context: Contex
     /** "Weiterschauen auf Start" (on by default). */
     val startCard: StateFlow<Boolean> = _startCard.asStateFlow()
 
+    /** The note on the data volume (question 28) was shown once, at the first playback on mobile data. */
+    val mobileHintSeen: Boolean get() = prefs.getBoolean(KEY_MOBILE_HINT, false)
+
+    fun setMobileHintSeen() = prefs.edit { putBoolean(KEY_MOBILE_HINT, true) }
+
     fun setQuality(value: MediaQualitySetting) {
         prefs.edit { putString(KEY_QUALITY, value.wire) }
         _quality.value = value
@@ -52,5 +57,6 @@ class MediaPhoneSettings @Inject constructor(@ApplicationContext context: Contex
         const val KEY_QUALITY = "quality"
         const val KEY_MOBILE_CAP = "mobile_cap_bps"
         const val KEY_START_CARD = "start_card"
+        const val KEY_MOBILE_HINT = "mobile_hint_seen"
     }
 }

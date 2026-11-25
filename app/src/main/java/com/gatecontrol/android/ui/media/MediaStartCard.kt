@@ -25,7 +25,6 @@ import com.gatecontrol.android.ui.components.GcChevron
 import com.gatecontrol.android.ui.components.GcIconSquare
 import com.gatecontrol.android.ui.components.GcIcons
 import com.gatecontrol.android.ui.components.GcListRow
-import com.gatecontrol.android.ui.start.LocalPageSnack
 import com.gatecontrol.android.ui.theme.GateControlTheme
 
 /**
@@ -54,19 +53,13 @@ fun MediaStartCard(onDetail: (MediaTitle) -> Unit, onAll: () -> Unit, viewModel:
 
 /**
  * Takes the queues of the media pages ([com.gatecontrol.android.media.MediaPlayRequests]) and plays them
- * ([com.gatecontrol.android.media.MediaPlayback], stage 4c) or says that the player comes with the next update. Once
- * in the app's navigation.
+ * ([com.gatecontrol.android.media.MediaPlayback]: the phone's player). Once in the app's navigation.
  */
 @Composable
 fun MediaPlayHost(viewModel: MediaPlayHostViewModel = hiltViewModel()) {
     val context = LocalContext.current
-    val snack = LocalPageSnack.current
-    val pending = stringResource(R.string.media_player_pending)
     LaunchedEffect(viewModel) {
-        viewModel.requests.queues.collect { q ->
-            val playback = viewModel.requests.playback
-            if (playback.available) playback.play(context, q) else snack(pending, null)
-        }
+        viewModel.requests.queues.collect { q -> viewModel.requests.playback.play(context, q) }
     }
 }
 

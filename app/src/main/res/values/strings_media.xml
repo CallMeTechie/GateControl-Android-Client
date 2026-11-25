@@ -69,7 +69,6 @@
     <string name="media_subtitle_burn_in">The NAS burns it in, then always converted</string>
     <string name="media_forced">forced</string>
     <string name="media_chosen">Chosen</string>
-    <string name="media_player_pending">The player comes with the next update.</string>
     <string name="media_search_title">Search</string>
     <string name="media_search_label">Search all sources</string>
     <string name="media_search_hint">Film or series</string>

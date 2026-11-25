@@ -267,11 +267,11 @@ private fun TrackRow(label: String, value: String, note: String?, onClick: (() -
 }
 
 @Composable
-private fun audioName(s: MediaStream): String =
+internal fun audioName(s: MediaStream): String =
     listOfNotNull(s.language?.let { MediaTracks.languageName(it) } ?: s.title, MediaTracks.audioLabel(s)).joinToString(" · ")
 
 @Composable
-private fun subtitleName(s: MediaStream): String {
+internal fun subtitleName(s: MediaStream): String {
     val name = s.language?.let { MediaTracks.languageName(it) } ?: s.title ?: stringResource(R.string.media_subtitle)
     val codec = MediaTracks.codecLabel(s.codec) ?: "?"
     val kind = stringResource(if (s.picture) R.string.media_subtitle_picture else R.string.media_subtitle_text, codec)

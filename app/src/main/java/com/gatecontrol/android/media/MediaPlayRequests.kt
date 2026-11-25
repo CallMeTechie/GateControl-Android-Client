@@ -9,7 +9,7 @@ import javax.inject.Singleton
 /**
  * The one way the phone's media pages start playing (detail page, "Weiterschauen" in Medien and on Start, the search):
  * the queue is made here ([MediaBrowse.queue]: an episode with the rest of its series), then handed to the host in the
- * app's navigation, which gives it to [MediaPlayback] (stage 4c) or says that the player comes with the next update.
+ * app's navigation, which gives it to [MediaPlayback] (the phone's player, [MediaPlayerSession]).
  */
 @Singleton
 class MediaPlayRequests @Inject constructor(

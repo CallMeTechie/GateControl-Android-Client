@@ -25,6 +25,13 @@ internal class FakeLibrary(
     val orders = mutableListOf<MediaOrder>()
     val played = mutableListOf<Pair<String, Boolean>>()
 
+    /** What the player asked for, and the answer (null: not found). */
+    val plays = mutableListOf<MediaPlay>()
+    var plan: (MediaPlay) -> MediaPlan? = { null }
+
+    /** The progress reported: "start" / "progress" / "stop" with the position. */
+    val reports = mutableListOf<Pair<String, Long>>()
+
     override suspend fun resume(limit: Int) = MediaResult.Ok(resume.take(limit))
     override suspend fun latest(limit: Int) = MediaResult.Ok(latest.take(limit))
     override suspend fun movies(start: Int, limit: Int) = MediaResult.Ok(MediaPage(movies.drop(start).take(limit), movies.size, start))
@@ -36,10 +43,13 @@ internal class FakeLibrary(
     override suspend fun seasons(seriesId: String) = MediaResult.Ok(seasons)
     override suspend fun episodes(seriesId: String, seasonId: String?) = MediaResult.Ok(episodes.filter { seasonId == null || it.seasonId == seasonId })
     override suspend fun detail(itemId: String): MediaResult<MediaDetail> = details[itemId]?.let { MediaResult.Ok(it) } ?: MediaResult.NotFound
-    override suspend fun play(play: MediaPlay): MediaResult<MediaPlan> = MediaResult.NotFound
-    override suspend fun started(p: MediaProgress) = Unit
-    override suspend fun progress(p: MediaProgress) = Unit
-    override suspend fun stopped(p: MediaProgress) = Unit
+    override suspend fun play(play: MediaPlay): MediaResult<MediaPlan> {
+        plays += play
+        return plan(play)?.let { MediaResult.Ok(it) } ?: MediaResult.NotFound
+    }
+    override suspend fun started(p: MediaProgress) { reports += "start" to p.positionMs }
+    override suspend fun progress(p: MediaProgress) { reports += "progress" to p.positionMs }
+    override suspend fun stopped(p: MediaProgress) { reports += "stop" to p.positionMs }
     override suspend fun setPlayed(itemId: String, played: Boolean): MediaResult<Unit> {
         this.played += itemId to played
         return MediaResult.Ok(Unit)

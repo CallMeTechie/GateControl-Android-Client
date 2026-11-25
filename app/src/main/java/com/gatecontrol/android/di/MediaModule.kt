@@ -2,7 +2,7 @@ package com.gatecontrol.android.di
 
 import com.gatecontrol.android.media.MediaDevice
 import com.gatecontrol.android.media.MediaPlayback
-import com.gatecontrol.android.media.MediaPlaybackPending
+import com.gatecontrol.android.media.MediaPlayerSession
 import com.gatecontrol.android.media.PhoneMediaDevice
 import dagger.Binds
 import dagger.Module
@@ -17,5 +17,5 @@ abstract class MediaModule {
     abstract fun bindMediaDevice(impl: PhoneMediaDevice): MediaDevice
 
     @Binds
-    abstract fun bindMediaPlayback(impl: MediaPlaybackPending): MediaPlayback
+    abstract fun bindMediaPlayback(impl: MediaPlayerSession): MediaPlayback
 }

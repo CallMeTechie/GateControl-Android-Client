@@ -228,6 +228,21 @@ class ManifestSecurityTest {
     }
 
     @Test
+    fun `the media playback service is private, of type mediaPlayback, its player has picture-in-picture`() {
+        // Medien (stage 4c, question 29 a): lock screen and headphones through the session in the notification
+        val permissions = components("uses-permission").map { it.androidAttr("name") }
+        assertTrue("android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" in permissions)
+        val service = components("service").firstOrNull { it.androidAttr("name").endsWith("media.MediaPlaybackService") }
+        assertNotNull(service, "MediaPlaybackService must be declared")
+        assertEquals("false", service!!.androidAttr("exported"))
+        assertEquals("mediaPlayback", service.androidAttr("foregroundServiceType"))
+        val player = components("activity").first { it.androidAttr("name").endsWith("ui.media.MediaPlayerActivity") }
+        assertEquals("false", player.androidAttr("exported"))
+        assertEquals("true", player.androidAttr("supportsPictureInPicture"))
+        assertTrue(player.androidAttr("configChanges").contains("orientation"), "a turn does not make the player anew")
+    }
+
+    @Test
     fun `push service is a non-exported specialUse service with its subtype`() {
         val push = components("service").firstOrNull { it.androidAttr("name").endsWith("push.PushService") }
         assertNotNull(push, "PushService must be declared")
