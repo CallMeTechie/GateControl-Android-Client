@@ -3,7 +3,9 @@ package com.gatecontrol.android.di
 import com.gatecontrol.android.media.MediaDevice
 import com.gatecontrol.android.media.MediaPlayback
 import com.gatecontrol.android.media.MediaPlayerSession
+import com.gatecontrol.android.media.MediaVpn
 import com.gatecontrol.android.media.PhoneMediaDevice
+import com.gatecontrol.android.media.PhoneMediaVpn
 import dagger.Binds
 import dagger.Module
 import dagger.hilt.InstallIn
@@ -18,4 +20,8 @@ abstract class MediaModule {
 
     @Binds
     abstract fun bindMediaPlayback(impl: MediaPlayerSession): MediaPlayback
+
+    /** Away media go only through the VPN; the app starts it on opening or playing them (Netz-Regel). */
+    @Binds
+    abstract fun bindMediaVpn(impl: PhoneMediaVpn): MediaVpn
 }

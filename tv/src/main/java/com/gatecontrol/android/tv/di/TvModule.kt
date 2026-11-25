@@ -73,4 +73,13 @@ abstract class TvBindings {
     /** Medien: the shared hub asks the TV for its name in Jellyfin, its profile (HDMI sink) and the quality setting. */
     @Binds
     abstract fun bindMediaDevice(impl: TvMediaDevice): MediaDevice
+
+    /** Away media go only through the VPN; the TV starts it on opening or playing them (Netz-Regel). */
+    @Binds
+    abstract fun bindMediaVpn(impl: com.gatecontrol.android.tv.media.TvMediaVpn): com.gatecontrol.android.media.MediaVpn
+
+    /** Medien: `media.changed` (the plugin's list changed) and `media.revoke`. */
+    @Binds
+    @IntoSet
+    abstract fun bindMediaEvents(impl: com.gatecontrol.android.tv.media.TvMediaEvents): TvPluginListener
 }

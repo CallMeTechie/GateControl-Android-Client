@@ -113,6 +113,7 @@ class MediaOfflineUiTest {
         val hub = mockk<MediaHub>(relaxed = true) {
             every { this@mockk.store } returns store
             every { link } returns MutableStateFlow(MediaLink(atHome = true))
+            every { gate } returns MutableStateFlow(com.gatecontrol.android.media.MediaGate.OPEN)
             every { library(jellyfin) } returns lib
             every { caps() } returns MediaDeviceCaps.fromDecoders(listOf("video/avc", "audio/mp4a-latm"), hdrScreen = false, name = "GateControl")
         }

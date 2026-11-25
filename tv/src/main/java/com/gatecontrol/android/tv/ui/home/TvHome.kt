@@ -121,6 +121,8 @@ fun TvHome(
     messagesPage: (@Composable () -> Unit)? = null,
     /** The count at a page of the rail (Nachrichten: unread messages); none: no count. */
     badges: Map<TvDestination, Int> = emptyMap(),
+    /** Pages not in the rail now (Medien without the server's plugin tab). */
+    hidden: Set<TvDestination> = emptySet(),
     /** Asked before a page opens (the TV PIN of Einstellungen); calls `open` when it may. */
     onOpen: (TvDestination, open: () -> Unit) -> Unit = { _, open -> open() },
     /** Another part of the app asks for a page (OK on a camera of the start page). */
@@ -164,6 +166,7 @@ fun TvHome(
         Rail(
             current = current,
             badges = badges,
+            hidden = hidden,
             onSelect = { d -> if (d != current) onOpen(d) { current = d } },
             startFocus = startFocus,
             modifier = Modifier.align(Alignment.CenterStart),
@@ -171,8 +174,12 @@ fun TvHome(
     }
     // The remote starts on the rail's current page, as in the mockup.
     LaunchedEffect(Unit) { startFocus.requestFocus() }
+    // a page that leaves the rail (Medien switched off in the server) is left for the start page
+    LaunchedEffect(hidden) {
+        if (current in hidden) current = TvDestination.Start
+    }
     LaunchedEffect(requested) {
-        if (requested != null) {
+        if (requested != null && requested !in hidden) {
             current = requested
             onRequestedShown()
         }
@@ -183,6 +190,7 @@ fun TvHome(
 private fun Rail(
     current: TvDestination,
     badges: Map<TvDestination, Int>,
+    hidden: Set<TvDestination>,
     onSelect: (TvDestination) -> Unit,
     startFocus: FocusRequester,
     modifier: Modifier = Modifier,
@@ -201,6 +209,7 @@ private fun Rail(
         verticalArrangement = Arrangement.spacedBy(9.dp),
     ) {
         for (destination in TvDestination.entries) {
+            if (destination in hidden) continue
             val count = badges[destination]?.takeIf { it > 0 }
             val label = stringResource(destination.label) + (count?.let { ", $it" } ?: "")
             val shape = RoundedCornerShape(9.dp)

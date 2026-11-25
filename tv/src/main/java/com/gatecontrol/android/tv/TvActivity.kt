@@ -148,6 +148,8 @@ class TvActivity : ComponentActivity() {
     @Inject lateinit var selection: TvMediaSelection
     @Inject lateinit var frameSource: TvFrameSource
     @Inject lateinit var media: MediaHub
+
+    @Inject lateinit var mediaServerSources: com.gatecontrol.android.media.server.MediaServerSources
     @Inject lateinit var zuhauseData: TvZuhause
     @Inject lateinit var notesData: TvNotizen
     @Inject lateinit var pinUnlocks: TvPinUnlocks
@@ -171,6 +173,11 @@ class TvActivity : ComponentActivity() {
 
     private val vpnConsent = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         main.onConsent(result.resultCode == RESULT_OK)
+    }
+
+    /** Medien away: the VPN consent asked when media need the VPN (Netz-Regel). */
+    private val mediaConsent = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        mediaVm.consent(result.resultCode == RESULT_OK)
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -349,21 +356,25 @@ class TvActivity : ComponentActivity() {
         onOriginal = mediaVm::chooseOriginal,
         onPlayed = mediaVm::togglePlayed,
         onSelect = mediaVm::select,
-        onRemove = mediaVm::remove,
         onAlwaysOriginal = mediaVm::setAlwaysOriginal,
-        onAdd = mediaVm::startAdd,
-        onAddCancel = mediaVm::cancelAdd,
-        onJellyfin = mediaVm::chooseJellyfin,
-        onSearch = mediaVm::search,
-        onAddress = mediaVm::setAddress,
-        onPick = mediaVm::pick,
-        onCheck = mediaVm::check,
-        onLogin = mediaVm::toLogin,
-        onQuickConnect = mediaVm::chooseQuickConnect,
-        onPassword = mediaVm::signIn,
-        onShareKind = mediaVm::chooseShare,
-        onShareConnect = mediaVm::connectShare,
+        onReload = mediaVm::reload,
+        onRepair = mediaVm::repair,
+        onVpn = ::mediaVpn,
+        onMigrationDone = mediaVm::acknowledgeMigration,
     )
+
+    /** „VPN einschalten“ of Medien away: Android's consent first when it is missing, then the page starts the VPN itself. */
+    private fun mediaVpn() {
+        val consent = runCatching { VpnService.prepare(this) }.getOrNull()
+        if (consent == null) {
+            mediaVm.consent(true)
+            return
+        }
+        runCatching { mediaConsent.launch(consent) }.onFailure {
+            Timber.w("Medien: VPN consent could not be asked (%s)", it.javaClass.simpleName)
+            mediaVm.consent(false)
+        }
+    }
 
     @Composable
     private fun Paired() {
@@ -415,7 +426,17 @@ class TvActivity : ComponentActivity() {
         val frame by prefs.frame.collectAsStateWithLifecycle()
         val mediaUi by mediaVm.ui.collectAsStateWithLifecycle()
         val mediaDetails by mediaVm.details.collectAsStateWithLifecycle()
-        val mediaAdd by mediaVm.add.collectAsStateWithLifecycle()
+        val mediaRows by mediaVm.rows.collectAsStateWithLifecycle()
+        val mediaServer by mediaVm.server.collectAsStateWithLifecycle()
+        val mediaGate by mediaVm.gate.collectAsStateWithLifecycle()
+        // the VPN consent is asked once by itself when media need it away
+        var mediaConsentAsked by remember { mutableStateOf(false) }
+        LaunchedEffect(mediaGate) {
+            if (mediaGate == com.gatecontrol.android.media.MediaGate.CONSENT && !mediaConsentAsked) {
+                mediaConsentAsked = true
+                mediaVpn()
+            }
+        }
         val mediaLink by mediaVm.link.collectAsStateWithLifecycle()
         val mediaPictures by mediaVm.pictures.collectAsStateWithLifecycle()
         val mediaActions = remember { mediaActions(showMedia = { requested = TvDestination.Media }) }
@@ -550,7 +571,7 @@ class TvActivity : ComponentActivity() {
                         drive = if (driveOpen && TvStartRow.DRIVE !in rowsOff) recent else emptyList(),
                         drivePreviews = drivePreviews,
                         drops = if (TvStartRow.GATEDROP in rowsOff) emptyList() else dropEntries,
-                        media = if (TvStartRow.MEDIA in rowsOff) emptyList() else mediaUi.resume,
+                        media = if (TvStartRow.MEDIA in rowsOff || !mediaServer.visible) emptyList() else mediaUi.resume,
                         mediaSource = (mediaUi.source ?: mediaUi.shares.firstOrNull())?.let { MediaLogic.sourceLabel(it, getString(R.string.tv_media_share)) },
                         mediaPictures = mediaPictures,
                         home = if (TvStartRow.HOME_TODAY in rowsOff) null else homeUi.home,
@@ -628,7 +649,7 @@ class TvActivity : ComponentActivity() {
                 )
             },
             mediaPage = {
-                TvMediaPage(TvMediaScreen(mediaUi, mediaDetails.lastOrNull(), mediaAdd, mediaLink, mediaPictures), mediaActions)
+                TvMediaPage(TvMediaScreen(mediaUi, mediaDetails.lastOrNull(), mediaLink, mediaPictures, mediaRows, mediaServer, mediaGate), mediaActions)
             },
             gatedropPage = {
                 TvGateDropPage(
@@ -680,6 +701,8 @@ class TvActivity : ComponentActivity() {
                 }
             },
             badges = mapOf(TvDestination.Messages to chatsUi.unread + mailUi.unread),
+            // Medien only while the server's plugin „Medien“ gives it (the right, a source, its licence)
+            hidden = if (mediaServer.visible) emptySet() else setOf(TvDestination.Media),
             onOpen = { destination, open ->
                 val function = when (destination) {
                     TvDestination.Settings -> TvPinFunction.SETTINGS
@@ -703,15 +726,20 @@ class TvActivity : ComponentActivity() {
                     onCheckUpdate = updates::checkNow,
                     onInstallUpdate = { updates.install(this) },
                     onUnpair = {
-                        main.unpair {
-                            gatedrop.clear()
-                            media.clear()
-                            zuhauseData.clear()
-                            notesData.clear()
-                            chatsData.clear()
-                            mailData.clear()
-                            pinUnlocks.lockAll()
-                            pairing.reset()
+                        lifecycleScope.launch {
+                            // the plugin signs the TV out of Jellyfin first, while its token still counts (best effort)
+                            runCatching { kotlinx.coroutines.withTimeoutOrNull(5_000) { mediaServerSources.signOutDevice() } }
+                            main.unpair {
+                                gatedrop.clear()
+                                media.clear()
+                                mediaServerSources.clear()
+                                zuhauseData.clear()
+                                notesData.clear()
+                                chatsData.clear()
+                                mailData.clear()
+                                pinUnlocks.lockAll()
+                                pairing.reset()
+                            }
                         }
                     },
                     splitTunnel = { TvSplitTunnelOptions(split, apps, prefs::loadApps, prefs::setSplitTunnel) },

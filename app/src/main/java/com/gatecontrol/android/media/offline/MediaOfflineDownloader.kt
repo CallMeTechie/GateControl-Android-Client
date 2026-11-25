@@ -78,6 +78,7 @@ class MediaOfflineDownloader(
         val source = link.source(start.sourceId) ?: return fail(start, OfflineFailure.GONE)
         if (source.kind != MediaSourceKind.JELLYFIN) return fail(start, OfflineFailure.GONE)
         if (source.token == null) return fail(start, OfflineFailure.SIGNED_OUT)
+        if (!source.downloads) return fail(start, OfflineFailure.NOT_ALLOWED)
         val lib = link.library(source) ?: return fail(start, OfflineFailure.FAILED)
         when (val allowed = lib.canDownload()) {
             is MediaResult.Ok -> if (!allowed.value) return fail(start, OfflineFailure.NOT_ALLOWED)

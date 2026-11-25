@@ -1,0 +1,16 @@
+package com.gatecontrol.android.media.di
+
+import com.gatecontrol.android.media.server.MediaServerApi
+import com.gatecontrol.android.media.server.MediaServerHttpApi
+import dagger.Binds
+import dagger.Module
+import dagger.hilt.InstallIn
+import dagger.hilt.components.SingletonComponent
+
+/** The plugin „Medien“ through the server's plugin bridge. The app binds [com.gatecontrol.android.media.MediaVpn] itself. */
+@Module
+@InstallIn(SingletonComponent::class)
+abstract class MediaModule {
+    @Binds
+    abstract fun bindServerApi(impl: MediaServerHttpApi): MediaServerApi
+}

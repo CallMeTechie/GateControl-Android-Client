@@ -192,7 +192,7 @@ fun AppNavigation(
     val allPages by pagesViewModel.pages.collectAsStateWithLifecycle()
     val pagesAccess by pagesViewModel.access.collectAsStateWithLifecycle()
     val hideBarSetting by pagesViewModel.hideBar.collectAsStateWithLifecycle()
-    // Medien (stage 4): a tab once a source of the own NAS is set up (question 21)
+    // Medien: a tab while the server's plugin „Medien“ gives one (the right „Medien“, a source, its licence)
     val mediaAvailability: com.gatecontrol.android.ui.media.MediaAvailabilityViewModel = hiltViewModel()
     val hasMedia by mediaAvailability.any.collectAsStateWithLifecycle()
     val tabRoutes = MainTabs.routes(
@@ -358,9 +358,9 @@ fun AppNavigation(
     } else {
         null
     }
-    /** "Medien von der NAS einrichten" ([setup], no source yet) or Medien › Quellen. */
-    val openMediaSetup: (Boolean) -> Unit = { setup ->
-        navController.navigate(if (setup) MediaRoutes.add() else MediaRoutes.SOURCES) { launchSingleTop = true }
+    /** Medien › Quellen (the settings' row). */
+    val openMediaSources: () -> Unit = {
+        navController.navigate(MediaRoutes.SOURCES) { launchSingleTop = true }
     }
     val isTabSelected: (TabItem) -> Boolean = { tab ->
         navBackStackEntry?.destination?.hierarchy?.any { it.route == tab.route } == true
@@ -721,7 +721,7 @@ fun AppNavigation(
                                 onNavigateToConnection = { paneKey = SettingsPane.Connection.key },
                                 onNavigateToShared = if (plugins.gatedrop) { { paneKey = SettingsPane.Shared.key } } else null,
                                 onNavigateToDrive = if (plugins.drive) { { navController.navigate(Screen.DriveSettings.route) { launchSingleTop = true } } } else null,
-                                onNavigateToMedia = openMediaSetup,
+                                onNavigateToMedia = openMediaSources,
                                 onOpenPrinting = if (plugins.print) { { com.gatecontrol.android.ui.print.PrintInfoActivity.open(context) } } else null,
                                 onNavigateToPages = { paneKey = SettingsPane.Pages.key },
                                 onNavigateToTvPair = { navController.navigate(Screen.TvPair.create()) { launchSingleTop = true } },
@@ -758,7 +758,7 @@ fun AppNavigation(
                         onNavigateToConnection = { navController.navigate(Screen.ConnectionDetails.route) { launchSingleTop = true } },
                         onNavigateToShared = if (plugins.gatedrop) { { navController.navigate(Screen.Shared.create()) { launchSingleTop = true } } } else null,
                         onNavigateToDrive = if (plugins.drive) { { navController.navigate(Screen.DriveSettings.route) { launchSingleTop = true } } } else null,
-                        onNavigateToMedia = openMediaSetup,
+                        onNavigateToMedia = openMediaSources,
                         onOpenPrinting = if (plugins.print) { { com.gatecontrol.android.ui.print.PrintInfoActivity.open(context) } } else null,
                         onNavigateToPages = { navController.navigate(Screen.SettingsPages.route) { launchSingleTop = true } },
                         onNavigateToTvPair = { navController.navigate(Screen.TvPair.create()) { launchSingleTop = true } },
@@ -2090,8 +2090,6 @@ private class DriveNavigation(private val navController: NavHostController) {
 @Composable
 private fun DriveHome(navController: NavHostController, onShown: (Long?) -> Unit) {
     val nav = remember(navController) { DriveNavigation(navController) }
-    val mediaAvailability: com.gatecontrol.android.ui.media.MediaAvailabilityViewModel = hiltViewModel()
-    val hasMedia by mediaAvailability.any.collectAsStateWithLifecycle()
     GcContentWidth {
         com.gatecontrol.android.ui.drive.DriveHomeScreen(
             com.gatecontrol.android.ui.drive.DriveNav(
@@ -2122,7 +2120,6 @@ private fun DriveHome(navController: NavHostController, onShown: (Long?) -> Unit
                 },
                 // Mail › "Zum Ablegen" (only where Mail's routes are there)
                 mailFiling = { runCatching { navController.navigate(Screen.MailFiling.route) } },
-                mediaSetup = if (hasMedia) null else { { nav.go(MediaRoutes.add()) } },
             ),
         )
     }

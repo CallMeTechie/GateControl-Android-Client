@@ -34,6 +34,7 @@ class TvPushPresenter @Inject constructor(
     @ApplicationContext private val context: Context,
     private val door: dagger.Lazy<DoorRepository>,
     private val gatedrop: dagger.Lazy<com.gatecontrol.android.tv.gatedrop.TvGateDrop>,
+    private val mediaServer: dagger.Lazy<com.gatecontrol.android.media.server.MediaServerSources>,
 ) : PushPresenter {
 
     private val _messages = MutableSharedFlow<PushMessage>(extraBufferCapacity = 16)
@@ -75,8 +76,9 @@ class TvPushPresenter @Inject constructor(
         runCatching { nm?.cancel(notificationId) }
     }
 
-    /** GateDrop's direct-transfer offers and data pushes: handled by [TvGateDrop], never shown. */
-    override fun consume(message: PushMessage): Boolean = gatedrop.get().consume(message)
+    /** GateDrop's direct-transfer offers and data pushes: handled by [TvGateDrop], never shown; Medien's `media.revoke` too. */
+    override fun consume(message: PushMessage): Boolean = gatedrop.get().consume(message) ||
+        runCatching { mediaServer.get().consume(message.topic, message.dataJson) }.getOrDefault(false)
 
     /** When the last door message came (epoch ms; 0: none) — the hint of new chat messages waits for the doorbell. */
     @Volatile

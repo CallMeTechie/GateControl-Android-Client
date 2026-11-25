@@ -130,8 +130,6 @@ data class DriveNav(
     val memories: () -> Unit = {},
     /** One collection of it opened there (the overview's picks, Drive 1.28). */
     val memory: (DMemoryCollection) -> Unit = {},
-    /** "Medien von der NAS einrichten" at the overview's end (stage 4); null once Medien has a source. */
-    val mediaSetup: (() -> Unit)? = null,
 )
 
 /**
@@ -365,7 +363,6 @@ fun DriveHomeScreen(nav: DriveNav, viewModel: DriveHomeViewModel = hiltViewModel
                                 memories = if (me?.has(DMe.FEATURE_MEMORY_COLLECTIONS) == true) nav.memories else null,
                                 // a pick opens its collection on the page „Erinnerungen“ (without the page: „Fotos“)
                                 pick = { c -> if (me?.has(DMe.FEATURE_MEMORY_COLLECTIONS) == true) nav.memory(c) else showTab(DriveLogic.Tab.PHOTOS) },
-                                mediaSetup = nav.mediaSetup,
                             ),
                         )
                     } else if (pageTab == DriveLogic.Tab.PHOTOS) {

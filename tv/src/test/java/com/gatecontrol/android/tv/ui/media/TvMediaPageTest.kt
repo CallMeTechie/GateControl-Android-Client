@@ -16,9 +16,13 @@ import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.test.performKeyInput
 import androidx.compose.ui.test.pressKey
-import com.gatecontrol.android.media.MediaAddProblem
 import com.gatecontrol.android.media.MediaDetail
+import com.gatecontrol.android.media.MediaGate
 import com.gatecontrol.android.media.MediaLink
+import com.gatecontrol.android.media.MediaRoute
+import com.gatecontrol.android.media.server.MediaMigration
+import com.gatecontrol.android.media.server.MediaServerState
+import com.gatecontrol.android.media.server.MediaSourcesLogic
 import com.gatecontrol.android.media.MediaProblem
 import com.gatecontrol.android.media.MediaQuality
 import com.gatecontrol.android.media.MediaSource
@@ -26,11 +30,6 @@ import com.gatecontrol.android.media.MediaSourceKind
 import com.gatecontrol.android.media.MediaStream
 import com.gatecontrol.android.media.MediaTitle
 import com.gatecontrol.android.media.MediaVersion
-import com.gatecontrol.android.media.jellyfin.JellyfinQuickConnect
-import com.gatecontrol.android.media.jellyfin.JellyfinServerHint
-import com.gatecontrol.android.media.jellyfin.JellyfinServerInfo
-import com.gatecontrol.android.tv.media.TvAddStep
-import com.gatecontrol.android.tv.media.TvAddUi
 import com.gatecontrol.android.tv.media.TvDetailUi
 import com.gatecontrol.android.tv.media.TvMediaUi
 import com.gatecontrol.android.tv.ui.theme.GateControlTvTheme
@@ -41,7 +40,7 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
-/** The page "Medien" with the remote: the rows, OK plays on or opens the details, the detail page, adding a source. */
+/** The page "Medien" with the remote: the rows, OK plays on or opens the details, the detail page, the server's sources. */
 @OptIn(ExperimentalTestApi::class)
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [28], application = Application::class, qualifiers = "w960dp-h540dp-land-xhdpi")
@@ -110,15 +109,41 @@ class TvMediaPageTest {
     @Test
     fun `no source yet, a problem`() {
         var ui by mutableStateOf(TvMediaUi())
-        var adding = 0
-        rule.setContent { GateControlTvTheme { TvMediaPage(TvMediaScreen(ui), TvMediaActions(onAdd = { adding++ })) } }
-        rule.onNodeWithText("Add source").assertIsFocused()
-        rule.onRoot().performKeyInput { pressKey(Key.DirectionCenter) }
-        assertEquals(1, adding)
+        var repaired = 0
+        rule.setContent { GateControlTvTheme { TvMediaPage(TvMediaScreen(ui), TvMediaActions(onRepair = { repaired++ })) } }
+        // nothing to set up at the TV: the hint and the sources, no „Quelle hinzufügen“
+        rule.onNodeWithText("Sources are set up by the admin in the GateControl server. As soon as one is shared with you it shows here by itself.").assertExists()
+        assertEquals(0, rule.onAllNodesWithText("Add source").fetchSemanticsNodes().size)
         ui = rows.copy(problem = MediaProblem.SIGNED_OUT)
         rule.waitForIdle()
         rule.onNodeWithText("The sign-in at the media server has expired.").assertExists()
-        rule.onNodeWithText("Sign in again").assertExists()
+        rule.onNodeWithText("Sign in again").performSemanticsAction(SemanticsActions.OnClick)
+        assertEquals(1, repaired)
+    }
+
+    @Test
+    fun `away without the VPN - VPN einschalten instead of the rows`() {
+        var vpn = 0
+        rule.setContent {
+            GateControlTvTheme { TvMediaPage(TvMediaScreen(TvMediaUi(sources = listOf(source), source = source), gate = MediaGate.BLOCKED), TvMediaActions(onVpn = { vpn++ })) }
+        }
+        rule.onNodeWithText("Away, media go only through your GateControl VPN.").assertExists()
+        rule.onNodeWithText("Switch VPN on").assertIsFocused()
+        rule.onRoot().performKeyInput { pressKey(Key.DirectionCenter) }
+        assertEquals(1, vpn)
+    }
+
+    @Test
+    fun `once after the update - Media come from the server now`() {
+        var done = 0
+        val server = MediaServerState(migration = listOf(MediaMigration("old", MediaSourceKind.JELLYFIN, "Jellyfin · DS918+", "DS918+"), MediaMigration("x", MediaSourceKind.WEBDAV, "192.168.1.30/privat", null)))
+        rule.setContent { GateControlTvTheme { TvMediaPage(TvMediaScreen(rows, server = server), TvMediaActions(onMigrationDone = { done++ })) } }
+        rule.onNodeWithText("Media come from the server now").assertExists()
+        rule.onNodeWithText("taken over, same server").assertExists()
+        rule.onNodeWithText("not in the server · will be removed").assertExists()
+        rule.onNodeWithText("Got it").assertIsFocused()
+        rule.onRoot().performKeyInput { pressKey(Key.DirectionCenter) }
+        assertEquals(1, done)
     }
 
     private val version = MediaVersion(
@@ -178,40 +203,6 @@ class TvMediaPageTest {
         assertEquals(2, rule.onAllNodesWithText("Home network · fast").fetchSemanticsNodes().size)
     }
 
-    @Test
-    fun `adding a source - found in the home network, then the Quick Connect code`() {
-        var add by mutableStateOf(TvAddUi())
-        val calls = mutableListOf<String>()
-        rule.setContent {
-            GateControlTvTheme {
-                TvMediaPage(
-                    TvMediaScreen(TvMediaUi(), add = add),
-                    TvMediaActions(onJellyfin = { calls += "jellyfin" }, onPick = { calls += it.address }, onLogin = { calls += "login" }),
-                )
-            }
-        }
-        rule.onNodeWithText("Jellyfin server").assertExists()
-        rule.onNodeWithText("RECOMMENDED").assertExists()
-        rule.onNodeWithText("SMB share").assertExists()
-        rule.onRoot().performKeyInput { pressKey(Key.DirectionCenter) }
-        assertEquals(listOf("jellyfin"), calls)
-
-        val hint = JellyfinServerHint("http://192.168.1.20:8096", "srv1", "DS918+")
-        add = TvAddUi(step = TvAddStep.ADDRESS, found = listOf(hint), address = hint.address, server = JellyfinServerInfo("DS918+", "10.10.3", "srv1"), serverAddress = hint.address)
-        rule.waitForIdle()
-        rule.onNodeWithText("192.168.1.20:8096").assertExists()
-        rule.onNodeWithText("✓ Found: DS918+ (Jellyfin 10.10.3)").assertExists()
-        rule.onNodeWithText("Next").assertIsFocused()
-        rule.onRoot().performKeyInput { pressKey(Key.DirectionCenter) }
-        assertEquals("login", calls.last())
-
-        add = add.copy(step = TvAddStep.LOGIN, code = JellyfinQuickConnect("482913", "sec").code, waiting = true)
-        rule.waitForIdle()
-        rule.onNodeWithText("482 913").assertExists()
-        rule.onNodeWithText("Waiting for confirmation …").assertExists()
-        rule.onNodeWithText("The access stays encrypted on this TV.").assertExists()
-    }
-
     private val share = MediaSource("smb1", MediaSourceKind.SMB, "nas", "smb://nas/filme", userName = "kino", password = "pw")
     private val lindqvist = MediaTitle("f:l.mkv", "smb1", MediaTitle.Kind.EPISODE, "Folge 7", seriesName = "Die Lindqvist-Akten", season = 1, episode = 7, positionMs = 60_000, runtimeMs = 2_520_000, fromShare = true)
     private val kupfer = MediaTitle("f:k.mkv", "smb1", MediaTitle.Kind.MOVIE, "Kupferstadt", year = 2025, fromShare = true)
@@ -256,67 +247,24 @@ class TvMediaPageTest {
     }
 
     @Test
-    fun `adding a share - SMB and WebDAV can be chosen, NFS later, address with name and password`() {
-        var add by mutableStateOf(TvAddUi())
-        val calls = mutableListOf<String>()
-        rule.setContent {
-            GateControlTvTheme {
-                TvMediaPage(
-                    TvMediaScreen(TvMediaUi(), add = add),
-                    TvMediaActions(
-                        onShareKind = { calls += it.wire },
-                        onAddress = { calls += "address:$it" },
-                        onShareConnect = { n, p -> calls += "connect:$n:$p" },
-                    ),
-                )
-            }
-        }
-        rule.onNodeWithText("SMB share").assertExists()
-        rule.onNodeWithText("WebDAV").assertExists()
-        rule.onNodeWithText("NFS").assertExists()
-        // only NFS is still "später"
-        assertEquals(1, rule.onAllNodesWithText("later").fetchSemanticsNodes().size)
-        rule.onRoot().performKeyInput { pressKey(Key.DirectionDown) }
-        rule.onRoot().performKeyInput { pressKey(Key.DirectionCenter) }
-        assertEquals(listOf("smb"), calls)
-        rule.onRoot().performKeyInput { pressKey(Key.DirectionDown) }
-        rule.onRoot().performKeyInput { pressKey(Key.DirectionCenter) }
-        assertEquals(listOf("smb", "webdav"), calls)
-
-        add = TvAddUi(step = TvAddStep.ADDRESS, kind = MediaSourceKind.SMB, address = "\\\\nas\\filme")
-        rule.waitForIdle()
-        rule.onNodeWithText("SMB share").assertExists()
-        rule.onNodeWithText("Jellyfin server").assertDoesNotExist()
-        rule.onNodeWithText("WebDAV").assertDoesNotExist()
-        rule.onNodeWithText("e.g. \\\\nas\\movies or smb://192.168.1.20/movies. Best a NAS user of its own with read access only.").assertExists()
-        rule.onNodeWithText("Name").assertExists()
-        rule.onNodeWithText("Password").assertExists()
-        rule.onNodeWithText("Connect").assertExists()
-        rule.onNodeWithText("Connect").performSemanticsAction(SemanticsActions.OnClick)
-        assertEquals("connect::", calls.last())
-
-        add = add.copy(problem = MediaAddProblem.WRONG_LOGIN)
-        rule.waitForIdle()
-        rule.onNodeWithText("Name or password is wrong.").assertExists()
-        add = add.copy(problem = MediaAddProblem.NOT_FOUND)
-        rule.waitForIdle()
-        rule.onNodeWithText("Share or folder not found.").assertExists()
-
-        add = TvAddUi(step = TvAddStep.ADDRESS, kind = MediaSourceKind.WEBDAV, done = true, pairedWith = share)
-        rule.waitForIdle()
-        rule.onNodeWithText("Paired with \\\\nas\\filme: at home by SMB, away by WebDAV.").assertExists()
-    }
-
-    @Test
-    fun `the sources - a share shows always, without Always original`() {
-        val dav = MediaSource("dav1", MediaSourceKind.WEBDAV, "dav", "https://192.168.1.20:5006/filme", userName = "kino", pairWith = "smb1")
-        val paired = share.copy(pairWith = "dav1")
-        val ui = rows.copy(sources = listOf(source, paired, dav), shares = listOf(paired))
-        rule.setContent { GateControlTvTheme { TvSourcesPage(ui, TvMediaActions(), onClose = {}) } }
-        rule.onNodeWithText("NAS share · \\\\nas\\filme").assertExists()
-        rule.onNodeWithText("SMB · kino · at home SMB, away WebDAV").assertExists()
-        rule.onNodeWithText("WebDAV · kino · at home SMB, away WebDAV").assertExists()
-        assertEquals(3, rule.onAllNodesWithText("shown").fetchSemanticsNodes().size)
+    fun `the sources - a display with their status, Always original only for Jellyfin`() {
+        val managed = source.copy(managed = true, remoteId = "jf-1", userName = "mila", deviceName = "GateControl · Wohnzimmer-TV")
+        val smb = MediaSource("sh-1", MediaSourceKind.SMB, "Filme", "smb://192.168.1.20/filme", userName = "medien-lesen", password = "pw", managed = true, remoteId = "sh-1", pairWith = "sh-1~webdav")
+        val dav = MediaSource("sh-1~webdav", MediaSourceKind.WEBDAV, "Filme", "https://192.168.1.20:5006/filme", userName = "medien-lesen", password = "pw", managed = true, remoteId = "sh-1", pairWith = "sh-1")
+        val list = listOf(managed, smb, dav)
+        val rows = MediaSourcesLogic.rows(list, MediaServerState(known = true, tab = true), route = { MediaRoute.HOME })
+        var reloaded = 0
+        rule.setContent { GateControlTvTheme { TvSourcesPage(rows, MediaServerState(known = true, tab = true), managed, TvMediaActions(onReload = { reloaded++ }), onClose = {}) } }
+        rule.onNodeWithText("Sources are set up by the admin in the GateControl server.").assertExists()
+        rule.onNodeWithText("Jellyfin · DS918+").assertExists()
+        rule.onNodeWithText("signed in as mila · at home, straight in the home network").assertExists()
+        rule.onNodeWithText("Filme (NAS)").assertExists()
+        rule.onNodeWithText("at home SMB, away WebDAV · at home, straight in the home network").assertExists()
+        assertEquals(2, rule.onAllNodesWithText("ready").fetchSemanticsNodes().size)
         assertEquals(1, rule.onAllNodesWithText("Always original: off").fetchSemanticsNodes().size)
+        assertEquals(0, rule.onAllNodesWithText("Remove").fetchSemanticsNodes().size)
+        rule.onNodeWithText("In Jellyfin this TV is called “GateControl · Wohnzimmer-TV”.").assertExists()
+        rule.onNodeWithText("Reload").performSemanticsAction(SemanticsActions.OnClick)
+        assertEquals(1, reloaded)
     }
 }

@@ -22,7 +22,6 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.gatecontrol.android.R
 import com.gatecontrol.android.media.MediaTitle
 import com.gatecontrol.android.ui.components.GcChevron
-import com.gatecontrol.android.ui.components.GcIconSquare
 import com.gatecontrol.android.ui.components.GcIcons
 import com.gatecontrol.android.ui.components.GcListRow
 import com.gatecontrol.android.ui.theme.GateControlTheme
@@ -61,20 +60,6 @@ fun MediaPlayHost(viewModel: MediaPlayHostViewModel = hiltViewModel()) {
     LaunchedEffect(viewModel) {
         viewModel.requests.queues.collect { q -> viewModel.requests.playback.play(context, q) }
     }
-}
-
-/** "Medien von der NAS einrichten": the way in from the Drive overview and the settings before any source exists. */
-@Composable
-fun MediaSetupRow(onClick: () -> Unit, modifier: Modifier = Modifier) {
-    val x = GateControlTheme.extraColors
-    GcListRow(
-        title = stringResource(R.string.media_setup_entry),
-        description = stringResource(R.string.media_setup_entry_desc),
-        onClick = onClick,
-        modifier = modifier,
-        leading = { GcIconSquare(background = x.accentBg) { Icon(GcIcons.Film, contentDescription = null, tint = x.accentText, modifier = Modifier.size(22.dp)) } },
-        trailing = { GcChevron() },
-    )
 }
 
 /** For the setting's row: "Medien › Quellen" once a source exists. */

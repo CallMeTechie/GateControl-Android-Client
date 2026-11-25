@@ -14,7 +14,7 @@ import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 
-/** Adding a Jellyfin source: the server, Quick Connect (code on the TV), name and password. */
+/** Signing in at a Jellyfin source of the server: the server, Quick Connect (the code goes to the plugin), the header. */
 class JellyfinSignInTest {
 
     private lateinit var server: MockWebServer
@@ -83,13 +83,19 @@ class JellyfinSignInTest {
     }
 
     @Test
-    fun `name and password, a wrong password`() = runTest {
-        server.enqueue(json(authAnswer))
-        assertEquals("u1", (signIn.signIn("anna", "geheim") as MediaResult.Ok).value.userId)
-        val body = JsonParser.parseString(server.takeRequest().body.readUtf8()).asJsonObject
-        assertEquals("anna", body.get("Username").asString)
-        assertEquals("geheim", body.get("Pw").asString)
-        server.enqueue(json("", code = 401))
-        assertEquals(MediaResult.Unauthorized, signIn.signIn("anna", "falsch"))
+    fun `the header values are URL-encoded - a device name with a middle dot is not refused`() = runTest {
+        val named = JellyfinSignIn(
+            server.url("/").toString(),
+            OkHttpClient(),
+            MediaClientInfo("GateControl", "GateControl · Pixel von Müller", "gc-7Hq2mXk4Rb9tLp0sVw3N", "1.155.0"),
+        )
+        server.enqueue(json("""{"Secret":"sec","Code":"482913"}"""))
+        named.quickConnect()
+        val header = server.takeRequest().getHeader("Authorization")!!
+        assertTrue(header.contains("Device=\"GateControl%20%C2%B7%20Pixel%20von%20M%C3%BCller\""), header)
+        assertTrue(header.contains("DeviceId=\"gc-7Hq2mXk4Rb9tLp0sVw3N\""), header)
+        assertTrue(header.contains("Client=\"GateControl\""), header)
+        assertTrue(header.all { it.code < 128 }, "only ASCII in the header")
+        assertEquals("a%20b%2C%22c%22!'()~", JellyfinClient.headerValue("a b,\"c\"!'()~"))
     }
 }

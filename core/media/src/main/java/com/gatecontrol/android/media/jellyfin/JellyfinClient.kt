@@ -41,14 +41,17 @@ class JellyfinClient(
     var lastFailure: IOException? = null
         private set
 
-    /** The header of every call: who asks and, once signed in, with which access. */
+    /**
+     * The header of every call: who asks and, once signed in, with which access. The values are URL-encoded (as
+     * `encodeURIComponent`): Jellyfin decodes them, and a name with „·“ or an umlaut sent raw is refused with 400.
+     */
     fun authorization(): String {
         fun q(s: String) = s.replace("\"", "").replace(",", " ").filterNot { it.isISOControl() }
         val parts = mutableListOf(
-            "Client=\"${q(info.client)}\"",
-            "Device=\"${q(info.device)}\"",
-            "DeviceId=\"${q(info.deviceId)}\"",
-            "Version=\"${q(info.version)}\"",
+            "Client=\"${headerValue(info.client)}\"",
+            "Device=\"${headerValue(info.device)}\"",
+            "DeviceId=\"${headerValue(info.deviceId)}\"",
+            "Version=\"${headerValue(info.version)}\"",
         )
         if (token != null) parts += "Token=\"${q(token)}\""
         return "MediaBrowser " + parts.joinToString(", ")
@@ -153,8 +156,12 @@ class JellyfinClient(
         }
     }
 
-    private companion object {
-        val JSON = "application/json; charset=utf-8".toMediaType()
+    companion object {
+        private val JSON = "application/json; charset=utf-8".toMediaType()
+
+        /** A value of the `MediaBrowser` header as JavaScript's `encodeURIComponent` writes it. */
+        fun headerValue(s: String): String = java.net.URLEncoder.encode(s.filterNot { it.isISOControl() }, "UTF-8")
+            .replace("+", "%20").replace("%21", "!").replace("%27", "'").replace("%28", "(").replace("%29", ")").replace("%7E", "~")
     }
 }
 

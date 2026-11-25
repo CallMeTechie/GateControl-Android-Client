@@ -42,6 +42,7 @@ class MainActivity : FragmentActivity() {
     @Inject lateinit var licenseRepository: LicenseRepository
     @Inject lateinit var pushController: PushController
     @Inject lateinit var pluginDirectory: PluginDirectory
+    @Inject lateinit var mediaServer: com.gatecontrol.android.media.server.MediaServerSources
     @Inject lateinit var profileRepository: com.gatecontrol.android.profile.ProfileRepository
     @Inject lateinit var chatRepository: com.gatecontrol.android.chat.ChatRepository
 
@@ -116,6 +117,8 @@ class MainActivity : FragmentActivity() {
         pushController.onForeground()
         // Plugin list (Familie tab): refreshed in the foreground, at most every few minutes.
         pluginDirectory.refreshIfStale()
+        // Medien: the sources of the server (plugin „Medien“), at most every 15 minutes
+        mediaServer.refreshIfStale()
         // Own profile (avatar, favourite colour): cached, refreshed in the foreground.
         profileRepository.refreshIfStale()
         // Chats (messenger plugin): list and waiting messages, at most every few seconds.

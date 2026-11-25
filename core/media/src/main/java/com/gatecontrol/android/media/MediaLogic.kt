@@ -45,8 +45,12 @@ object MediaLogic {
     }
 
     /** "Jellyfin · DS918+", "NAS-Freigabe · \\nas\filme" ([shareWord]: the word for a share in the app's language). */
-    fun sourceLabel(s: MediaSource, shareWord: String = "NAS-Freigabe"): String =
-        if (s.kind.share) "$shareWord · ${shareAddress(s)}" else "Jellyfin · ${s.name}"
+    fun sourceLabel(s: MediaSource, shareWord: String = "NAS-Freigabe"): String = when {
+        // a share of the server by the name the admin gave it: „Filme (NAS)“
+        s.kind.share && s.managed -> "${s.name} (NAS)"
+        s.kind.share -> "$shareWord · ${shareAddress(s)}"
+        else -> "Jellyfin · ${s.name}"
+    }
 
     /** A share's address as people write it: `\\nas\filme`, `192.168.1.20:5006/filme`. */
     fun shareAddress(s: MediaSource): String = when (s.kind) {

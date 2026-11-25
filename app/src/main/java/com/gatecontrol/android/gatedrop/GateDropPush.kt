@@ -129,7 +129,7 @@ class GateDropPushHandler @Inject constructor(
     }
 }
 
-/** Realtime events of the push stream for the chats, GateDrop, Drive and Mail. */
+/** Realtime events of the push stream for the chats, GateDrop, Drive, Mail, Notizen and Medien. */
 @Singleton
 class AppPluginEventSink @Inject constructor(
     private val chats: com.gatecontrol.android.chat.ChatEventSink,
@@ -138,8 +138,13 @@ class AppPluginEventSink @Inject constructor(
     private val drive: dagger.Lazy<com.gatecontrol.android.drive.DriveLive>,
     private val mail: dagger.Lazy<com.gatecontrol.android.mail.MailRepository>,
     private val notizen: dagger.Lazy<com.gatecontrol.android.notizen.NotizenRepository>,
+    private val media: dagger.Lazy<com.gatecontrol.android.media.server.MediaServerSources>,
 ) : PluginEventSink {
     override fun onPluginEvent(plugin: String, type: String, data: JsonElement?) {
+        if (plugin == com.gatecontrol.android.media.server.MEDIA_PLUGIN) {
+            runCatching { media.get().onEvent(type, data) }
+            return
+        }
         if (plugin == GATEDROP_PLUGIN) {
             runCatching { gatedrop.get().onPluginEvent(type, data) }
             return
@@ -169,6 +174,8 @@ class AppPluginEventSink @Inject constructor(
         runCatching { mail.get().onStreamOpen() }
         // Notizen & Aufgaben: the open lists load again, ticks made offline go out
         runCatching { notizen.get().onStreamOpen() }
+        // Medien: the list of the server again (at most every few minutes)
+        runCatching { media.get().refreshIfStale() }
     }
 }
 

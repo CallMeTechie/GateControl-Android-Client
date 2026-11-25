@@ -219,12 +219,16 @@ fun MediaProblemCard(problem: MediaProblem, onRetry: () -> Unit, modifier: Modif
                     MediaProblem.OFFLINE -> R.string.media_problem_offline
                     MediaProblem.SIGNED_OUT -> R.string.media_problem_signed_out
                     MediaProblem.FAILED -> R.string.media_problem_failed
+                    MediaProblem.VPN -> R.string.media_problem_vpn
                 },
             ),
             style = MaterialTheme.typography.bodyMedium,
         )
         if (problem == MediaProblem.SIGNED_OUT && onSignIn != null) {
             GcPrimaryButton(stringResource(R.string.media_sign_in_again), onClick = onSignIn)
+        } else if (problem == MediaProblem.VPN) {
+            // away only through the VPN: the page starts it (and asks for the consent once)
+            GcPrimaryButton(stringResource(R.string.media_vpn_on), onClick = onRetry)
         } else {
             GcOutlineButton(stringResource(R.string.media_retry), onClick = onRetry)
         }

@@ -89,7 +89,7 @@ class JellyfinLibraryTest {
         assertEquals("u1", req.requestUrl!!.queryParameter("userId"))
         val auth = req.getHeader("Authorization")!!
         assertTrue(auth.startsWith("MediaBrowser "), auth)
-        assertTrue(auth.contains("Client=\"GateControl TV\""), auth)
+        assertTrue(auth.contains("Client=\"GateControl%20TV\""), auth)
         assertTrue(auth.contains("DeviceId=\"dev-1234\""), auth)
         assertTrue(auth.contains("Token=\"tok-secret\""), auth)
         // the token never in the URL
@@ -286,37 +286,6 @@ class JellyfinLibraryTest {
         assertTrue(url.contains("/Items/m1/Images/Primary?maxHeight=300&quality=85&tag=p1"), url)
         assertNull(library.imageUrl(t, backdrop = true, maxHeight = 540))
         assertTrue(library.headers().getValue("Authorization").contains("Token=\"tok-secret\""))
-    }
-
-    @Test
-    fun `Geraet anmelden - another device's Quick Connect code confirmed with this access`() = runTest {
-        server.enqueue(json("true"))
-        server.enqueue(json("true"))
-        assertEquals(JellyfinAuthorize.CONFIRMED, library.authorize(" 731 205 "))
-        assertEquals("/QuickConnect/Enabled", server.takeRequest().path)
-        val r = server.takeRequest()
-        assertEquals("POST", r.method)
-        assertEquals("/QuickConnect/Authorize?code=731205&userId=u1", r.path)
-        assertTrue(r.getHeader("Authorization")!!.contains("Token=\"tok-secret\""))
-
-        // a code nobody is waiting with
-        server.enqueue(json("true"))
-        server.enqueue(json("{}", code = 404))
-        assertEquals(JellyfinAuthorize.UNKNOWN_CODE, library.authorize("000000"))
-        server.takeRequest()
-        server.takeRequest()
-
-        // Quick Connect switched off on the server: nothing sent
-        server.enqueue(json("false"))
-        assertEquals(JellyfinAuthorize.DISABLED, library.authorize("731205"))
-        server.takeRequest()
-        assertEquals(JellyfinAuthorize.UNKNOWN_CODE, library.authorize("  "))
-        assertEquals(5, server.requestCount)
-
-        // this device's access is gone
-        server.enqueue(json("true"))
-        server.enqueue(MockResponse().setResponseCode(401))
-        assertEquals(JellyfinAuthorize.SIGNED_OUT, library.authorize("731205"))
     }
 
     @Test

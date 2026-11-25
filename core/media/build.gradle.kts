@@ -44,6 +44,8 @@ dependencies {
     implementation(libs.hilt.android)
     ksp(libs.hilt.compiler)
     implementation(libs.okhttp)
+    // The plugin „Medien“ (App-API v1) through the server's plugin bridge (ApiClient's Response<JsonObject>)
+    implementation(libs.retrofit)
     // Gson's tree (JsonObject) only: the JSON is read and written by hand, nothing for R8 to keep
     implementation(libs.retrofit.gson)
     implementation(libs.coroutines.core)

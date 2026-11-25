@@ -66,7 +66,7 @@ jobs:
           cat > app/src/debug/res/xml/recording_network_security.xml <<'XML'
           <?xml version="1.0" encoding="utf-8"?>
           <network-security-config>
-              <base-config>
+              <base-config cleartextTrafficPermitted="true">
                   <trust-anchors>
                       <certificates src="system" />
                       <certificates src="@raw/recording_ca" />
@@ -76,8 +76,8 @@ jobs:
           XML
           cat > app/src/debug/AndroidManifest.xml <<'XML'
           <?xml version="1.0" encoding="utf-8"?>
-          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-              <application android:networkSecurityConfig="@xml/recording_network_security" />
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android" xmlns:tools="http://schemas.android.com/tools">
+              <application android:networkSecurityConfig="@xml/recording_network_security" tools:replace="android:networkSecurityConfig" />
           </manifest>
           XML
           ./gradlew assembleDebug -Pgc.extraAbis=x86_64

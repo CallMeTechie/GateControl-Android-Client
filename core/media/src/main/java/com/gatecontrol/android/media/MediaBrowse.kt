@@ -5,19 +5,29 @@ import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 
-/** Why a media page shows nothing. */
-enum class MediaProblem { OFFLINE, SIGNED_OUT, FAILED }
+/**
+ * Why a page has nothing: no connection, signed out, failed; [VPN]: away, media go only through the VPN and it is off
+ * (Netz-Regel: „Unterwegs nur über VPN – VPN einschalten“).
+ */
+enum class MediaProblem { OFFLINE, SIGNED_OUT, FAILED, VPN }
 
 /** What a failed answer of [source] means for a page; a Jellyfin server's refused access is dropped. */
-internal fun mediaProblemOf(hub: MediaHub, r: MediaResult<*>, source: MediaSource): MediaProblem? = when (r) {
-    is MediaResult.Ok -> null
-    MediaResult.Offline -> MediaProblem.OFFLINE
-    MediaResult.Unauthorized -> {
-        // a share keeps its password (it may be the NAS that refuses just now); Jellyfin's token is gone
-        if (source.kind == MediaSourceKind.JELLYFIN) hub.store.dropToken(source.id)
-        MediaProblem.SIGNED_OUT
+internal fun mediaProblemOf(hub: MediaHub, r: MediaResult<*>, source: MediaSource): MediaProblem? {
+    when (r) {
+        is MediaResult.Ok -> hub.reached(source, true)
+        MediaResult.Offline -> hub.reached(source, false)
+        else -> Unit
     }
-    else -> MediaProblem.FAILED
+    return when (r) {
+        is MediaResult.Ok -> null
+        MediaResult.Offline -> if (hub.route(source) == MediaRoute.BLOCKED) MediaProblem.VPN else MediaProblem.OFFLINE
+        MediaResult.Unauthorized -> {
+            // a share keeps its password (it may be the NAS that refuses just now); Jellyfin's token is gone
+            if (source.kind == MediaSourceKind.JELLYFIN) hub.store.dropToken(source.id)
+            MediaProblem.SIGNED_OUT
+        }
+        else -> MediaProblem.FAILED
+    }
 }
 
 /**
@@ -257,6 +267,8 @@ class MediaBrowse(private val hub: MediaHub, private val onChange: () -> Unit) {
      */
     suspend fun queue(title: MediaTitle, fromStart: Boolean = false): MediaQueue? {
         val source = hub.store.source(title.sourceId) ?: return null
+        // playing: away the VPN is started first when it is needed (and off)
+        hub.prepare(source)
         val episodes = if (title.kind == MediaTitle.Kind.EPISODE && title.seriesId != null) {
             hub.library(source).episodes(title.seriesId).valueOrNull().orEmpty()
         } else {

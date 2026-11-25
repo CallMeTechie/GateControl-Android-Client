@@ -4,32 +4,29 @@ import android.graphics.Bitmap
 import android.util.LruCache
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.gatecontrol.android.media.MediaAddProblem
-import com.gatecontrol.android.media.MediaAddress
 import com.gatecontrol.android.media.MediaBrowse
 import com.gatecontrol.android.media.MediaDetail
+import com.gatecontrol.android.media.MediaGate
 import com.gatecontrol.android.media.MediaHub
+import com.gatecontrol.android.media.server.MediaServerSources
+import com.gatecontrol.android.media.server.MediaServerState
+import com.gatecontrol.android.media.server.MediaSourceStatus
+import com.gatecontrol.android.media.server.MediaSourcesLogic
 import com.gatecontrol.android.media.MediaLink
 import com.gatecontrol.android.media.MediaProblem
 import com.gatecontrol.android.media.MediaQualityOffer
-import com.gatecontrol.android.media.MediaQuickConnectEnd
-import com.gatecontrol.android.media.MediaResult
-import com.gatecontrol.android.media.MediaServerCheck
-import com.gatecontrol.android.media.MediaSetup
-import com.gatecontrol.android.media.MediaShareAdded
 import com.gatecontrol.android.media.MediaSource
-import com.gatecontrol.android.media.MediaSourceKind
 import com.gatecontrol.android.media.MediaTitle
-import com.gatecontrol.android.media.jellyfin.JellyfinAuth
-import com.gatecontrol.android.media.jellyfin.JellyfinServerHint
-import com.gatecontrol.android.media.jellyfin.JellyfinServerInfo
 import com.gatecontrol.android.tv.drive.TvMediaSelection
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -74,45 +71,31 @@ data class TvDetailUi(
     val offer: MediaQualityOffer? = null,
 )
 
-enum class TvAddStep { TYPE, ADDRESS, LOGIN }
-
-/** Medien › Quellen › Quelle hinzufügen (mockup 10). */
-data class TvAddUi(
-    val step: TvAddStep = TvAddStep.TYPE,
-    /** Jellyfin, or an SMB or WebDAV share (address, name and password on one step). */
-    val kind: MediaSourceKind = MediaSourceKind.JELLYFIN,
-    val searching: Boolean = false,
-    val found: List<JellyfinServerHint> = emptyList(),
-    val address: String = "",
-    val checking: Boolean = false,
-    val server: JellyfinServerInfo? = null,
-    /** The base URL [server] answered at. */
-    val serverAddress: String? = null,
-    val problem: MediaAddProblem? = null,
-    /** Quick Connect (code) or name and password. */
-    val quickConnect: Boolean = true,
-    val code: String? = null,
-    val waiting: Boolean = false,
-    val signingIn: Boolean = false,
-    val done: Boolean = false,
-    /** The new share was paired with this one (shown as "\\\\nas\\filme"): at home SMB, away WebDAV. */
-    val pairedWith: MediaSource? = null,
-)
-
 /**
  * The page "Medien" of the rail: the rows of the current source, a title's details (sound, subtitles, quality), the
- * sources and adding one; and "Weiterschauen" of the start page. The player is [com.gatecontrol.android.tv.ui.drive
- * .TvMediaActivity] with [TvMediaVideos]. The loading and the steps of adding are the shared [MediaBrowse] and
- * [MediaSetup]; here only what the TV's pages show.
+ * sources the admin set up in the server (a display with their status); and "Weiterschauen" of the start page. The
+ * player is [com.gatecontrol.android.tv.ui.drive.TvMediaActivity] with [TvMediaVideos]. The loading is the shared
+ * [MediaBrowse], the sources come from [MediaServerSources] (plugin „Medien“); nothing is set up on the TV.
  */
 @HiltViewModel
 class TvMediaViewModel @Inject constructor(
     private val media: MediaHub,
     private val selection: TvMediaSelection,
+    private val servers: MediaServerSources,
 ) : ViewModel() {
 
     private val browse = MediaBrowse(media) { publish() }
-    private val setup = MediaSetup(media)
+
+    /** What the server's plugin says (shown, the list's time, the takeover sheet). */
+    val server: StateFlow<MediaServerState> = servers.state
+
+    /** Away the VPN for media: „VPN wird verbunden …“, the consent, off. */
+    val gate: StateFlow<MediaGate> = media.gate
+
+    /** Medien › Quellen: each source with its status. */
+    val rows: StateFlow<List<MediaSourceStatus>> = combine(media.store.sources, servers.state, media.link) { list, state, _ ->
+        MediaSourcesLogic.rows(list, state, media::route)
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     private val _ui = MutableStateFlow(TvMediaUi())
     val ui: StateFlow<TvMediaUi> = _ui.asStateFlow()
@@ -120,9 +103,6 @@ class TvMediaViewModel @Inject constructor(
     /** The open detail pages, the top one shown (Zurück goes down). */
     private val _details = MutableStateFlow<List<TvDetailUi>>(emptyList())
     val details: StateFlow<List<TvDetailUi>> = _details.asStateFlow()
-
-    private val _add = MutableStateFlow<TvAddUi?>(null)
-    val add: StateFlow<TvAddUi?> = _add.asStateFlow()
 
     val link: StateFlow<MediaLink> = media.link
 
@@ -136,7 +116,6 @@ class TvMediaViewModel @Inject constructor(
     private val loadingPictures = HashSet<String>()
 
     private var loadJob: Job? = null
-    private var quickJob: Job? = null
 
     init {
         viewModelScope.launch {
@@ -165,6 +144,8 @@ class TvMediaViewModel @Inject constructor(
 
     /** The page (or the start page) came to the front: home or away, then the rows of the server and the shares. */
     fun refresh() {
+        // the list of the server (opening Medien), at most every half minute
+        servers.refreshSoon()
         val source = media.currentSource()
         val shares = media.shares()
         _ui.update { it.copy(source = source, shares = shares, sources = media.store.sources.value) }
@@ -177,7 +158,8 @@ class TvMediaViewModel @Inject constructor(
         browse.keepOnly(source, shares)
         loadJob = viewModelScope.launch {
             _ui.update { it.copy(loading = true, problem = null) }
-            media.check(source ?: shares.first())
+            // home or away; away the VPN is started when a source needs it (Netz-Regel)
+            media.prepare(source ?: shares.first())
             coroutineScope {
                 if (source != null) {
                     launch { browse.loadJellyfin(source)?.let { p -> _ui.update { it.copy(problem = p) } } }
@@ -194,6 +176,7 @@ class TvMediaViewModel @Inject constructor(
 
     /** Back from the player: "Weiterschauen" and the open detail page show where it is now. */
     fun onResumed() {
+        servers.refreshIfStale()
         if (media.store.sources.value.isEmpty()) return
         refreshResume()
         _details.value.lastOrNull()?.let { load(it) }
@@ -241,7 +224,7 @@ class TvMediaViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 val b = if (url != null) {
-                    media.picture(url, lib.headers(), MediaAddress.host(source.address))
+                    media.picture(url, lib.headers(), source)
                 } else {
                     lib.imageBytes(title, backdrop)?.let { media.decode(it, height) }
                 } ?: return@launch
@@ -374,160 +357,32 @@ class TvMediaViewModel @Inject constructor(
         refresh()
     }
 
-    fun remove(source: MediaSource) {
-        media.store.remove(source.id)
-        media.forget(source.id)
-        refresh()
-    }
-
     fun setAlwaysOriginal(source: MediaSource, on: Boolean) = media.store.setAlwaysOriginal(source.id, on)
 
-    /** "Quelle hinzufügen"; for a source signed out by its server ("Neu anmelden") straight at its address. */
-    fun startAdd() {
-        val signedOut = media.currentSource()?.takeIf { it.token == null }
-        if (signedOut == null) {
-            _add.value = TvAddUi()
-            return
-        }
-        _add.value = TvAddUi(step = TvAddStep.ADDRESS, address = signedOut.address)
-        check()
-    }
-
-    fun cancelAdd() {
-        quickJob?.cancel()
-        _add.value = null
-    }
-
-    /** Step 1: Jellyfin; the search in the home network starts. */
-    fun chooseJellyfin() {
-        _add.update { it?.copy(step = TvAddStep.ADDRESS, kind = MediaSourceKind.JELLYFIN) }
-        search()
-    }
-
-    /** Step 1: an SMB or WebDAV share; address, name and password follow on one step. */
-    fun chooseShare(kind: MediaSourceKind) {
-        if (!kind.share) return chooseJellyfin()
-        quickJob?.cancel()
-        _add.update { it?.copy(step = TvAddStep.ADDRESS, kind = kind, address = "", problem = null, server = null, serverAddress = null) }
-    }
-
-    /**
-     * "Verbinden" of a share: the address as typed (`\\nas\filme`, `smb://…`, `https://…:5006/filme`), the root
-     * read once with the name and password, then kept (encrypted). The same folder as SMB and as WebDAV is paired.
-     */
-    fun connectShare(name: String, password: String) {
-        val a = _add.value ?: return
-        if (MediaAddress.normalizeShare(a.kind, a.address) == null) {
-            _add.update { it?.copy(problem = MediaAddProblem.BAD_ADDRESS) }
-            return
-        }
-        _add.update { it?.copy(signingIn = true, problem = null) }
+    /** „Neu laden“ of Medien › Quellen: the server's list, then the sign-in where it is missing. */
+    fun reload() {
         viewModelScope.launch {
-            when (val r = setup.connectShare(a.kind, a.address, name, password)) {
-                is MediaShareAdded.Problem -> _add.update { it?.copy(signingIn = false, problem = r.problem) }
-                is MediaShareAdded.Saved -> {
-                    _add.update { it?.copy(signingIn = false, done = true, pairedWith = r.partner) }
-                    refresh()
-                }
-            }
+            servers.refresh(force = true)
+            servers.repair()
         }
     }
 
-    fun search() {
-        _add.update { it?.copy(searching = true) }
-        viewModelScope.launch {
-            val found = setup.search()
-            _add.update { a ->
-                a?.copy(searching = false, found = found, address = a.address.ifEmpty { found.firstOrNull()?.address.orEmpty() })
-            }
-            if (found.size == 1 && _add.value?.server == null) check()
-        }
-    }
-
-    fun setAddress(text: String) = _add.update { it?.copy(address = text, server = null, serverAddress = null, problem = null) }
-
-    fun pick(hint: JellyfinServerHint) {
-        setAddress(hint.address)
-        check()
-    }
-
-    /** Step 2: is a Jellyfin server at the address? */
-    fun check() {
-        val a = _add.value ?: return
-        if (MediaAddress.normalize(a.address) == null) {
-            _add.update { it?.copy(problem = MediaAddProblem.BAD_ADDRESS) }
-            return
-        }
-        _add.update { it?.copy(checking = true, problem = null) }
-        viewModelScope.launch {
-            when (val r = setup.check(a.address)) {
-                is MediaServerCheck.Found -> _add.update { it?.copy(checking = false, server = r.server, serverAddress = r.address, problem = null) }
-                is MediaServerCheck.Problem -> _add.update {
-                    if (r.problem == MediaAddProblem.OLD_SERVER) {
-                        it?.copy(checking = false, server = null, serverAddress = null, problem = r.problem)
-                    } else {
-                        it?.copy(checking = false, problem = r.problem)
-                    }
-                }
-            }
-        }
-    }
-
-    /** On to step 3 ("Weiter" after the address was found). */
-    fun toLogin() {
-        if (_add.value?.server == null) return
-        _add.update { it?.copy(step = TvAddStep.LOGIN, problem = null) }
-        if (_add.value?.quickConnect == true) startQuickConnect()
-    }
-
-    fun chooseQuickConnect(on: Boolean) {
-        quickJob?.cancel()
-        _add.update { it?.copy(quickConnect = on, code = null, waiting = false, problem = null) }
-        if (on) startQuickConnect()
-    }
-
-    /** Quick Connect: the code on the TV, then waiting until it is confirmed in Jellyfin (on the phone or PC). */
-    fun startQuickConnect() {
-        val base = _add.value?.serverAddress ?: return
-        quickJob?.cancel()
-        quickJob = viewModelScope.launch {
-            val end = setup.quickConnect(
-                base,
-                onCode = { code -> _add.update { it?.copy(code = code, waiting = code != null) } },
-                onSigningIn = { _add.update { it?.copy(signingIn = true, waiting = false) } },
-            )
-            when (end) {
-                is MediaQuickConnectEnd.SignedIn -> saved(end.auth)
-                is MediaQuickConnectEnd.Problem -> _add.update {
-                    if (end.problem == MediaAddProblem.NO_QUICK_CONNECT) {
-                        it?.copy(problem = end.problem, quickConnect = false)
-                    } else {
-                        it?.copy(waiting = false, code = null, problem = end.problem)
-                    }
-                }
-            }
-        }
-    }
-
-    /** Name and password: sent once, never kept. */
-    fun signIn(name: String, password: String) {
-        val base = _add.value?.serverAddress ?: return
-        if (name.isBlank()) return
-        _add.update { it?.copy(signingIn = true, problem = null) }
-        viewModelScope.launch { saved(setup.signIn(base, name, password)) }
-    }
-
-    private fun saved(r: MediaResult<JellyfinAuth>) {
-        val a = _add.value ?: return
-        val auth = r.valueOrNull()
-        if (auth == null) {
-            _add.update { it?.copy(signingIn = false, problem = setup.problemOf(r)) }
-            return
-        }
-        setup.saveJellyfin(auth, a.server, a.serverAddress ?: return)
-        _add.update { it?.copy(signingIn = false, done = true) }
+    /** Jellyfin refused the TV's access: signed in again by itself (the plugin's Quick Connect, no code on the screen). */
+    fun repair() {
+        servers.repair()
         refresh()
     }
+
+    /** Android's VPN consent was asked: given → the VPN starts and the page loads. */
+    fun consent(granted: Boolean) {
+        viewModelScope.launch {
+            media.consent(granted)
+            if (granted) refresh()
+        }
+    }
+
+    /** „Verstanden“ of „Medien kommen jetzt vom Server“. */
+    fun acknowledgeMigration() = servers.acknowledgeMigration()
 
     private companion object {
         const val PICTURE_CACHE_BYTES = 24 * 1024 * 1024

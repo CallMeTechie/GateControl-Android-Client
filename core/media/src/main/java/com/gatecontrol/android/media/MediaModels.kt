@@ -46,12 +46,41 @@ data class MediaSource(
      * one; at home the app takes SMB, away WebDAV.
      */
     val pairWith: String? = null,
+    /**
+     * Set up by the admin in the server (plugin „Medien“, `v1/sources`): shown, never edited on the device. False: a
+     * source set up on this device before the plugin (taken over or removed once, question 33 a).
+     */
+    val managed: Boolean = false,
+    /** The plugin's id of the source (`jf-1`, `sh-1`), the same on every device; null for a source of the device. */
+    val remoteId: String? = null,
+    /** Jellyfin: the `DeviceId` and the device name the plugin gave this device (`gc-…`, „GateControl · Pixel von Mila“). */
+    val deviceId: String? = null,
+    val deviceName: String? = null,
+    /** Jellyfin: the user the plugin linked this person with (`user.id`); a token of another user is signed in again. */
+    val linkedUserId: String? = null,
+    val linkedUserName: String? = null,
+    /**
+     * Away without VPN (the admin's exception `away.mode = "direct"`): the HTTPS address for away (Jellyfin's base, a
+     * share's WebDAV base). Null: away only through the VPN.
+     */
+    val awayAddress: String? = null,
+    /** WebDAV: the SHA-256 of the NAS's certificate (hex), pinned at the home address (self-signed in DSM). */
+    val certSha256: String? = null,
+    /** A share: the plugin's version of its password; newer than the one kept → fetched again. */
+    val secretRev: Int = 0,
+    /** The plugin allows downloads for offline of this source (`downloads`). */
+    val downloads: Boolean = true,
+    /** What the plugin says is missing (`no_mapping`, `quick_connect_off`); null: nothing. */
+    val problem: String? = null,
 ) {
     /** Can be asked: a Jellyfin source signed in, a share always (its password goes along on each connection). */
     val ready: Boolean get() = kind.share || token != null
 
+    /** Away this source may go straight to [awayAddress] (HTTPS), without the VPN. */
+    val awayDirect: Boolean get() = awayAddress != null
+
     override fun toString(): String =
-        "MediaSource($id, ${kind.wire}, $name, token=${if (token != null) "set" else "none"}, password=${if (password != null) "set" else "none"})"
+        "MediaSource($id, ${kind.wire}, $name, token=${if (token != null) "set" else "none"}, password=${if (password != null) "set" else "none"}, managed=$managed)"
 }
 
 /** A film, a series, a season, an episode or another video of a source. */

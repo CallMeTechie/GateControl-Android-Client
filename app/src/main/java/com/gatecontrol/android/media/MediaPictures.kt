@@ -40,7 +40,7 @@ class MediaPictures @Inject constructor(private val hub: MediaHub, private val o
             kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { offline.picture(title, backdrop) }?.let { bytes -> hub.decode(bytes, height)?.let { b -> cache.put(key, b); return@withLock b } }
             val url = lib.imageUrl(title, backdrop, height)
             val b = if (url != null) {
-                hub.picture(url, lib.headers(), MediaAddress.host(source.address))
+                hub.picture(url, lib.headers(), source)
             } else {
                 lib.imageBytes(title, backdrop)?.let { hub.decode(it, height) }
             }
