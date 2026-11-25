@@ -7,6 +7,7 @@ import com.gatecontrol.android.media.MediaPlan
 import com.gatecontrol.android.media.MediaPlay
 import com.gatecontrol.android.media.MediaProgress
 import com.gatecontrol.android.media.MediaResult
+import com.gatecontrol.android.media.MediaSideSubtitle
 import com.gatecontrol.android.media.MediaSource
 import com.gatecontrol.android.media.MediaTitle
 import com.gatecontrol.android.media.MediaVersion
@@ -121,13 +122,79 @@ class ShareLibrary(
 
     override suspend fun detail(itemId: String): MediaResult<MediaDetail> {
         val r = index()
-        if (r !is MediaResult.Ok) return r.map { error("unreachable") }
+        if (r !is MediaResult.Ok) {
+            // a file of the page "Ordner" is found by its folder too
+            val loose = looseFile(itemId) ?: return r.map { error("unreachable") }
+            return MediaResult.Ok(MediaDetail(withFileProgress(loose.title, progressAll()), listOf(version(loose.entry.path, loose.title))))
+        }
         val i = r.value
         val all = progressAll()
         val file = i.file(itemId)
         if (file != null) return MediaResult.Ok(MediaDetail(withProgress(file, all, i), listOf(version(ShareIndex.pathOf(itemId)!!, file))))
+        looseFile(itemId)?.let { return MediaResult.Ok(MediaDetail(withFileProgress(it.title, all), listOf(version(it.entry.path, it.title)))) }
         val series = i.seriesTitle(itemId) ?: return MediaResult.NotFound
         return MediaResult.Ok(MediaDetail(withProgress(series, all, i), emptyList()))
+    }
+
+    /**
+     * A video the index does not have (deeper than it searches, in "Extras", added since): from its folder, as the
+     * page "Ordner" shows it. Null when it is not there (or the folder cannot be read).
+     */
+    private suspend fun looseFile(itemId: String): ShareFolderVideo? {
+        val path = ShareIndex.pathOf(itemId)?.let(SharePaths::clean)?.takeIf { it.isNotEmpty() } ?: return null
+        val dir = SharePaths.parent(path)
+        val entries = fs.list(dir).valueOrNull() ?: return null
+        return ShareFolders.build(source.id, dir, entries, seasonName).videos.firstOrNull { it.entry.path == path }
+    }
+
+    /** [t] (a file) with where it was left. */
+    private fun withFileProgress(t: MediaTitle, all: Map<String, ShareProgress>): MediaTitle {
+        val path = ShareIndex.pathOf(t.id) ?: return t
+        val p = all[key(path)] ?: return t
+        return t.copy(
+            positionMs = if (p.played) 0 else p.positionMs,
+            runtimeMs = p.durationMs.takeIf { it > 0 } ?: t.runtimeMs,
+            played = p.played,
+            playedAt = p.at.takeIf { it > 0 },
+        )
+    }
+
+    /**
+     * Folder [dir] of the share for the page "Ordner": its sub-folders and videos (title from the file name, the
+     * picture beside it, the progress kept on the phone, subtitle files beside it).
+     */
+    suspend fun folder(dir: String): MediaResult<ShareFolder> {
+        val clean = SharePaths.clean(dir) ?: return MediaResult.NotFound
+        return fs.list(clean).map { entries ->
+            val f = ShareFolders.build(source.id, clean, entries, seasonName)
+            val all = progressAll()
+            f.copy(videos = f.videos.map { v -> v.copy(title = withFileProgress(v.title, all)) })
+        }
+    }
+
+    /** How many folders and videos [dir] holds (the row of a folder); null when it cannot be read. */
+    suspend fun count(dir: String): ShareFolderCount? =
+        SharePaths.clean(dir)?.let { fs.list(it).valueOrNull() }?.let(ShareFolders::count)
+
+    /**
+     * "Im Ordner suchen": the videos below [dir] (all folders down, from the index) whose file name holds [text], at
+     * most [limit], with their progress.
+     */
+    suspend fun searchBelow(dir: String, text: String, limit: Int = 60): MediaResult<List<ShareFolderVideo>> {
+        val clean = SharePaths.clean(dir) ?: return MediaResult.NotFound
+        val prefix = if (clean.isEmpty()) "" else "$clean/"
+        return withIndex { i, all ->
+            i.videos.asSequence()
+                .filter { it.path.startsWith(prefix) && ShareFolders.matches(SharePaths.name(it.path), text) }
+                .mapNotNull { v ->
+                    i.file(ShareIndex.fileId(v.path))?.let { t ->
+                        ShareFolderVideo(ShareEntry(SharePaths.name(v.path), v.path, directory = false, size = v.size, modifiedAt = v.modifiedAt), withFileProgress(t, all))
+                    }
+                }
+                .sortedBy { ShareNames.sortKey(it.entry.name) }
+                .take(limit)
+                .toList()
+        }
     }
 
     /** The file as it is: the container by its extension, the length once the player told it. */
@@ -138,11 +205,20 @@ class ShareLibrary(
         supportsDirectPlay = true,
     )
 
-    /** Always the original, straight from the share (there is no server that could convert). */
+    /**
+     * Always the original, straight from the share (there is no server that could convert), with the subtitle files
+     * beside it (`Name.de.srt`): offered in the player, not switched on by themselves.
+     */
     override suspend fun play(play: MediaPlay): MediaResult<MediaPlan> {
         val path = ShareIndex.pathOf(play.itemId) ?: return MediaResult.NotFound
         val clean = SharePaths.clean(path)?.takeIf { it.isNotEmpty() } ?: return MediaResult.NotFound
-        val title = (index().valueOrNull()?.file(play.itemId)) ?: return MediaResult.NotFound
+        val dir = SharePaths.parent(clean)
+        val entries = fs.list(dir).valueOrNull()
+        val title = index().valueOrNull()?.file(play.itemId)
+            ?: entries?.let { e -> ShareFolders.build(source.id, dir, e, seasonName).videos.firstOrNull { it.entry.path == clean }?.title }
+            ?: return MediaResult.NotFound
+        val entry = entries?.firstOrNull { it.path == clean }
+        val subtitles = entry?.let { ShareFolders.subtitlesOf(it, entries) }.orEmpty()
         return MediaResult.Ok(
             MediaPlan(
                 itemId = play.itemId,
@@ -153,6 +229,17 @@ class ShareLibrary(
                 hls = false,
                 audioIndex = null,
                 subtitleIndex = null,
+                sideSubtitles = subtitles.mapIndexed { n, s ->
+                    MediaSideSubtitle(
+                        index = SIDE_SUBTITLE_BASE + n,
+                        url = ShareUri.of(s.path),
+                        mime = s.mime,
+                        language = s.language,
+                        label = if (s.language == null) ShareNames.extension(s.path).uppercase(java.util.Locale.ROOT) else null,
+                        default = false,
+                        forced = s.forced,
+                    )
+                },
             ),
         )
     }
@@ -215,5 +302,8 @@ class ShareLibrary(
         const val MIN_RESUME_MS = 30_000L
 
         const val MAX_PICTURE_BYTES = 4 * 1024 * 1024
+
+        /** The indexes the subtitle files beside a video get (the file's own tracks are counted by the player). */
+        const val SIDE_SUBTITLE_BASE = 1_000
     }
 }

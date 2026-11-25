@@ -44,8 +44,6 @@
     <string name="media_filter_unplayed">Ungesehen</string>
     <string name="media_filter_genre">Genre</string>
     <string name="media_filter_all_genres">Alle Genres</string>
-    <string name="media_folders_soon_title">NAS-Ordner kommen bald</string>
-    <string name="media_folders_soon_text">Hier stehen bald die Ordner deiner SMB- und WebDAV-Freigaben, auch was nicht in Jellyfin ist. Filme und Serien der Freigaben findest du schon jetzt in der Übersicht, unter Filme und Serien.</string>
     <string name="media_problem_offline">Der Medienserver ist nicht erreichbar. Zu Hause das WLAN prüfen, unterwegs den Tunnel.</string>
     <string name="media_problem_failed">Die Medien konnten nicht geladen werden.</string>
     <string name="media_problem_signed_out">Die Anmeldung am Medienserver ist abgelaufen.</string>
@@ -164,5 +162,29 @@
     <plurals name="media_sources_count">
         <item quantity="one">%d Quelle</item>
         <item quantity="other">%d Quellen</item>
+    </plurals>
+    <!-- "Ordner" (stage 4d): the shares' folders and files -->
+    <string name="media_way_smb_home">SMB · Zuhause</string>
+    <string name="media_way_smb_away">SMB · unterwegs</string>
+    <string name="media_way_webdav_home">WebDAV · Zuhause</string>
+    <string name="media_way_webdav_away">WebDAV · unterwegs</string>
+    <string name="media_folder_all_shares">Alle Freigaben</string>
+    <string name="media_folder_search">Im Ordner suchen</string>
+    <string name="media_folder_search_hint">Dateiname, auch in Unterordnern</string>
+    <string name="media_folder_empty">In diesem Ordner sind keine Videos.</string>
+    <string name="media_folder_more">Mehr</string>
+    <string name="media_folder_subtitles">Untertitel: %1$s</string>
+    <string name="media_video_unplayable">Bild %1$s: am Handy kein Bild</string>
+    <string name="media_folder_note_pair_home">Unterwegs nimmt die App dieselbe Freigabe per WebDAV (robuster über den Tunnel).</string>
+    <string name="media_folder_note_pair_away">Zu Hause nimmt die App dieselbe Freigabe per SMB (schneller im Heimnetz).</string>
+    <string name="media_folder_note_smb_only">Für unterwegs dieselbe Freigabe auch als WebDAV einrichten: robuster über den Tunnel.</string>
+    <string name="media_folder_note_original">Freigaben spielen immer das Original, umgerechnet wird nur bei Jellyfin.</string>
+    <plurals name="media_folder_videos">
+        <item quantity="one">%d Video</item>
+        <item quantity="other">%d Videos</item>
+    </plurals>
+    <plurals name="media_folder_folders">
+        <item quantity="one">%d Ordner</item>
+        <item quantity="other">%d Ordner</item>
     </plurals>
 </resources>

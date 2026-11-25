@@ -44,8 +44,6 @@
     <string name="media_filter_unplayed">Unwatched</string>
     <string name="media_filter_genre">Genre</string>
     <string name="media_filter_all_genres">All genres</string>
-    <string name="media_folders_soon_title">NAS folders are coming soon</string>
-    <string name="media_folders_soon_text">The folders of your SMB and WebDAV shares, including what is not in Jellyfin, will show here soon. The shares\' films and series are already in the overview and under Movies and Series.</string>
     <string name="media_problem_offline">The media server cannot be reached. At home check the Wi-Fi, away the tunnel.</string>
     <string name="media_problem_failed">The media could not be loaded.</string>
     <string name="media_problem_signed_out">The sign-in to the media server has expired.</string>
@@ -164,5 +162,29 @@
     <plurals name="media_sources_count">
         <item quantity="one">%d source</item>
         <item quantity="other">%d sources</item>
+    </plurals>
+    <!-- "Ordner" (stage 4d): the shares' folders and files -->
+    <string name="media_way_smb_home">SMB · at home</string>
+    <string name="media_way_smb_away">SMB · away</string>
+    <string name="media_way_webdav_home">WebDAV · at home</string>
+    <string name="media_way_webdav_away">WebDAV · away</string>
+    <string name="media_folder_all_shares">All shares</string>
+    <string name="media_folder_search">Search in folder</string>
+    <string name="media_folder_search_hint">File name, also in sub-folders</string>
+    <string name="media_folder_empty">There are no videos in this folder.</string>
+    <string name="media_folder_more">More</string>
+    <string name="media_folder_subtitles">Subtitles: %1$s</string>
+    <string name="media_video_unplayable">Picture %1$s: no picture on this phone</string>
+    <string name="media_folder_note_pair_home">Away, the app takes the same share by WebDAV (sturdier through the tunnel).</string>
+    <string name="media_folder_note_pair_away">At home, the app takes the same share by SMB (faster in the home network).</string>
+    <string name="media_folder_note_smb_only">For away, set up the same share as WebDAV too: sturdier through the tunnel.</string>
+    <string name="media_folder_note_original">Shares always play the original; only Jellyfin converts.</string>
+    <plurals name="media_folder_videos">
+        <item quantity="one">%d video</item>
+        <item quantity="other">%d videos</item>
+    </plurals>
+    <plurals name="media_folder_folders">
+        <item quantity="one">%d folder</item>
+        <item quantity="other">%d folders</item>
     </plurals>
 </resources>
