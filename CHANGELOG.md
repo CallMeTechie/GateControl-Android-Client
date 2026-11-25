@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.155.0] - 2026-11-25
+
+### Features
+- Download für offline in Medien am Handy (Frage 22 a) (#295)
+
+---
+
 ## [1.154.0] - 2026-11-25
 
 ### Features

@@ -17,6 +17,8 @@ import androidx.media3.datasource.DataSource
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import com.gatecontrol.android.drive.DriveMediaLogic
+import com.gatecontrol.android.media.offline.MediaOffline
+import com.gatecontrol.android.media.offline.MediaOfflineDataSource
 import com.gatecontrol.android.media.player.MediaPlayers
 import com.gatecontrol.android.media.player.PlaybackReporter
 import com.gatecontrol.android.media.player.PlayerTrack
@@ -59,6 +61,8 @@ data class MediaPlayerUi(
     val mobileHint: Boolean = false,
     /** The video has ended (and nothing follows). */
     val ended: Boolean = false,
+    /** Played from a download on the phone (question 22 a): its file's own tracks in the sheet. */
+    val offline: Boolean = false,
 ) {
     val title: MediaTitle get() = queue.items[at]
     val hasNext: Boolean get() = at < queue.items.size - 1
@@ -79,6 +83,7 @@ class MediaPlayerSession @Inject constructor(
     private val hub: MediaHub,
     private val settings: MediaPhoneSettings,
     private val network: MediaNetwork,
+    private val offline: MediaOffline,
 ) : MediaPlayback {
 
     private val main = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
@@ -113,7 +118,7 @@ class MediaPlayerSession @Inject constructor(
     /** Plays [queue] from its first title (another playback ends first). */
     fun start(queue: MediaQueue) {
         stopPlayer()
-        val v = PhoneMediaVideos(queue, hub, quality = { settings.quality.value }, setQuality = hub::setQuality, mobileCap = { settings.mobileCap.value }, cellular = network::cellular)
+        val v = PhoneMediaVideos(queue, hub, quality = { settings.quality.value }, setQuality = hub::setQuality, mobileCap = { settings.mobileCap.value }, cellular = network::cellular, offline = offline)
         videos = v
         val source = v.source
         _ui.value = MediaPlayerUi(queue, queue.at, sourceName = source?.name, share = v.share)
@@ -138,7 +143,8 @@ class MediaPlayerSession @Inject constructor(
      * network with the screen off.
      */
     private fun build(source: MediaSource): ExoPlayer {
-        val factory = DataSource.Factory { MediaPlayers.dataSource(hub, source).createDataSource() }
+        // a download is read from the phone (decrypted chunk by chunk), the rest from the NAS
+        val factory = DataSource.Factory { MediaOfflineDataSource(offline.store::open, MediaPlayers.dataSource(hub, source).createDataSource()) }
         val attrs = AudioAttributes.Builder().setUsage(C.USAGE_MEDIA).setContentType(C.AUDIO_CONTENT_TYPE_MOVIE).build()
         return ExoPlayer.Builder(app)
             .setMediaSourceFactory(DefaultMediaSourceFactory(factory))
@@ -256,6 +262,7 @@ class MediaPlayerSession @Inject constructor(
                         it?.copy(
                             line = r.line,
                             choices = v.choices(i),
+                            offline = r.offline,
                             resumedAt = start?.takeIf { from == null },
                             mobileHint = hint,
                         )

@@ -192,6 +192,7 @@ object JellyfinJson {
             transcodingUrl = o.str("TranscodingUrl"),
             transcodingProtocol = o.str("TranscodingSubProtocol")?.lowercase(),
             transcodeReasons = reasons(o.str("TranscodingUrl")),
+            size = o.long("Size")?.takeIf { it > 0 },
         )
     }
 

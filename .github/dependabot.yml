@@ -8,6 +8,11 @@ updates:
     open-pull-requests-limit: 10
     labels:
       - "dependencies"
+    ignore:
+      # The android-all-instrumented jars are picked per Android SDK level that
+      # Robolectric emulates (:app on 34, :tv on 28), not "newer is better".
+      # Bumping them would silently test against another Android version.
+      - dependency-name: "org.robolectric:android-all-instrumented"
     groups:
       gradle:
         update-types:

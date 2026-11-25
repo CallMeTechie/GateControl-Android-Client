@@ -1,5 +1,7 @@
 package com.gatecontrol.android.media
 
+import com.gatecontrol.android.media.offline.MediaOffline
+import com.gatecontrol.android.media.offline.OfflineItem
 import com.gatecontrol.android.media.player.PlaybackEvent
 
 /** What opening a video of the queue gave. */
@@ -17,6 +19,8 @@ sealed interface PhoneOpen {
         val textOrdinal: Int? = null,
         val textOff: Boolean = false,
         val shareChoice: MediaTrackChoice? = null,
+        /** A download on the phone (question 22 a): its file's own tracks, the progress kept here first. */
+        val offline: Boolean = false,
     ) : PhoneOpen
 
     data object Offline : PhoneOpen
@@ -37,6 +41,8 @@ class PhoneMediaVideos(
     private val setQuality: (MediaQualitySetting) -> Unit,
     private val mobileCap: () -> Long?,
     private val cellular: () -> Boolean,
+    /** The downloads: a ready one plays from the phone, also without a connection. */
+    private val offline: MediaOffline? = null,
 ) {
     val source: MediaSource? = hub.store.source(queue.sourceId)
 
@@ -51,6 +57,9 @@ class PhoneMediaVideos(
 
     private val plans = HashMap<Int, MediaPlan>()
     private val lines = HashMap<Int, MediaPlayLine>()
+
+    /** The videos played from a download. */
+    private val local = HashMap<Int, OfflineItem>()
 
     /** Chosen in the player (or on the detail page for the first): per index, the sound and subtitle. */
     private val audio = HashMap<Int, Int?>()
@@ -82,6 +91,7 @@ class PhoneMediaVideos(
         val src = source ?: return PhoneOpen.Failed
         val lib = library ?: return PhoneOpen.Failed
         val title = items[i]
+        offline?.ready(src.id, title.id)?.let { return openLocal(i, it, from) }
         hub.check(src)
         val link = hub.link.value
         val cell = cellular()
@@ -135,9 +145,39 @@ class PhoneMediaVideos(
         )
     }
 
-    /** The sheet of a Jellyfin title (a share: null, its file's own tracks are shown). */
+    /**
+     * Video [i] from its download: the file as it is, the sound and subtitle chosen on the detail page by their place
+     * (the original keeps all its tracks), else the series' languages.
+     */
+    private fun openLocal(i: Int, item: OfflineItem, from: Long?): PhoneOpen {
+        val o = offline ?: return PhoneOpen.Failed
+        val plan = o.localPlan(item)
+        plans[i] = plan
+        local[i] = item
+        val line = MediaPlayLine(net = null, offline = item.quality.label, video = MediaQuality.videoLabel(plan.version.video))
+        lines[i] = line
+        val start = from ?: if (i == queue.at && queue.startMs != null) queue.startMs else o.startAt(item)
+        val choice = items[i].seriesId?.let { hub.store.trackChoice(it) }
+        val chosen = !item.quality.converted && (audio[i] != null || text[i] != null)
+        if (!chosen) return PhoneOpen.Ready(plan, line, start, shareChoice = choice, offline = true)
+        val subtitle = text[i]
+        return PhoneOpen.Ready(
+            plan = plan,
+            line = line,
+            startMs = start,
+            audioOrdinal = MediaTracks.ordinal(plan.version, audio[i]),
+            textOrdinal = MediaTracks.ordinal(plan.version, subtitle),
+            textOff = subtitle == MediaPlay.SUBTITLES_OFF,
+            offline = true,
+        )
+    }
+
+    /** Whether video [i] plays from a download. */
+    fun isLocal(i: Int): Boolean = local.containsKey(i)
+
+    /** The sheet of a Jellyfin title (a share or a download: null, its file's own tracks are shown). */
     fun choices(i: Int): MediaPlayerChoices? {
-        if (share) return null
+        if (share || local.containsKey(i)) return null
         val plan = plans[i] ?: return null
         val src = source ?: return null
         val canConvert = src.kind.canConvert
@@ -202,6 +242,14 @@ class PhoneMediaVideos(
 
     /** The progress of video [i] to its source, after the player is gone too. */
     fun report(i: Int, event: PlaybackEvent, positionMs: Long, paused: Boolean, durationMs: Long) {
+        local[i]?.let { item ->
+            // watched from the phone: kept here, told to Jellyfin at the next contact
+            val o = offline ?: return
+            val length = durationMs.takeIf { it > 0 } ?: item.title.runtimeMs ?: 0
+            // off the main thread: the encrypted index is written
+            hub.later { o.record(item.id, positionMs, length, stopped = event == PlaybackEvent.STOP) }
+            return
+        }
         val lib = library ?: return
         val plan = plans[i] ?: return
         val p = MediaProgress(plan, positionMs.coerceAtLeast(0), paused, durationMs.coerceAtLeast(0))

@@ -190,4 +190,43 @@ class PhoneMediaVideosTest {
         assertEquals(PhoneOpen.Failed, v.open(1))
         assertEquals(PhoneOpen.Failed, videos(MediaQueue("gone", listOf(episode(4)), 0)).open(0))
     }
+
+    @Test
+    fun `a downloaded episode plays from the phone, also offline, its progress kept there`() = runTest {
+        val item = com.gatecontrol.android.media.offline.OfflineItem(
+            id = com.gatecontrol.android.media.offline.MediaOfflineLogic.idOf("jf", "e5"),
+            sourceId = "jf",
+            title = episode(5),
+            quality = com.gatecontrol.android.media.offline.OfflineQuality.P720,
+            state = com.gatecontrol.android.media.offline.OfflineState.READY,
+            version = version,
+        )
+        val local = MediaPlan("e5", "gcoffline://${item.id}/video", PlayMethod.DIRECT_PLAY, version, null, hls = false, audioIndex = null, subtitleIndex = null)
+        val offline = mockk<com.gatecontrol.android.media.offline.MediaOffline>(relaxed = true) {
+            every { ready(any(), any()) } returns null
+            every { ready("jf", "e5") } returns item
+            every { localPlan(item) } returns local
+            every { startAt(item) } returns 600_000L
+        }
+        choices["s1"] = MediaTrackChoice("ger", null, subtitlesOff = true)
+        val v = PhoneMediaVideos(MediaQueue("jf", listOf(episode(4), episode(5)), 0), hub, { quality }, { quality = it }, { cap }, { cellular }, offline)
+        v.open(0)
+        val playsBefore = jfLib.plays.size
+        // no connection: the episode comes from its download
+        coEvery { hub.check(any(), any()) } throws IllegalStateException("not asked")
+        val r = v.open(1) as PhoneOpen.Ready
+        assertTrue(r.offline)
+        assertEquals(local.url, r.plan.url)
+        assertEquals(600_000L, r.startMs)
+        assertEquals("720p", r.line.offline)
+        assertNull(r.line.net)
+        assertEquals("ger", r.shareChoice?.audioLanguage)
+        assertEquals(playsBefore, jfLib.plays.size)
+        assertNull(v.choices(1))
+        assertTrue(v.isLocal(1))
+        val reportsBefore = jfLib.reports.size
+        v.report(1, PlaybackEvent.STOP, 1_200_000, true, 2_640_000)
+        verify { offline.record(item.id, 1_200_000, 2_640_000, stopped = true) }
+        assertEquals(reportsBefore, jfLib.reports.size)
+    }
 }

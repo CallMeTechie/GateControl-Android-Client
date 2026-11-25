@@ -21,6 +21,8 @@ data class MediaPlayLine(
     /** The NAS converts the picture: to this bit rate (null with [converted]: unknown). */
     val convertedBps: Long? = null,
     val converted: Boolean = false,
+    /** A download on the phone in this quality ("1080p", "Original"): nothing comes from the network. */
+    val offline: String? = null,
     /** Only the sound is converted (the picture as it is): to this ("AAC 5.1"). */
     val audioTo: String? = null,
     /** The limit on mobile data held the bit rate down (question 28). */

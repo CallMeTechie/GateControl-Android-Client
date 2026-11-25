@@ -22,6 +22,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -41,6 +43,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
@@ -59,6 +62,11 @@ import com.gatecontrol.android.media.MediaStream
 import com.gatecontrol.android.media.MediaTitle
 import com.gatecontrol.android.media.MediaTracks
 import com.gatecontrol.android.media.jellyfin.JellyfinDeviceCaps
+import com.gatecontrol.android.media.offline.MediaOfflineLogic
+import com.gatecontrol.android.media.offline.OfflineAllowed
+import com.gatecontrol.android.media.offline.OfflineItem
+import com.gatecontrol.android.media.offline.OfflineQuality
+import com.gatecontrol.android.media.offline.OfflineState
 import com.gatecontrol.android.ui.components.GcCard
 import com.gatecontrol.android.ui.components.GcChip
 import com.gatecontrol.android.ui.components.GcFilterChip
@@ -86,7 +94,10 @@ fun MediaDetailScreen(onBack: () -> Unit, onOpen: (MediaTitle) -> Unit, viewMode
         onPauseOrDispose { }
     }
     var sheet by remember { mutableStateOf<TrackSheet?>(null) }
-    CompositionLocalProvider(LocalMediaPictures provides viewModel.pictures) {
+    var loadSheet by remember { mutableStateOf<LoadSheet?>(null) }
+    var offlineMenu by remember { mutableStateOf(false) }
+    val wifi by viewModel.wifi.collectAsStateWithLifecycle()
+    CompositionLocalProvider(LocalMediaPictures provides viewModel.pictures, LocalOfflineWifi provides wifi) {
         LazyColumn(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).testTag(DETAIL_TAG), contentPadding = PaddingValues(bottom = 32.dp)) {
             item(key = "head") { DetailHead(ui.title, onBack) }
             when {
@@ -97,7 +108,18 @@ fun MediaDetailScreen(onBack: () -> Unit, onOpen: (MediaTitle) -> Unit, viewMode
                 else -> {
                     item(key = "facts") { Facts(ui, link) }
                     if (ui.title.playable) {
-                        item(key = "actions") { Actions(ui.title, onPlay = viewModel::play, onPlayed = viewModel::togglePlayed) }
+                        item(key = "actions") {
+                            Actions(
+                                ui,
+                                onPlay = viewModel::play,
+                                onPlayed = viewModel::togglePlayed,
+                                onLoad = { loadSheet = LoadSheet.TITLE },
+                                onOffline = { offlineMenu = true },
+                            )
+                        }
+                        item(key = "offline") {
+                            OfflineStatus(ui, menu = offlineMenu, onMenu = { offlineMenu = it }, onRemove = viewModel::removeDownload, onRetry = viewModel::retryDownload)
+                        }
                         item(key = "tracks") { Tracks(ui, onAudio = { sheet = TrackSheet.AUDIO }, onSubtitle = { sheet = TrackSheet.SUBTITLE }) }
                     }
                     ui.title.overview?.takeIf { it.isNotBlank() }?.let { text ->
@@ -107,8 +129,20 @@ fun MediaDetailScreen(onBack: () -> Unit, onOpen: (MediaTitle) -> Unit, viewMode
                     }
                     if (ui.title.kind == MediaTitle.Kind.SERIES) {
                         if (ui.seasons.isNotEmpty()) item(key = "seasons") { Seasons(ui, onSeason = viewModel::season) }
+                        if (ui.canLoad && ui.episodes.any { ui.episodesOffline[it.id] == null }) {
+                            item(key = "season-load") {
+                                GcOutlineButton(
+                                    stringResource(R.string.media_offline_load_season),
+                                    onClick = { loadSheet = LoadSheet.SEASON },
+                                    icon = GcIcons.Download,
+                                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp).testTag(LOAD_SEASON_TAG),
+                                )
+                            }
+                        } else if (ui.allowed == com.gatecontrol.android.media.offline.OfflineAllowed.NO && ui.source?.kind == com.gatecontrol.android.media.MediaSourceKind.JELLYFIN) {
+                            item(key = "season-not-allowed") { NotAllowed() }
+                        }
                         items(ui.episodes, key = { "ep:${it.id}" }) { e ->
-                            EpisodeRow(e, onPlay = { viewModel.playEpisode(e) }, onOpen = { onOpen(e) }, onPlayed = { viewModel.toggleEpisodePlayed(e) })
+                            EpisodeRow(e, offline = ui.episodesOffline[e.id], onPlay = { viewModel.playEpisode(e) }, onOpen = { onOpen(e) }, onPlayed = { viewModel.toggleEpisodePlayed(e) })
                         }
                     }
                 }
@@ -119,6 +153,14 @@ fun MediaDetailScreen(onBack: () -> Unit, onOpen: (MediaTitle) -> Unit, viewMode
                 if (which == TrackSheet.AUDIO) index?.let(viewModel::chooseAudio) else viewModel.chooseSubtitle(index)
                 sheet = null
             }, onDismiss = { sheet = null })
+        }
+        loadSheet?.let { which ->
+            val quality by viewModel.offlineQuality.collectAsStateWithLifecycle()
+            val (used, limit) = remember(which) { viewModel.storage() }
+            LoadChooser(which, ui, quality, used, limit, onPick = { q ->
+                if (which == LoadSheet.TITLE) viewModel.download(q) else viewModel.downloadSeason(q)
+                loadSheet = null
+            }, onDismiss = { loadSheet = null })
         }
     }
 }
@@ -202,9 +244,14 @@ private fun Facts(ui: MediaDetailUi, link: MediaLink) {
     }
 }
 
-/** "Weiter ab 42:10" (or "Abspielen"), "Von vorn" and "Gesehen". "Laden" comes with the downloads (question 22). */
+/**
+ * "Weiter ab 42:10" (or "Abspielen"), then "Von vorn", "Laden" (question 22 a: Jellyfin only, when the user may
+ * download) and "Gesehen" (mockup 3).
+ */
 @Composable
-private fun Actions(t: MediaTitle, onPlay: (Boolean) -> Unit, onPlayed: () -> Unit) {
+private fun Actions(ui: MediaDetailUi, onPlay: (Boolean) -> Unit, onPlayed: () -> Unit, onLoad: () -> Unit, onOffline: () -> Unit) {
+    val t = ui.title
+    val o = ui.offline
     Column(Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         GcPrimaryButton(
             text = if (t.resumable) stringResource(R.string.media_resume_from, MediaPhoneLogic.clock(t.positionMs)) else stringResource(R.string.media_play),
@@ -214,12 +261,119 @@ private fun Actions(t: MediaTitle, onPlay: (Boolean) -> Unit, onPlayed: () -> Un
         )
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             if (t.resumable) GcOutlineButton(stringResource(R.string.media_from_start), onClick = { onPlay(true) }, modifier = Modifier.weight(1f))
+            when {
+                o != null -> GcOutlineButton(
+                    text = when (o.state) {
+                        OfflineState.READY -> stringResource(R.string.media_offline_state_ready)
+                        OfflineState.LOADING -> "${(o.progress * 100).toInt()} %"
+                        OfflineState.QUEUED -> stringResource(R.string.media_offline_state_queued)
+                        OfflineState.FAILED -> stringResource(R.string.media_offline_state_retry)
+                    },
+                    onClick = onOffline,
+                    icon = if (o.ready) GcIcons.Check else GcIcons.Download,
+                    modifier = Modifier.weight(1f).testTag(LOAD_TAG),
+                )
+                ui.canLoad -> GcOutlineButton(stringResource(R.string.media_offline_load), onClick = onLoad, icon = GcIcons.Download, modifier = Modifier.weight(1f).testTag(LOAD_TAG))
+            }
             GcOutlineButton(
                 text = stringResource(if (t.played) R.string.media_played else R.string.media_mark_played),
                 onClick = onPlayed,
                 icon = GcIcons.Check,
                 modifier = Modifier.weight(1f).testTag(PLAYED_TAG),
             )
+        }
+    }
+}
+
+/** Under the buttons: where the download is ("Offline verfügbar · 1080p · 3,1 GB", "Lädt 45 %"), or why there is none. */
+@Composable
+private fun OfflineStatus(ui: MediaDetailUi, menu: Boolean, onMenu: (Boolean) -> Unit, onRemove: (OfflineItem) -> Unit, onRetry: (OfflineItem) -> Unit) {
+    val x = GateControlTheme.extraColors
+    val o = ui.offline
+    if (o == null) {
+        if (ui.fromPhone) return
+        if (ui.allowed == OfflineAllowed.NO && ui.source?.kind == com.gatecontrol.android.media.MediaSourceKind.JELLYFIN) NotAllowed()
+        return
+    }
+    Column(Modifier.padding(horizontal = 16.dp, vertical = 6.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Box {
+            val quality = qualityName(o.quality)
+            val text = when (o.state) {
+                OfflineState.READY -> stringResource(R.string.media_offline_status_ready, quality, MediaOfflineLogic.sizeText(o.size))
+                OfflineState.LOADING -> stringResource(R.string.media_offline_status_loading, (o.progress * 100).toInt(), quality)
+                OfflineState.QUEUED -> stringResource(if (LocalOfflineWifi.current) R.string.media_offline_status_waiting else R.string.media_offline_status_waiting_wifi, quality)
+                OfflineState.FAILED -> stringResource(R.string.media_offline_status_failed, failureText(o.failure))
+            }
+            Text(
+                text + if (ui.fromPhone) " · " + stringResource(R.string.media_offline_from_phone) else "",
+                style = MaterialTheme.typography.bodySmall,
+                color = if (o.state == OfflineState.FAILED) x.warn else x.muted,
+                modifier = Modifier.testTag(OFFLINE_STATUS_TAG),
+            )
+            DropdownMenu(expanded = menu, onDismissRequest = { onMenu(false) }) {
+                if (o.state == OfflineState.FAILED) DropdownMenuItem(text = { Text(stringResource(R.string.media_offline_state_retry)) }, onClick = { onMenu(false); onRetry(o) })
+                DropdownMenuItem(
+                    text = { Text(stringResource(if (o.active) R.string.media_offline_cancel else R.string.media_offline_delete)) },
+                    onClick = { onMenu(false); onRemove(o) },
+                )
+            }
+        }
+        if (o.state == OfflineState.LOADING) MediaProgressBar(o.progress)
+    }
+}
+
+/** Jellyfin does not let the user download: where an admin switches it on. */
+@Composable
+private fun NotAllowed() {
+    Text(
+        stringResource(R.string.media_offline_not_allowed),
+        style = MaterialTheme.typography.bodySmall,
+        color = GateControlTheme.extraColors.warn,
+        modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp).testTag(NOT_ALLOWED_TAG),
+    )
+}
+
+private enum class LoadSheet { TITLE, SEASON }
+
+/**
+ * "Laden für offline": the original (its size, and a warning when the phone cannot play its sound) or a step the NAS
+ * converts to first, each with about its size; "Nur im WLAN · Belegt 7,4 / 20 GB" below.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun LoadChooser(which: LoadSheet, ui: MediaDetailUi, chosen: OfflineQuality, used: Long, limit: Long, onPick: (OfflineQuality) -> Unit, onDismiss: () -> Unit) {
+    val x = GateControlTheme.extraColors
+    val version = if (which == LoadSheet.TITLE) ui.detail?.version else null
+    val episodes = if (which == LoadSheet.SEASON) ui.episodes.filter { ui.episodesOffline[it.id] == null } else emptyList()
+    val runtime = if (which == LoadSheet.TITLE) ui.title.runtimeMs else episodes.sumOf { it.runtimeMs ?: 0L }.takeIf { it > 0 }
+    val season = ui.seasons.firstOrNull { it.id == ui.seasonId }
+    ModalBottomSheet(onDismissRequest = onDismiss, containerColor = MaterialTheme.colorScheme.surface, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
+        Column(Modifier.padding(bottom = 24.dp).testTag(LOAD_SHEET_TAG)) {
+            Text(
+                if (which == LoadSheet.SEASON) pluralStringResource(R.plurals.media_offline_load_season_in, episodes.size, season?.season ?: season?.episode ?: 1, episodes.size) else stringResource(R.string.media_offline_load_in),
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp),
+            )
+            OfflineQuality.entries.forEach { q ->
+                val size = MediaOfflineLogic.estimate(q, runtime, version)?.let { stringResource(R.string.media_offline_about, MediaOfflineLogic.sizeText(it)) }
+                val name = if (q == OfflineQuality.ORIGINAL) listOfNotNull(stringResource(R.string.media_offline_quality_original), MediaQuality.videoLabel(version?.video)).joinToString(" · ") else q.label
+                val note = if (q == OfflineQuality.ORIGINAL) {
+                    val audio = version?.audio?.firstOrNull { it.index == ui.audio } ?: version?.audio?.firstOrNull()
+                    val bad = audio?.takeIf { MediaTracks.fate(it, ui.caps) == com.gatecontrol.android.media.MediaAudioFate.CONVERTED }
+                    bad?.let { stringResource(R.string.media_offline_audio_warning, MediaTracks.codecLabel(it.codec) ?: "?") } ?: stringResource(R.string.media_offline_quality_original_note)
+                } else {
+                    stringResource(R.string.media_offline_quality_converted_note)
+                }
+                ChoiceRow(listOfNotNull(name, size).joinToString(" · "), note, selected = q == chosen) { onPick(q) }
+            }
+            Text(
+                stringResource(R.string.media_offline_sheet_foot, MediaOfflineLogic.usedText(used, limit)),
+                style = MaterialTheme.typography.bodySmall,
+                color = x.muted,
+                modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp),
+            )
+            Text(stringResource(R.string.media_offline_sheet_load), style = MaterialTheme.typography.bodySmall, color = x.faint, modifier = Modifier.padding(horizontal = 20.dp))
         }
     }
 }
@@ -342,7 +496,7 @@ private fun Seasons(ui: MediaDetailUi, onSeason: (String) -> Unit) {
 
 /** An episode: a tap plays on from where it was left, the name opens its page, the mark sets "Gesehen". */
 @Composable
-private fun EpisodeRow(e: MediaTitle, onPlay: () -> Unit, onOpen: () -> Unit, onPlayed: () -> Unit) {
+private fun EpisodeRow(e: MediaTitle, offline: OfflineItem?, onPlay: () -> Unit, onOpen: () -> Unit, onPlayed: () -> Unit) {
     val x = GateControlTheme.extraColors
     val picture = rememberMediaPicture(e, backdrop = false)
     Row(
@@ -363,6 +517,12 @@ private fun EpisodeRow(e: MediaTitle, onPlay: () -> Unit, onOpen: () -> Unit, on
                 e.leftMs?.takeIf { e.resumable }?.let { leftText(it) },
             ).joinToString(" · ")
             if (line.isNotEmpty()) Text(line, style = MaterialTheme.typography.bodySmall, color = x.muted)
+            offline?.let { o ->
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Icon(if (o.ready) GcIcons.Check else GcIcons.Download, contentDescription = null, tint = if (o.ready) x.accentText else x.muted, modifier = Modifier.size(14.dp))
+                    Text(itemLine(o, LocalOfflineWifi.current), style = MaterialTheme.typography.labelSmall, color = if (o.ready) x.accentText else x.muted, maxLines = 1)
+                }
+            }
         }
         GcIconButton(
             GcIcons.Check,
@@ -376,3 +536,8 @@ private fun EpisodeRow(e: MediaTitle, onPlay: () -> Unit, onOpen: () -> Unit, on
 internal const val DETAIL_TAG = "media-detail"
 internal const val PLAY_TAG = "media-play"
 internal const val PLAYED_TAG = "media-played"
+internal const val LOAD_TAG = "media-load"
+internal const val LOAD_SEASON_TAG = "media-load-season"
+internal const val LOAD_SHEET_TAG = "media-load-sheet"
+internal const val OFFLINE_STATUS_TAG = "media-offline-status"
+internal const val NOT_ALLOWED_TAG = "media-not-allowed"
