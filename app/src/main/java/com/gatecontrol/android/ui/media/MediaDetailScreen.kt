@@ -97,9 +97,11 @@ fun MediaDetailScreen(onBack: () -> Unit, onOpen: (MediaTitle) -> Unit, viewMode
     var loadSheet by remember { mutableStateOf<LoadSheet?>(null) }
     var offlineMenu by remember { mutableStateOf(false) }
     val wifi by viewModel.wifi.collectAsStateWithLifecycle()
+    val gate by viewModel.gate.collectAsStateWithLifecycle()
     CompositionLocalProvider(LocalMediaPictures provides viewModel.pictures, LocalOfflineWifi provides wifi) {
         LazyColumn(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).testTag(DETAIL_TAG), contentPadding = PaddingValues(bottom = 32.dp)) {
             item(key = "head") { DetailHead(ui.title, onBack) }
+            item(key = "vpn") { MediaVpnGate(gate, onConsent = viewModel::consent, onRetry = viewModel::load) }
             when {
                 ui.loading && ui.detail == null -> item(key = "loading") {
                     Box(Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(Modifier.size(24.dp), strokeWidth = 2.dp) }

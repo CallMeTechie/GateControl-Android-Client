@@ -11,7 +11,6 @@ import androidx.media3.datasource.DataSource
 import androidx.media3.datasource.okhttp.OkHttpDataSource
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
-import com.gatecontrol.android.media.MediaAddress
 import com.gatecontrol.android.media.MediaHub
 import com.gatecontrol.android.media.MediaPlan
 import com.gatecontrol.android.media.MediaSideSubtitle
@@ -32,7 +31,7 @@ object MediaPlayers {
      */
     fun dataSource(hub: MediaHub, source: MediaSource): DataSource.Factory {
         if (source.kind.share) return ShareDataSource.Factory { hub.library(source).files() }
-        return OkHttpDataSource.Factory(hub.http(MediaAddress.host(source.address))).setDefaultRequestProperties(hub.library(source).headers())
+        return OkHttpDataSource.Factory(hub.http(source)).setDefaultRequestProperties(hub.library(source).headers())
     }
 
     /** A player reading through [factory]. */

@@ -19,7 +19,10 @@ import com.gatecontrol.android.media.MediaSourceStore
 import com.gatecontrol.android.media.MediaStream
 import com.gatecontrol.android.media.MediaTitle
 import com.gatecontrol.android.media.MediaVersion
-import com.gatecontrol.android.media.jellyfin.JellyfinAuthorize
+import com.gatecontrol.android.media.MediaGate
+import com.gatecontrol.android.media.server.MediaMigration
+import com.gatecontrol.android.media.server.MediaServerSources
+import com.gatecontrol.android.media.server.MediaServerState
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
@@ -95,10 +98,12 @@ class MediaViewModelsTest {
     private val offline = fakeOffline()
     private val requests = MediaPlayRequests(hub, playback, offline)
     private val pictures = mockk<MediaPictures>(relaxed = true)
+    private val serverState = MutableStateFlow(MediaServerState(known = true, tab = true))
+    private val servers = mockk<MediaServerSources>(relaxed = true) { every { state } returns serverState }
 
     @Test
     fun `the overview over Jellyfin and the share, a film in both once`() = runTest(dispatcher) {
-        val vm = MediaHomeViewModel(hub, requests, pictures, offline).also { models += it }
+        val vm = MediaHomeViewModel(hub, requests, pictures, offline, servers).also { models += it }
         vm.refresh()
         advanceUntilIdle()
         val ui = vm.ui.value
@@ -107,12 +112,14 @@ class MediaViewModelsTest {
         assertEquals(listOf("m2"), ui.latest.map { it.id })
         assertEquals(listOf(jellyfin), ui.servers)
         assertFalse(ui.loading)
-        coVerify { hub.check(jellyfin, any()) }
+        // opening Medien: the server's list, home or away (the VPN started away when needed)
+        verify { servers.refreshSoon() }
+        coVerify { hub.prepare(jellyfin) }
     }
 
     @Test
     fun `the grid of films with the share's titles in their places, the chips' order to the library`() = runTest(dispatcher) {
-        val vm = MediaHomeViewModel(hub, requests, pictures, offline).also { models += it }
+        val vm = MediaHomeViewModel(hub, requests, pictures, offline, servers).also { models += it }
         vm.openGrid(movies = true)
         advanceUntilIdle()
         assertEquals(listOf("Kobaltnacht", "Kupferstadt", "Sternwarte 9"), vm.movies.value.items.map { it.name })
@@ -127,7 +134,7 @@ class MediaViewModelsTest {
 
     @Test
     fun `a card of Weiterschauen plays through the requests, the player is stage 4c`() = runTest(dispatcher) {
-        val vm = MediaHomeViewModel(hub, requests, pictures, offline).also { models += it }
+        val vm = MediaHomeViewModel(hub, requests, pictures, offline, servers).also { models += it }
         val got = mutableListOf<MediaQueue>()
         val collecting = launch { requests.queues.collect { got += it } }
         advanceUntilIdle()
@@ -182,22 +189,41 @@ class MediaViewModelsTest {
     }
 
     @Test
-    fun `signing in a device confirms the code with the phone's access to Jellyfin`() = runTest(dispatcher) {
-        coEvery { hub.authorize(jellyfin, "731 205") } returns JellyfinAuthorize.CONFIRMED
+    fun `Quellen is a display - reload asks the server, the settings stay on the phone`() = runTest(dispatcher) {
         val settings = mockk<MediaPhoneSettings>(relaxed = true)
-        val vm = MediaSourcesViewModel(hub, settings, offline).also { models += it }
-        assertEquals(jellyfin, vm.authorizeSource())
-        vm.setCode("731 205!")
-        assertEquals("731 205", vm.authorize.value.code)
-        vm.confirm()
+        val vm = MediaSourcesViewModel(hub, settings, offline, servers).also { models += it }
+        vm.reload()
         advanceUntilIdle()
-        assertEquals(JellyfinAuthorize.CONFIRMED, vm.authorize.value.result)
-        assertEquals("", vm.authorize.value.code)
-
-        vm.signOut(jellyfin)
-        verify { store.dropToken("jf") }
-        verify { hub.forget("jf") }
+        coVerify { servers.refresh(true) }
+        verify { servers.repair() }
+        vm.setAlwaysOriginal(jellyfin, true)
+        verify { store.setAlwaysOriginal("jf", true) }
         vm.setMobileCap(null)
         verify { settings.setMobileCap(null) }
+    }
+
+    @Test
+    fun `away without the VPN, the consent, the takeover sheet`() = runTest(dispatcher) {
+        every { hub.gate } returns MutableStateFlow(MediaGate.CONSENT)
+        val vm = MediaHomeViewModel(hub, requests, pictures, offline, servers).also { models += it }
+        assertEquals(MediaGate.CONSENT, vm.gate.value)
+        vm.consent(true)
+        advanceUntilIdle()
+        coVerify { hub.consent(true) }
+        coVerify { hub.prepare(jellyfin) }
+        vm.consent(false)
+        advanceUntilIdle()
+        coVerify { hub.consent(false) }
+
+        serverState.value = serverState.value.copy(migration = listOf(MediaMigration("uuid-3", MediaSourceKind.WEBDAV, "192.168.1.30/privat", null)))
+        val got = launch { vm.migration.collect { } }
+        advanceUntilIdle()
+        assertEquals(1, vm.migration.value.size)
+        vm.acknowledgeMigration()
+        verify { servers.acknowledgeMigration() }
+        got.cancel()
+
+        vm.repair()
+        verify { servers.repair() }
     }
 }

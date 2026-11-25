@@ -3,12 +3,12 @@ package com.gatecontrol.android.media
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import com.gatecontrol.android.homecache.HomeCacheLan
-import com.gatecontrol.android.media.jellyfin.JellyfinAuthorize
 import com.gatecontrol.android.media.jellyfin.JellyfinDeviceCaps
-import com.gatecontrol.android.media.jellyfin.JellyfinDiscovery
+import com.gatecontrol.android.media.jellyfin.JellyfinJson.str
 import com.gatecontrol.android.media.jellyfin.JellyfinLibrary
-import com.gatecontrol.android.media.jellyfin.JellyfinServerHint
 import com.gatecontrol.android.media.jellyfin.JellyfinSignIn
+import com.gatecontrol.android.media.server.MediaHomeProbe
+import com.gatecontrol.android.media.server.MediaNetworkRule
 import com.gatecontrol.android.media.share.ShareFs
 import com.gatecontrol.android.media.share.ShareLibrary
 import com.gatecontrol.android.media.share.SmbFs
@@ -24,9 +24,16 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import android.net.Network
+import com.google.gson.JsonParser
+import okhttp3.Interceptor
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import timber.log.Timber
+import java.io.IOException
+import java.net.InetAddress
+import java.net.Socket
+import javax.net.SocketFactory
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
 import javax.inject.Inject
@@ -50,6 +57,7 @@ class MediaHub @Inject constructor(
     val store: MediaSourceStore,
     private val homeLan: HomeCacheLan,
     private val device: MediaDevice,
+    private val vpn: MediaVpn,
 ) {
     /** Reports and other work that must finish after a page or the player is gone. */
     val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -95,20 +103,69 @@ class MediaHub @Inject constructor(
         MediaClientInfo(client = device.clientName, device = device.deviceName, deviceId = store.deviceId, version = device.version)
     }
 
-    /** OkHttp to [host]: at home bound to the Wi-Fi (straight through the LAN), away the system's way (the tunnel). */
-    fun http(host: String?): OkHttpClient {
-        val home = _link.value.atHome == true && host != null && MediaAddress.isHomeHost(host)
-        val factory = if (home) homeLan.lanSocketFactory(host) else null
-        if (factory == null) return base
-        return clients.getOrPut("lan:$host") { base.newBuilder().socketFactory(factory).build() }
+    /** Who asks Jellyfin for [source]: a source of the server with the DeviceId and name the plugin gave this device. */
+    fun infoFor(source: MediaSource): MediaClientInfo =
+        if (source.deviceId != null) info.copy(deviceId = source.deviceId, device = source.deviceName ?: info.device) else info
+
+    // --- the way (Netz-Regel): at home bound to the LAN, away only through the VPN or to the admin's HTTPS address ---
+
+    @Volatile
+    private var probes: List<MediaHomeProbe> = emptyList()
+
+    /** The Wi-Fi / Ethernet network a home probe answered on (the LAN media go through at home). */
+    @Volatile
+    private var homeNetwork: Network? = null
+
+    /** The server's network rule (`v1/sources` › `network`): its probes recognise the home network. */
+    fun setNetworkRule(rule: MediaNetworkRule) {
+        if (rule.probes != probes) {
+            probes = rule.probes
+            homeKey = null
+        }
     }
 
-    /** The library of [source] (made again when its access or the network changed). */
+    private val _gate = MutableStateFlow(MediaGate.OPEN)
+
+    /** The VPN for media away: not needed or up, „VPN wird verbunden …“, the consent asked, or off. */
+    val gate: StateFlow<MediaGate> = _gate.asStateFlow()
+
+    fun vpnUp(): Boolean = runCatching { vpn.up() }.getOrDefault(false)
+
+    /** The way to [source] now. */
+    fun route(source: MediaSource): MediaRoute = MediaRouting.route(source, _link.value.atHome, vpnUp())
+
+    /** Away, media go only through the VPN: refused before a packet leaves (no other way, no fallback over the internet). */
+    private val blocked: OkHttpClient by lazy {
+        base.newBuilder().addInterceptor(Interceptor { throw IOException("Medien: away only through the VPN") }).build()
+    }
+
+    /** OkHttp to [source] on its way now: at home bound to the LAN, away through the tunnel or to its HTTPS address, or refused. */
+    fun http(source: MediaSource): OkHttpClient {
+        val route = route(source)
+        val host = MediaAddress.host(MediaRouting.effective(source, route).address)
+        val client = when (route) {
+            MediaRoute.BLOCKED -> return blocked
+            MediaRoute.HOME -> lanClient(host)
+            else -> base
+        }
+        val pin = source.certSha256?.takeIf { route != MediaRoute.DIRECT && source.kind == MediaSourceKind.WEBDAV }
+        return if (pin != null) clients.getOrPut("pin:$route:$host:$pin") { MediaPinning.client(client, pin) } else client
+    }
+
+    /** OkHttp to [host] at home: bound to the Wi-Fi / Ethernet network the home probe answered on (or that holds it). */
+    private fun lanClient(host: String?): OkHttpClient {
+        val factory = (host?.let { homeLan.lanSocketFactory(it) } ?: homeNetwork?.socketFactory) ?: return base
+        return clients.getOrPut("lan:$host:${homeNetwork?.hashCode()}") { base.newBuilder().socketFactory(factory).build() }
+    }
+
+    /** The library of [source] (made again when its access, its way or the network changed). */
     fun library(source: MediaSource): MediaLibrary {
         if (source.kind.share) return shareLibrary(source)
-        val key = "${source.token.hashCode()}:${source.address}:${_link.value.atHome}"
+        val route = route(source)
+        val use = MediaRouting.effective(source, route)
+        val key = "${source.token.hashCode()}:${use.address}:${_link.value.atHome}:$route:${source.deviceId}"
         libraries[source.id]?.let { (k, lib) -> if (k == key) return lib }
-        val lib: MediaLibrary = JellyfinLibrary(source, http(MediaAddress.host(source.address)), info, ::caps)
+        val lib: MediaLibrary = JellyfinLibrary(use, http(source), infoFor(source), ::caps)
         libraries.put(source.id, key to lib)?.second?.close()
         return lib
     }
@@ -125,11 +182,13 @@ class MediaHub @Inject constructor(
         val webdav = listOfNotNull(source, partner).firstOrNull { it.kind == MediaSourceKind.WEBDAV }
         val primary = smb ?: source
         val atHome = _link.value.atHome
-        val use = MediaLogic.shareFor(smb, webdav, atHome) ?: source
-        val key = "${use.id}:${use.address}:${use.userName}:${use.password.hashCode()}:$atHome"
+        val pick = MediaLogic.shareFor(smb, webdav, atHome) ?: source
+        val route = route(pick)
+        val use = MediaRouting.effective(pick, route)
+        val key = "${use.id}:${use.address}:${use.userName}:${use.password.hashCode()}:$atHome:$route"
         val group = "share:${primary.id}"
         libraries[group]?.let { (k, lib) -> if (k == key) return lib }
-        val lib = ShareLibrary(primary, shareFs(use), store, primary.id, seasonName = device::seasonName)
+        val lib = ShareLibrary(primary, shareFs(use, pick), store, primary.id, seasonName = device::seasonName)
         libraries.put(group, key to lib)?.second?.let { old -> retired.put(group, old)?.let { gone -> scope.launch { gone.close() } } }
         return lib
     }
@@ -137,19 +196,33 @@ class MediaHub @Inject constructor(
     /** The library a share had before the network changed (a running player may still read from it). */
     private val retired = ConcurrentHashMap<String, MediaLibrary>()
 
-    /** The files of share [s]: SMB at home bound to the Wi-Fi; WebDAV through [http]. */
-    private fun shareFs(s: MediaSource): ShareFs = when (s.kind) {
+    /** The files of share [s] ([source]: as stored, for its way): SMB at home bound to the LAN; WebDAV through [http]. */
+    private fun shareFs(s: MediaSource, source: MediaSource = s): ShareFs = when (s.kind) {
         MediaSourceKind.SMB -> {
             val a = MediaAddress.parseSmb(s.address) ?: error("not an SMB address")
-            val factory = if (_link.value.atHome == true) homeLan.lanSocketFactory(a.host) else null
+            val factory = when (route(source)) {
+                MediaRoute.HOME -> homeLan.lanSocketFactory(a.host) ?: homeNetwork?.socketFactory
+                MediaRoute.BLOCKED -> BlockedSockets
+                else -> null
+            }
             SmbFs(a, s.userName, s.password, factory)
         }
-        else -> WebDavFs(s.address, http(MediaAddress.host(s.address)), s.userName, s.password)
+        else -> WebDavFs(s.address, http(source), s.userName, s.password)
     }
 
-    /** "Verbinden" of a new share: its root can be read with this access. */
-    suspend fun tryShare(kind: MediaSourceKind, address: String, user: String?, password: String?): MediaResult<Unit> {
-        val s = MediaSource("try", kind, "", address, userName = user, password = password)
+    /** Sockets refused away without the VPN (SMB never goes over the internet). */
+    private object BlockedSockets : SocketFactory() {
+        private fun no(): Nothing = throw IOException("Medien: away only through the VPN")
+        override fun createSocket(): Socket = no()
+        override fun createSocket(host: String?, port: Int): Socket = no()
+        override fun createSocket(host: String?, port: Int, localHost: InetAddress?, localPort: Int): Socket = no()
+        override fun createSocket(host: InetAddress?, port: Int): Socket = no()
+        override fun createSocket(address: InetAddress?, port: Int, localAddress: InetAddress?, localPort: Int): Socket = no()
+    }
+
+    /** A share's root can be read with this access (the first SMB sign-in with the server's password, `shares/{id}/checked`). */
+    suspend fun tryShare(source: MediaSource): MediaResult<Unit> {
+        val s = source
         val fs = try {
             shareFs(s)
         } catch (e: IllegalStateException) {
@@ -168,22 +241,85 @@ class MediaHub @Inject constructor(
         }
     }
 
-    fun signIn(address: String): JellyfinSignIn = JellyfinSignIn(address, http(MediaAddress.host(address)), info)
+    /** Quick Connect at [source] on its way now (the plugin's automatic sign-in, [com.gatecontrol.android.media.server.MediaAutoPair]). */
+    fun signIn(source: MediaSource): JellyfinSignIn =
+        JellyfinSignIn(MediaRouting.effective(source, route(source)).address, http(source), infoFor(source))
 
     private val checking = Mutex()
+
+    @Volatile
+    private var homeKey: String? = null
+
+    @Volatile
+    private var homeAt = 0L
+
+    @Volatile
+    private var homeWas = false
+
+    /**
+     * At home: a probe of the server's list answers over the local network (never the tunnel): Jellyfin's
+     * `System/Info/Public` with its `Id`, or the NAS's certificate. A private address in a Wi-Fi alone is no home (other
+     * 192.168.1.x networks). Kept while the networks stay the same, at most [HOME_MS]. Without probes (no list from the
+     * server yet) the server's home-network check decides, as before.
+     */
+    private suspend fun atHome(): Boolean {
+        val list = probes
+        if (list.isEmpty()) {
+            homeNetwork = null
+            return try {
+                homeLan.localHeader() != null
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                false
+            }
+        }
+        val links = homeLan.lanLinks()
+        val key = links.joinToString(",") { "${it.network}:${it.address}" } + "|" + vpnUp()
+        val now = System.currentTimeMillis()
+        if (key == homeKey && now - homeAt < HOME_MS) return homeWas
+        val networks = links.map { it.network }.distinct()
+        val found = MediaHomeCheck.first(networks, list) { net, probe -> probe(net, probe) }
+        homeNetwork = found
+        homeKey = key
+        homeAt = now
+        homeWas = found != null
+        Timber.d("Medien: home network %s", if (found != null) "yes" else "no")
+        return found != null
+    }
+
+    private suspend fun probe(network: Network, probe: MediaHomeProbe): Boolean = withContext(Dispatchers.IO) {
+        val client = base.newBuilder()
+            .socketFactory(network.socketFactory)
+            .dns { host -> network.getAllByName(host).toList() }
+            .connectTimeout(PROBE_MS, TimeUnit.MILLISECONDS)
+            .readTimeout(PROBE_MS, TimeUnit.MILLISECONDS)
+            .callTimeout(PROBE_MS, TimeUnit.MILLISECONDS)
+            .build()
+        try {
+            when (probe) {
+                is MediaHomeProbe.Jellyfin -> client.newCall(Request.Builder().url(probe.url).get().build()).execute().use { r ->
+                    if (!r.isSuccessful) return@use false
+                    val text = r.body.string().take(64_000)
+                    val id = runCatching { JsonParser.parseString(text).asJsonObject }.getOrNull()?.str("Id")
+                    MediaHomeCheck.sameId(id, probe.serverId)
+                }
+                // only a handshake with exactly this certificate gets an answer
+                is MediaHomeProbe.Tls -> MediaPinning.client(client, probe.certSha256).newCall(Request.Builder().url(probe.url).head().build()).execute().use { true }
+            }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            false
+        }
+    }
 
     /**
      * Home or away now, and away the bandwidth from [source] (at most every [MEASURE_EVERY_MS] unless [force]).
      * Never throws except for cancellation.
      */
     suspend fun check(source: MediaSource? = currentSource(), force: Boolean = false) = checking.withLock {
-        val home = try {
-            homeLan.localHeader() != null
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            false
-        }
+        val home = atHome()
         val now = System.currentTimeMillis()
         val old = _link.value
         if (home) {
@@ -201,29 +337,67 @@ class MediaHub @Inject constructor(
     /** What this device plays itself (the device profile for Jellyfin). */
     fun caps(): JellyfinDeviceCaps = device.caps()
 
+    private val preparing = Mutex()
+
     /**
-     * "Gerät anmelden": confirms the Quick Connect code another device shows (a TV, a PC) with [source]'s access, so
-     * it signs in without the Jellyfin app. Jellyfin 10.8 or newer, Quick Connect switched on.
+     * Opening or playing media: home or away; away, when a source needs it and the VPN is off, the app starts it itself
+     * ([gate] [MediaGate.CONNECTING] meanwhile, [MediaGate.CONSENT] when Android's consent is missing: the screen asks
+     * once, then [consent]). Without the VPN nothing goes out ([MediaGate.BLOCKED], „Unterwegs nur über VPN“); downloads
+     * still play. Never throws except for cancellation.
      */
-    suspend fun authorize(source: MediaSource, code: String): JellyfinAuthorize {
-        if (source.kind != MediaSourceKind.JELLYFIN || source.token == null) return JellyfinAuthorize.SIGNED_OUT
-        val lib = library(source) as? JellyfinLibrary ?: return JellyfinAuthorize.FAILED
-        return lib.authorize(code)
+    suspend fun prepare(source: MediaSource? = currentSource() ?: shares().firstOrNull()): MediaGate = preparing.withLock {
+        check(source)
+        val sources = store.sources.value
+        if (_link.value.atHome == true || sources.isEmpty() || !MediaRouting.needsVpn(sources) || vpnUp()) {
+            _gate.value = MediaGate.OPEN
+            return@withLock MediaGate.OPEN
+        }
+        if (runCatching { vpn.consentNeeded() }.getOrDefault(false)) {
+            _gate.value = MediaGate.CONSENT
+            return@withLock MediaGate.CONSENT
+        }
+        _gate.value = MediaGate.CONNECTING
+        val up = try {
+            vpn.connect()
+        } catch (e: CancellationException) {
+            if (_gate.value == MediaGate.CONNECTING) _gate.value = MediaGate.BLOCKED
+            throw e
+        } catch (e: Exception) {
+            false
+        }
+        val next = if (up || vpnUp()) MediaGate.OPEN else MediaGate.BLOCKED
+        if (next == MediaGate.OPEN) {
+            // through the tunnel now: home or away asked again (the server's check may see the tunnel's address)
+            homeKey = null
+            homeLan.forget()
+            check(source, force = true)
+        }
+        _gate.value = next
+        next
     }
 
-    /** Jellyfin servers that answer in the home network (the Wi-Fi's broadcast, not through the tunnel). */
-    suspend fun discover(): List<JellyfinServerHint> {
-        val links = homeLan.lanLinks()
-        val targets = links.mapNotNull { JellyfinDiscovery.broadcastOf(it.address, it.prefix) } + "255.255.255.255"
-        val network = links.firstOrNull()?.network
-        return JellyfinDiscovery.discover(targets, bind = { socket -> network?.bindSocket(socket) })
+    /** The screen asked for Android's VPN consent: given → the VPN starts; refused → media stay blocked away. */
+    suspend fun consent(granted: Boolean): MediaGate {
+        if (!granted) {
+            _gate.value = MediaGate.BLOCKED
+            return MediaGate.BLOCKED
+        }
+        return prepare()
+    }
+
+    /** A source answered on its way (or did not): the plugin's Geräte-Reiter shows it ([reachListener]). */
+    @Volatile
+    var reachListener: ((MediaSource, MediaRoute, Boolean) -> Unit)? = null
+
+    fun reached(source: MediaSource, ok: Boolean) {
+        runCatching { reachListener?.invoke(source, route(source), ok) }
     }
 
     /** A poster or backdrop of [url] (with [headers]); null when it cannot be loaded. 16-bit colour: half the memory (a TV stick has little). */
-    suspend fun picture(url: String, headers: Map<String, String>, host: String?): Bitmap? = withContext(Dispatchers.IO) {
+    suspend fun picture(url: String, headers: Map<String, String>, source: MediaSource): Bitmap? = withContext(Dispatchers.IO) {
         try {
             val request = Request.Builder().url(url).apply { headers.forEach { (k, v) -> header(k, v) } }.build()
-            http(host).newCall(request).execute().use { r ->
+            http(source).newCall(request).execute().use { r ->
                 if (!r.isSuccessful) return@withContext null
                 val bytes = r.body.bytes()
                 if (bytes.size > MAX_PICTURE_BYTES) return@withContext null
@@ -267,11 +441,21 @@ class MediaHub @Inject constructor(
         retired.clear()
         scope.launch { open.forEach { runCatching { it.close() } } }
         _current.value = null
+        probes = emptyList()
+        homeKey = null
+        homeNetwork = null
+        _gate.value = MediaGate.OPEN
     }
 
     companion object {
         /** Away the bandwidth is measured again after this long. */
         const val MEASURE_EVERY_MS = 5 * 60_000L
+
+        /** A home probe answers within this long (contract: 1.5 s). */
+        const val PROBE_MS = 1_500L
+
+        /** Home or away is kept this long while the networks stay the same. */
+        const val HOME_MS = 2 * 60_000L
         private const val MAX_PICTURE_BYTES = 4 * 1024 * 1024
     }
 }

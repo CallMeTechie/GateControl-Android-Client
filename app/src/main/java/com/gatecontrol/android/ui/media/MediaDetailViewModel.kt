@@ -84,6 +84,17 @@ class MediaDetailViewModel @Inject constructor(
 
     val link: StateFlow<MediaLink> = hub.link
 
+    /** Away the VPN for media („VPN wird verbunden …“, the consent, „Unterwegs nur über VPN“). */
+    val gate: StateFlow<com.gatecontrol.android.media.MediaGate> = hub.gate
+
+    /** Android's VPN consent was asked: given → the VPN starts and the page loads. */
+    fun consent(granted: Boolean) {
+        viewModelScope.launch {
+            hub.consent(granted)
+            if (granted) load()
+        }
+    }
+
     /** On Wi-Fi now ("wartet auf WLAN"). */
     val wifi: StateFlow<Boolean> get() = offline.wifi
 
@@ -114,12 +125,13 @@ class MediaDetailViewModel @Inject constructor(
             return
         }
         viewModelScope.launch {
-            if (hub.link.value.atHome == null) hub.check()
+            // home or away; away the VPN is started when the source needs it (Netz-Regel)
+            hub.store.source(t.sourceId)?.let { hub.prepare(it) }
             val (loaded, problem) = browse.detail(t)
             if (loaded == null) {
-                // no connection: a downloaded title shows (and plays) from the phone
+                // no connection (or away without the VPN): a downloaded title shows (and plays) from the phone
                 val kept = offline.ready(t.sourceId, t.id)
-                if (kept != null && problem == MediaProblem.OFFLINE) {
+                if (kept != null && (problem == MediaProblem.OFFLINE || problem == MediaProblem.VPN)) {
                     val title = kept.titleNow()
                     _ui.update { offlineInto(it.copy(title = title, detail = MediaDetail(title, listOfNotNull(kept.version)), loading = false, problem = null, fromPhone = true, caps = hub.caps()), offline.items.value) }
                     return@launch

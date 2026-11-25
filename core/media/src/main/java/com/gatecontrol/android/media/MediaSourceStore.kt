@@ -103,9 +103,62 @@ class MediaSourceStore internal constructor(private val secrets: MediaSecrets) :
     @Synchronized
     fun dropToken(id: String) = write(_sources.value.map { if (it.id == id) it.copy(token = null) else it })
 
+    /** The list as the server has it now ([com.gatecontrol.android.media.server.MediaServerMerge]); [gone] lose their downloads. */
+    @Synchronized
+    fun replaceAll(list: List<MediaSource>, gone: Collection<String> = emptyList()) {
+        write(list)
+        if (gone.isNotEmpty()) markGone(gone)
+    }
+
+    /** Signed in (again) at a source of the server: its own access, and who it is. */
+    @Synchronized
+    fun setAccess(id: String, token: String, userId: String, userName: String?) =
+        write(_sources.value.map { if (it.id == id) it.copy(token = token, userId = userId, userName = userName) else it })
+
+    /** A share's password from the server ([rev]: its version). */
+    @Synchronized
+    fun setPassword(id: String, user: String?, password: String?, rev: Int) =
+        write(_sources.value.map { if (it.id == id) it.copy(userName = user ?: it.userName, password = password, secretRev = rev) else it })
+
+    /** Long without contact to the server (maxOfflineDays): the NAS passwords go, fetched again at the next contact. */
+    @Synchronized
+    fun dropPasswords() = write(_sources.value.map { if (it.kind.share && it.managed) it.copy(password = null, secretRev = 0) else it })
+
+    /**
+     * Sources removed by the server (revoked, no access): their downloads go too. Kept until the app's downloads have
+     * taken them ([takeGone]), also across a restart.
+     */
+    private val _gone = MutableStateFlow(readGone())
+    val gone: StateFlow<Set<String>> = _gone.asStateFlow()
+
+    @Synchronized
+    fun markGone(ids: Collection<String>) {
+        val next = (_gone.value + ids).toList().takeLast(MAX_GONE).toSet()
+        secrets.put(KEY_GONE, JsonArray().apply { next.forEach { add(it) } }.toString())
+        _gone.value = next
+    }
+
+    /** The ids of [markGone] handled (their downloads deleted). */
+    @Synchronized
+    fun takeGone(ids: Collection<String>) {
+        val next = _gone.value - ids.toSet()
+        if (next.isEmpty()) secrets.remove(KEY_GONE) else secrets.put(KEY_GONE, JsonArray().apply { next.forEach { add(it) } }.toString())
+        _gone.value = next
+    }
+
+    private fun readGone(): Set<String> = runCatching {
+        JsonParser.parseString(secrets.get(KEY_GONE) ?: return emptySet()).asJsonArray.mapNotNull { e -> e.takeIf { it.isJsonPrimitive }?.asString }.toSet()
+    }.getOrDefault(emptySet())
+
+    /** Kept beside the sources: the state of the server's list (rev, last contact …), as [com.gatecontrol.android.media.server.MediaServerSources] writes it. */
+    fun serverState(): String? = secrets.get(KEY_SERVER)
+
+    fun setServerState(json: String?) = if (json == null) secrets.remove(KEY_SERVER) else secrets.put(KEY_SERVER, json)
+
     /** The TV was unpaired (the encrypted storage is cleared): nothing of the sources is left in memory either. */
     @Synchronized
     fun forgetAll() {
+        secrets.remove(KEY_SERVER)
         secrets.remove(KEY_SOURCES)
         secrets.remove(KEY_TRACKS)
         secrets.remove(KEY_PROGRESS)
@@ -190,9 +243,12 @@ class MediaSourceStore internal constructor(private val secrets: MediaSecrets) :
         private const val KEY_DEVICE = "media_device_id"
         private const val KEY_TRACKS = "media_track_choices_v1"
         private const val KEY_PROGRESS = "media_share_progress_v1"
+        private const val KEY_GONE = "media_sources_gone_v1"
+        private const val KEY_SERVER = "media_server_state_v1"
+        private const val MAX_GONE = 64
         private const val MAX_TRACK_CHOICES = 200
         const val MAX_PROGRESS = 500
-        const val MAX_SOURCES = 8
+        const val MAX_SOURCES = 32
 
         /** The share of the other protocol with the same folder name that is not paired yet. */
         fun partnerOf(s: MediaSource, list: List<MediaSource>): MediaSource? {
@@ -223,6 +279,17 @@ class MediaSourceStore internal constructor(private val secrets: MediaSecrets) :
                                 addProperty("alwaysOriginal", s.alwaysOriginal)
                                 s.password?.let { addProperty("password", it) }
                                 s.pairWith?.let { addProperty("pairWith", it) }
+                                if (s.managed) addProperty("managed", true)
+                                s.remoteId?.let { addProperty("remoteId", it) }
+                                s.deviceId?.let { addProperty("deviceId", it) }
+                                s.deviceName?.let { addProperty("deviceName", it) }
+                                s.linkedUserId?.let { addProperty("linkedUserId", it) }
+                                s.linkedUserName?.let { addProperty("linkedUserName", it) }
+                                s.awayAddress?.let { addProperty("awayAddress", it) }
+                                s.certSha256?.let { addProperty("certSha256", it) }
+                                if (s.secretRev != 0) addProperty("secretRev", s.secretRev)
+                                if (!s.downloads) addProperty("downloads", false)
+                                s.problem?.let { addProperty("problem", it) }
                             },
                         )
                     }
@@ -249,6 +316,17 @@ class MediaSourceStore internal constructor(private val secrets: MediaSecrets) :
                     // a password is taken as it is (spaces, control characters of a typed password are its own)
                     password = s.get("password")?.takeIf { it.isJsonPrimitive }?.asString,
                     pairWith = s.str("pairWith"),
+                    managed = s.bool("managed") == true,
+                    remoteId = s.str("remoteId"),
+                    deviceId = s.str("deviceId"),
+                    deviceName = s.str("deviceName"),
+                    linkedUserId = s.str("linkedUserId"),
+                    linkedUserName = s.str("linkedUserName"),
+                    awayAddress = s.str("awayAddress")?.takeIf { it.startsWith("https://") },
+                    certSha256 = s.str("certSha256"),
+                    secretRev = s.get("secretRev")?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isNumber }?.asInt ?: 0,
+                    downloads = s.bool("downloads") != false,
+                    problem = s.str("problem"),
                 )
             }.distinctBy { it.id }.take(MAX_SOURCES).let { list ->
                 // a partner that is gone (or not a share of the other kind) is no partner

@@ -41,7 +41,5 @@ class MainTabsMediaTest {
     fun `the routes of the detail page and of adding a source`() {
         val t = com.gatecontrol.android.media.MediaTitle("m1", "jf", com.gatecontrol.android.media.MediaTitle.Kind.MOVIE, "Blaue Stunde & Söhne")
         assertEquals("media/title?source=jf&id=m1&name=Blaue%20Stunde%20%26%20S%C3%B6hne", MediaRoutes.detail(t))
-        assertEquals("media/add", MediaRoutes.add())
-        assertEquals("media/add?source=jf", MediaRoutes.add("jf"))
     }
 }

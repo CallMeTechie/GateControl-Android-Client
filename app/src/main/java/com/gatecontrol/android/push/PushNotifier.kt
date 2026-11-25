@@ -62,6 +62,7 @@ class PushNotifier @Inject constructor(
     private val chats: dagger.Lazy<com.gatecontrol.android.chat.ChatNotifier>,
     private val gatedrop: dagger.Lazy<com.gatecontrol.android.gatedrop.GateDropPushHandler>,
     private val screenShare: dagger.Lazy<com.gatecontrol.android.remote.ScreenSharePush>,
+    private val mediaServer: dagger.Lazy<com.gatecontrol.android.media.server.MediaServerSources>,
     private val vault: dagger.Lazy<com.gatecontrol.android.vault.VaultRepository>,
     private val driveSettings: dagger.Lazy<com.gatecontrol.android.drive.DriveSettings>,
     private val notizenReminders: dagger.Lazy<com.gatecontrol.android.notizen.NotizenReminderCenter>,
@@ -149,9 +150,11 @@ class PushNotifier @Inject constructor(
 
     /**
      * GateDrop's silent transfer pushes: received in the background, never shown. Fernzugriff's signals to this phone
-     * (a helper asks to see the screen, …): handled by „Bildschirm freigeben“, never shown as a message.
+     * (a helper asks to see the screen, …): handled by „Bildschirm freigeben“, never shown as a message. Medien's silent
+     * signals (`media.revoke`): handled by the server's media sources, never shown.
      */
-    override fun consume(message: PushMessage): Boolean = gatedrop.get().consume(message) || screenShare.get().consume(message)
+    override fun consume(message: PushMessage): Boolean = gatedrop.get().consume(message) || screenShare.get().consume(message) ||
+        runCatching { mediaServer.get().consume(message.topic, message.dataJson) }.getOrDefault(false)
 
     override suspend fun show(message: PushMessage, notificationId: Int, channel: ChannelSpec, quiet: Boolean) {
         // GateDrop deliveries: its own notification with Öffnen / Speichern / Kopieren.

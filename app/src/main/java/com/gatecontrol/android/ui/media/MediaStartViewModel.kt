@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.gatecontrol.android.media.MediaBrowse
 import com.gatecontrol.android.media.MediaHub
+import com.gatecontrol.android.media.server.MediaServerSources
 import com.gatecontrol.android.media.MediaPhoneSettings
 import com.gatecontrol.android.media.MediaPictures
 import com.gatecontrol.android.media.MediaPlayRequests
@@ -30,6 +31,7 @@ class MediaStartViewModel @Inject constructor(
     private val requests: MediaPlayRequests,
     settings: MediaPhoneSettings,
     val pictures: MediaPictures,
+    servers: MediaServerSources,
 ) : ViewModel() {
     private val _resume = MutableStateFlow<List<MediaTitle>>(emptyList())
 
@@ -40,8 +42,8 @@ class MediaStartViewModel @Inject constructor(
     }
 
     /** The card's titles; empty: no card. */
-    val resume: StateFlow<List<MediaTitle>> = combine(_resume, settings.startCard, hub.store.sources) { r, on, sources ->
-        if (on && sources.isNotEmpty()) r else emptyList()
+    val resume: StateFlow<List<MediaTitle>> = combine(_resume, settings.startCard, hub.store.sources, servers.state) { r, on, sources, server ->
+        if (on && sources.isNotEmpty() && server.visible) r else emptyList()
     }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     private var job: Job? = null
@@ -64,11 +66,14 @@ class MediaStartViewModel @Inject constructor(
     }
 }
 
-/** Whether Medien has a source: the tab shows then (question 21). */
+/**
+ * Whether Medien shows (the tab, a page beside Start, the settings' row): while the server's plugin „Medien“ gives an
+ * app tab (the right „Medien“, a source, its own licence) and answers — no longer after a source set up on the phone.
+ */
 @HiltViewModel
-class MediaAvailabilityViewModel @Inject constructor(hub: MediaHub) : ViewModel() {
-    val any: StateFlow<Boolean> = hub.store.sources.map { it.isNotEmpty() }
-        .stateIn(viewModelScope, SharingStarted.Eagerly, hub.store.sources.value.isNotEmpty())
+class MediaAvailabilityViewModel @Inject constructor(hub: MediaHub, servers: MediaServerSources) : ViewModel() {
+    val any: StateFlow<Boolean> = servers.state.map { it.visible }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, servers.state.value.visible)
 
     /** The sources as Medien › Quellen lists them (a pair once). */
     val count: StateFlow<Int> = hub.store.sources.map { list -> list.count { !it.kind.share } + com.gatecontrol.android.media.MediaLogic.shares(list).size }

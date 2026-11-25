@@ -5,7 +5,6 @@ import android.net.ConnectivityManager
 import android.net.Network
 import android.net.NetworkCapabilities
 import com.gatecontrol.android.familie.emergency.AesGcmCipher
-import com.gatecontrol.android.media.MediaAddress
 import com.gatecontrol.android.media.MediaHub
 import com.gatecontrol.android.media.MediaPhoneSettings
 import com.gatecontrol.android.media.MediaPlan
@@ -21,6 +20,7 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
 import okhttp3.OkHttpClient
 import timber.log.Timber
 import java.io.File
@@ -56,6 +56,8 @@ class MediaOffline @Inject constructor(
 
     private val allowed = ConcurrentHashMap<String, Pair<Long, Boolean>>()
 
+    private val scope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.IO)
+
     init {
         runCatching {
             val cm = context.getSystemService(ConnectivityManager::class.java) ?: return@runCatching
@@ -70,6 +72,14 @@ class MediaOffline @Inject constructor(
                 }
             })
         }.onFailure { Timber.d("Medien offline: network not watched (%s)", it.javaClass.simpleName) }
+        // a source revoked or gone from the server's list (media.revoke, no_access, plugin off for a day): its downloads go
+        scope.launch {
+            hub.store.gone.collect { ids ->
+                if (ids.isEmpty()) return@collect
+                ids.forEach { id -> runCatching { store.removeSource(id) } }
+                hub.store.takeGone(ids)
+            }
+        }
     }
 
     private fun unmetered(cm: ConnectivityManager): Boolean =
@@ -92,6 +102,8 @@ class MediaOffline @Inject constructor(
      */
     suspend fun canDownload(source: MediaSource): OfflineAllowed {
         if (source.kind != MediaSourceKind.JELLYFIN || source.token == null) return OfflineAllowed.NO
+        // the plugin decides with Jellyfin („Herunterladen erlauben“ of the user)
+        if (!source.downloads) return OfflineAllowed.NO
         val now = System.currentTimeMillis()
         allowed[source.id]?.let { (at, yes) -> if (now - at < ASK_EVERY_MS) return if (yes) OfflineAllowed.YES else OfflineAllowed.NO }
         val lib = hub.library(source) as? JellyfinLibrary ?: return OfflineAllowed.NO
@@ -210,7 +222,7 @@ class MediaOffline @Inject constructor(
             return hub.library(source) as? JellyfinLibrary
         }
 
-        override fun http(source: MediaSource): OkHttpClient = hub.http(MediaAddress.host(source.address))
+        override fun http(source: MediaSource): OkHttpClient = hub.http(source)
 
         override fun trackChoice(seriesId: String): MediaTrackChoice? = hub.store.trackChoice(seriesId)
     }

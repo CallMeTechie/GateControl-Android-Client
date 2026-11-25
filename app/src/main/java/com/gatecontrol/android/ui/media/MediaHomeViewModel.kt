@@ -4,7 +4,10 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.gatecontrol.android.media.MediaBrowse
 import com.gatecontrol.android.media.MediaGrid
+import com.gatecontrol.android.media.MediaGate
 import com.gatecontrol.android.media.MediaHub
+import com.gatecontrol.android.media.server.MediaMigration
+import com.gatecontrol.android.media.server.MediaServerSources
 import com.gatecontrol.android.media.MediaLink
 import com.gatecontrol.android.media.MediaOrder
 import com.gatecontrol.android.media.MediaPictures
@@ -70,6 +73,7 @@ class MediaHomeViewModel @Inject constructor(
     private val requests: MediaPlayRequests,
     val pictures: MediaPictures,
     private val offline: MediaOffline,
+    private val servers: MediaServerSources,
 ) : ViewModel() {
 
     /** "Offline verfügbar": the ready downloads, the newest first (also without a connection). */
@@ -96,6 +100,30 @@ class MediaHomeViewModel @Inject constructor(
 
     val link: StateFlow<MediaLink> = hub.link
 
+    /** Away the VPN for media: „VPN wird verbunden …“, the consent to ask, off („Unterwegs nur über VPN“). */
+    val gate: StateFlow<MediaGate> = hub.gate
+
+    /** „Medien kommen jetzt vom Server“: the device's own sources, taken over or to be removed; empty: nothing to show. */
+    val migration: StateFlow<List<MediaMigration>> = servers.state.map { it.migration }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), servers.state.value.migration)
+
+    /** „Verstanden“ on the sheet. */
+    fun acknowledgeMigration() = servers.acknowledgeMigration()
+
+    /** Android's VPN consent was asked: given → the VPN starts and the page loads; refused → it stays blocked. */
+    fun consent(granted: Boolean) {
+        viewModelScope.launch {
+            hub.consent(granted)
+            if (granted) refresh()
+        }
+    }
+
+    /** A Jellyfin server refused the access (401): signed in again automatically (the plugin's Quick Connect). */
+    fun repair() {
+        servers.repair()
+        refresh()
+    }
+
     private var loadJob: Job? = null
     private val gridJobs = HashMap<Boolean, Job>()
     private val moreJobs = HashMap<Boolean, Job>()
@@ -120,6 +148,8 @@ class MediaHomeViewModel @Inject constructor(
 
     /** The tab came to the front: home or away, then the rows (and the grids already opened) again. */
     fun refresh() {
+        // the list of the server (opening Medien), at most every half minute
+        servers.refreshSoon()
         val source = hub.currentSource()
         val shares = hub.shares()
         _ui.update { sourcesInto(it, hub.store.sources.value) }
@@ -134,7 +164,8 @@ class MediaHomeViewModel @Inject constructor(
         browse.keepOnly(source, shares)
         loadJob = viewModelScope.launch {
             _ui.update { it.copy(loading = true, problem = null) }
-            hub.check(source ?: shares.first())
+            // home or away; away the VPN is started when a source needs it (Netz-Regel)
+            hub.prepare(source ?: shares.first())
             coroutineScope {
                 if (source != null) launch { browse.loadJellyfin(source)?.let { p -> _ui.update { it.copy(problem = p) } } }
                 for (s in shares) {

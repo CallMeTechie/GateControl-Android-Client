@@ -52,11 +52,11 @@ import com.gatecontrol.android.media.MediaLink
 import com.gatecontrol.android.media.MediaLogic
 import com.gatecontrol.android.media.MediaProblem
 import com.gatecontrol.android.media.MediaSource
-import com.gatecontrol.android.media.MediaSourceKind
 import com.gatecontrol.android.media.MediaTitle
-import com.gatecontrol.android.media.jellyfin.JellyfinServerHint
+import com.gatecontrol.android.media.MediaGate
+import com.gatecontrol.android.media.server.MediaServerState
+import com.gatecontrol.android.media.server.MediaSourceStatus
 import com.gatecontrol.android.tv.R
-import com.gatecontrol.android.tv.media.TvAddUi
 import com.gatecontrol.android.tv.media.TvDetailUi
 import com.gatecontrol.android.tv.media.TvMediaUi
 import com.gatecontrol.android.tv.ui.components.TvButton
@@ -72,9 +72,13 @@ import com.gatecontrol.android.tv.ui.theme.GateControlTvTheme
 data class TvMediaScreen(
     val ui: TvMediaUi,
     val detail: TvDetailUi? = null,
-    val add: TvAddUi? = null,
     val link: MediaLink = MediaLink(),
     val pictures: Map<String, Bitmap> = emptyMap(),
+    /** Medien › Quellen: the server's sources with their status. */
+    val rows: List<MediaSourceStatus> = emptyList(),
+    val server: MediaServerState = MediaServerState(),
+    /** Away the VPN for media („VPN wird verbunden …“, „Unterwegs nur über VPN“). */
+    val gate: MediaGate = MediaGate.OPEN,
 )
 
 /** What the page "Medien" does on the keys of the remote. */
@@ -97,44 +101,33 @@ class TvMediaActions(
     val onOriginal: (Boolean) -> Unit = {},
     val onPlayed: () -> Unit = {},
     val onSelect: (MediaSource) -> Unit = {},
-    val onRemove: (MediaSource) -> Unit = {},
     val onAlwaysOriginal: (MediaSource, Boolean) -> Unit = { _, _ -> },
-    val onAdd: () -> Unit = {},
-    val onAddCancel: () -> Unit = {},
-    val onJellyfin: () -> Unit = {},
-    val onSearch: () -> Unit = {},
-    val onAddress: (String) -> Unit = {},
-    val onPick: (JellyfinServerHint) -> Unit = {},
-    val onCheck: () -> Unit = {},
-    val onLogin: () -> Unit = {},
-    val onQuickConnect: (Boolean) -> Unit = {},
-    val onPassword: (String, String) -> Unit = { _, _ -> },
-    /** "Quelle hinzufügen": SMB-Freigabe or WebDAV chosen. */
-    val onShareKind: (MediaSourceKind) -> Unit = {},
-    /** "Verbinden" of a share with name and password. */
-    val onShareConnect: (String, String) -> Unit = { _, _ -> },
+    /** „Neu laden“ of Medien › Quellen. */
+    val onReload: () -> Unit = {},
+    /** Jellyfin signed the TV out: signed in again by itself. */
+    val onRepair: () -> Unit = {},
+    /** „VPN einschalten“ (away, media only through the VPN). */
+    val onVpn: () -> Unit = {},
+    /** „Verstanden“ of „Medien kommen jetzt vom Server“. */
+    val onMigrationDone: () -> Unit = {},
 )
 
 /**
  * The page "Medien" of the rail (mockup 7): Weiterschauen, Zuletzt hinzugefügt, Filme A–Z, Serien of the Jellyfin
  * server shown and of the shares in one ("NAS" on a share's title; one in both shows once, Jellyfin's); OK on a poster
- * opens its details (mockup 8), OK on "Weiterschauen" plays on, ☰ shows the details. "Quellen" (▲ to the top) lists
- * the sources and adds one (mockup 10).
+ * opens its details (mockup 8), OK on "Weiterschauen" plays on, ☰ shows the details. "Quellen" (▲ to the top) shows
+ * the sources of the server with their status; once after the update „Medien kommen jetzt vom Server“.
  */
 @Composable
 fun TvMediaPage(screen: TvMediaScreen, actions: TvMediaActions, modifier: Modifier = Modifier) {
     var sources by rememberSaveable { mutableStateOf(false) }
     LaunchedEffect(Unit) { actions.onStart() }
-    val add = screen.add
     val detail = screen.detail
     when {
-        add != null -> {
-            BackHandler { actions.onAddCancel() }
-            TvAddSourcePage(add, actions, modifier)
-        }
+        screen.server.migration.isNotEmpty() -> TvMigrationPage(screen.server.migration, onDone = actions.onMigrationDone, modifier = modifier)
         sources -> {
             BackHandler { sources = false }
-            TvSourcesPage(screen.ui, actions, onClose = { sources = false }, modifier = modifier)
+            TvSourcesPage(screen.rows, screen.server, screen.ui.source, actions, onClose = { sources = false }, modifier = modifier)
         }
         detail != null -> {
             BackHandler { actions.onBack() }
@@ -160,6 +153,7 @@ private fun Header(screen: TvMediaScreen, onSources: (() -> Unit)?, modifier: Mo
             }
         }
         LinkPill(screen.link)
+        if (screen.gate == MediaGate.CONNECTING || screen.gate == MediaGate.CONSENT) TvPill(stringResource(R.string.tv_media_vpn_connecting), TvPillTone.Info)
         if (screen.ui.loading) TvPill(stringResource(R.string.tv_drive_loading), TvPillTone.Info)
         Spacer(Modifier.weight(1f))
         if (onSources != null) TvButton(stringResource(R.string.tv_media_sources), onClick = onSources)
@@ -187,8 +181,14 @@ private fun Rows(screen: TvMediaScreen, actions: TvMediaActions, onSources: () -
         val anyTitles = ui.resume.isNotEmpty() || ui.latest.isNotEmpty() || ui.movies.isNotEmpty() || ui.series.isNotEmpty()
         when {
             !ui.any -> Column(verticalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.padding(top = 10.dp)) {
-                Text(stringResource(R.string.tv_media_none), style = MaterialTheme.typography.bodyLarge, color = colors.muted)
-                TvButton(stringResource(R.string.tv_media_add), onClick = actions.onAdd, style = TvButtonStyle.Primary, modifier = Modifier.focusRequester(first))
+                Text(stringResource(R.string.tv_media_none_server), style = MaterialTheme.typography.bodyLarge, color = colors.muted)
+                TvButton(stringResource(R.string.tv_media_sources), onClick = onSources, style = TvButtonStyle.Primary, modifier = Modifier.focusRequester(first))
+                LaunchedEffect(Unit) { first.requestSoon() }
+            }
+            // away, the VPN is off and could not be started: nothing goes out
+            screen.gate == MediaGate.BLOCKED && !anyTitles -> Column(verticalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.padding(top = 10.dp)) {
+                Text(stringResource(R.string.tv_media_vpn_blocked_text), style = MaterialTheme.typography.bodyLarge, color = colors.muted)
+                TvVpnGate(screen.gate, onVpn = actions.onVpn, focus = first)
                 LaunchedEffect(Unit) { first.requestSoon() }
             }
             // the Jellyfin server has a problem and no share has titles: only the problem
@@ -199,13 +199,16 @@ private fun Rows(screen: TvMediaScreen, actions: TvMediaActions, onSources: () -
                             MediaProblem.OFFLINE -> R.string.tv_media_offline
                             MediaProblem.SIGNED_OUT -> R.string.tv_media_signed_out
                             MediaProblem.FAILED -> R.string.tv_media_failed
+                            MediaProblem.VPN -> R.string.tv_media_vpn_blocked
                         },
                     ),
                     style = MaterialTheme.typography.bodyLarge,
                     color = colors.muted,
                 )
                 if (problem == MediaProblem.SIGNED_OUT) {
-                    TvButton(stringResource(R.string.tv_media_sign_in_again), onClick = actions.onAdd, style = TvButtonStyle.Primary, modifier = Modifier.focusRequester(first))
+                    TvButton(stringResource(R.string.tv_media_sign_in_again), onClick = actions.onRepair, style = TvButtonStyle.Primary, modifier = Modifier.focusRequester(first))
+                } else if (problem == MediaProblem.VPN) {
+                    TvButton(stringResource(R.string.tv_media_vpn_on), onClick = actions.onVpn, style = TvButtonStyle.Primary, modifier = Modifier.focusRequester(first))
                 } else {
                     TvButton(stringResource(R.string.tv_drive_retry), onClick = actions.onRetry, modifier = Modifier.focusRequester(first))
                 }
@@ -216,11 +219,19 @@ private fun Rows(screen: TvMediaScreen, actions: TvMediaActions, onSources: () -
                 if (problem != null) {
                     Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(bottom = 4.dp)) {
                         Text(
-                            stringResource(if (problem == MediaProblem.OFFLINE) R.string.tv_media_offline else if (problem == MediaProblem.SIGNED_OUT) R.string.tv_media_signed_out else R.string.tv_media_failed),
+                            stringResource(
+                                when (problem) {
+                                    MediaProblem.OFFLINE -> R.string.tv_media_offline
+                                    MediaProblem.SIGNED_OUT -> R.string.tv_media_signed_out
+                                    MediaProblem.VPN -> R.string.tv_media_vpn_blocked
+                                    MediaProblem.FAILED -> R.string.tv_media_failed
+                                },
+                            ),
                             style = MaterialTheme.typography.bodyMedium,
                             color = colors.warn,
                         )
-                        if (problem == MediaProblem.SIGNED_OUT) TvButton(stringResource(R.string.tv_media_sign_in_again), onClick = actions.onAdd)
+                        if (problem == MediaProblem.SIGNED_OUT) TvButton(stringResource(R.string.tv_media_sign_in_again), onClick = actions.onRepair)
+                        if (problem == MediaProblem.VPN) TvButton(stringResource(R.string.tv_media_vpn_on), onClick = actions.onVpn)
                     }
                 }
                 if (ui.resume.isNotEmpty()) {

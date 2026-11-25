@@ -58,7 +58,6 @@ import com.gatecontrol.android.ui.components.GcCard
 import com.gatecontrol.android.ui.components.GcFilterChip
 import com.gatecontrol.android.ui.components.GcIconButton
 import com.gatecontrol.android.ui.components.GcIcons
-import com.gatecontrol.android.ui.components.GcPrimaryButton
 import com.gatecontrol.android.ui.components.GcSegmented
 import com.gatecontrol.android.ui.drive.TabBar
 import com.gatecontrol.android.ui.theme.GateControlTheme
@@ -68,9 +67,6 @@ data class MediaHomeNav(
     val detail: (MediaTitle) -> Unit,
     val search: () -> Unit,
     val sources: () -> Unit,
-    val add: () -> Unit,
-    /** "Neu anmelden" of a server that signed this phone out. */
-    val signInAgain: (MediaSource) -> Unit,
     /** The page "Offline" (question 22 a). */
     val offline: () -> Unit = {},
 )
@@ -84,6 +80,8 @@ fun MediaHomeScreen(nav: MediaHomeNav, viewModel: MediaHomeViewModel = hiltViewM
     val ui by viewModel.ui.collectAsStateWithLifecycle()
     val link by viewModel.link.collectAsStateWithLifecycle()
     val anyOffline by viewModel.anyOffline.collectAsStateWithLifecycle()
+    val gate by viewModel.gate.collectAsStateWithLifecycle()
+    val migration by viewModel.migration.collectAsStateWithLifecycle()
     var tab by rememberSaveable { mutableStateOf(MediaTab.OVERVIEW) }
     LifecycleResumeEffect(viewModel) {
         viewModel.refresh()
@@ -102,8 +100,9 @@ fun MediaHomeScreen(nav: MediaHomeNav, viewModel: MediaHomeViewModel = hiltViewM
                     GcIconButton(GcIcons.Sliders, contentDescription = stringResource(R.string.media_sources), onClick = nav.sources, tint = MaterialTheme.colorScheme.onBackground)
                 },
             )
+            MediaVpnGate(gate, onConsent = viewModel::consent, onRetry = viewModel::refresh)
             if (!ui.any) {
-                MediaEmpty(onAdd = nav.add)
+                MediaEmpty()
                 return@Column
             }
             SourceLine(ui, link, onSelect = viewModel::select)
@@ -118,7 +117,7 @@ fun MediaHomeScreen(nav: MediaHomeNav, viewModel: MediaHomeViewModel = hiltViewM
                 onSelect = { tab = it },
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
             )
-            val signIn = { ui.source?.let(nav.signInAgain) ?: Unit }
+            val signIn = viewModel::repair
             when (tab) {
                 MediaTab.OVERVIEW -> MediaOverview(ui, viewModel, nav, onSeries = { tab = MediaTab.SERIES }, onSignIn = signIn)
                 MediaTab.MOVIES -> MediaGridPage(movies = true, viewModel = viewModel, nav = nav, onSignIn = signIn)
@@ -127,15 +126,15 @@ fun MediaHomeScreen(nav: MediaHomeNav, viewModel: MediaHomeViewModel = hiltViewM
             }
         }
     }
+    if (migration.isNotEmpty()) MediaMigrationSheet(migration, onDone = viewModel::acknowledgeMigration)
 }
 
-/** No source yet (a page beside Start can show before the tab does): what Medien is, "Quelle hinzufügen". */
+/** No source yet (a page beside Start can show before the tab does): the admin sets them up in the server. */
 @Composable
-private fun MediaEmpty(onAdd: () -> Unit) {
+private fun MediaEmpty() {
     GcCard(Modifier.padding(16.dp)) {
         Text(stringResource(R.string.media_empty_title), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-        Text(stringResource(R.string.media_empty_text), style = MaterialTheme.typography.bodyMedium, color = GateControlTheme.extraColors.muted)
-        GcPrimaryButton(stringResource(R.string.media_add_source), onClick = onAdd, icon = GcIcons.Plus)
+        Text(stringResource(R.string.media_empty_server_text), style = MaterialTheme.typography.bodyMedium, color = GateControlTheme.extraColors.muted)
     }
 }
 
