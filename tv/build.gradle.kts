@@ -189,20 +189,28 @@ gradle.taskGraph.whenReady {
 }
 
 // Robolectric's Android 9 jar (the Fire TV Stick's API level) through Gradle and its cache, as in :app
+// CI points GC_ROBOLECTRIC_DIR at a directory it caches itself (actions/cache): with the jar there, nothing is
+// downloaded (Maven Central answers 429 at times).
+val robolectricAndroidAll = "9-robolectric-4913185-2-i7"
+val robolectricDir: File = providers.environmentVariable("GC_ROBOLECTRIC_DIR").orNull
+    ?.let { File(it, project.name) }
+    ?: layout.buildDirectory.dir("robolectric").get().asFile
+val robolectricJar = File(robolectricDir, "android-all-instrumented-$robolectricAndroidAll.jar")
 val robolectricJars: Configuration by configurations.creating
 dependencies {
-    robolectricJars("org.robolectric:android-all-instrumented:9-robolectric-4913185-2-i7")
+    robolectricJars("org.robolectric:android-all-instrumented:$robolectricAndroidAll")
 }
 val robolectricDeps = tasks.register<Sync>("robolectricDeps") {
     from(robolectricJars)
-    into(layout.buildDirectory.dir("robolectric"))
+    into(robolectricDir)
+    onlyIf("the Android jar is not there yet") { !robolectricJar.isFile }
 }
 
 tasks.withType<Test> {
     useJUnitPlatform()
     dependsOn(robolectricDeps)
     systemProperty("robolectric.offline", "true")
-    systemProperty("robolectric.dependency.dir", layout.buildDirectory.dir("robolectric").get().asFile.absolutePath)
+    systemProperty("robolectric.dependency.dir", robolectricDir.absolutePath)
     // TvVersionTest compares BuildConfig with the phone app's build file
     systemProperty("gc.phoneBuildFile", rootProject.file("app/build.gradle.kts").absolutePath)
 }
