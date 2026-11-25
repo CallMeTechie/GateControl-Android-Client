@@ -106,6 +106,8 @@ class TvMediaActions(
     val onReload: () -> Unit = {},
     /** Jellyfin signed the TV out: signed in again by itself. */
     val onRepair: () -> Unit = {},
+    /** Medien › Quellen was opened for a source set up by hand ([TvMediaUi.openSources]). */
+    val onSourcesOpened: () -> Unit = {},
     /** „VPN einschalten“ (away, media only through the VPN). */
     val onVpn: () -> Unit = {},
     /** „Verstanden“ of „Medien kommen jetzt vom Server“. */
@@ -122,6 +124,13 @@ class TvMediaActions(
 fun TvMediaPage(screen: TvMediaScreen, actions: TvMediaActions, modifier: Modifier = Modifier) {
     var sources by rememberSaveable { mutableStateOf(false) }
     LaunchedEffect(Unit) { actions.onStart() }
+    // „Neu anmelden“ of a source set up by hand: its status is on Medien › Quellen
+    LaunchedEffect(screen.ui.openSources) {
+        if (screen.ui.openSources) {
+            sources = true
+            actions.onSourcesOpened()
+        }
+    }
     val detail = screen.detail
     when {
         screen.server.migration.isNotEmpty() -> TvMigrationPage(screen.server.migration, onDone = actions.onMigrationDone, modifier = modifier)
@@ -136,6 +145,16 @@ fun TvMediaPage(screen: TvMediaScreen, actions: TvMediaActions, modifier: Modifi
         else -> Rows(screen, actions, onSources = { sources = true }, modifier = modifier)
     }
 }
+
+/** „Neu anmelden“, „Anmelden …“ while it runs, „Erneut versuchen“ after it failed (kept focusable for the remote). */
+@Composable
+private fun signInLabel(ui: TvMediaUi): String = stringResource(
+    when {
+        ui.signingIn -> R.string.tv_media_signing_in
+        ui.signInProblem != null -> R.string.tv_media_sign_in_retry
+        else -> R.string.tv_media_sign_in_again
+    },
+)
 
 @Composable
 private fun Header(screen: TvMediaScreen, onSources: (() -> Unit)?, modifier: Modifier = Modifier) {
@@ -206,7 +225,8 @@ private fun Rows(screen: TvMediaScreen, actions: TvMediaActions, onSources: () -
                     color = colors.muted,
                 )
                 if (problem == MediaProblem.SIGNED_OUT) {
-                    TvButton(stringResource(R.string.tv_media_sign_in_again), onClick = actions.onRepair, style = TvButtonStyle.Primary, modifier = Modifier.focusRequester(first))
+                    ui.signInProblem?.takeIf { !ui.signingIn }?.let { Text(tvProblemText(it), style = MaterialTheme.typography.bodyMedium, color = colors.warn) }
+                    TvButton(signInLabel(ui), onClick = actions.onRepair, style = TvButtonStyle.Primary, modifier = Modifier.focusRequester(first))
                 } else if (problem == MediaProblem.VPN) {
                     TvButton(stringResource(R.string.tv_media_vpn_on), onClick = actions.onVpn, style = TvButtonStyle.Primary, modifier = Modifier.focusRequester(first))
                 } else {
@@ -230,7 +250,10 @@ private fun Rows(screen: TvMediaScreen, actions: TvMediaActions, onSources: () -
                             style = MaterialTheme.typography.bodyMedium,
                             color = colors.warn,
                         )
-                        if (problem == MediaProblem.SIGNED_OUT) TvButton(stringResource(R.string.tv_media_sign_in_again), onClick = actions.onRepair)
+                        if (problem == MediaProblem.SIGNED_OUT) {
+                            ui.signInProblem?.takeIf { !ui.signingIn }?.let { Text(tvProblemText(it), style = MaterialTheme.typography.bodyMedium, color = colors.warn) }
+                            TvButton(signInLabel(ui), onClick = actions.onRepair)
+                        }
                         if (problem == MediaProblem.VPN) TvButton(stringResource(R.string.tv_media_vpn_on), onClick = actions.onVpn)
                     }
                 }

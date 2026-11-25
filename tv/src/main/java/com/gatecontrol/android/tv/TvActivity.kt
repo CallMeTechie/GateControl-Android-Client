@@ -359,6 +359,7 @@ class TvActivity : ComponentActivity() {
         onAlwaysOriginal = mediaVm::setAlwaysOriginal,
         onReload = mediaVm::reload,
         onRepair = mediaVm::repair,
+        onSourcesOpened = mediaVm::sourcesOpened,
         onVpn = ::mediaVpn,
         onMigrationDone = mediaVm::acknowledgeMigration,
     )

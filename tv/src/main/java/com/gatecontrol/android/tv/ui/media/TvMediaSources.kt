@@ -130,7 +130,7 @@ private fun tvWayText(route: MediaRoute): String = stringResource(
 )
 
 @Composable
-private fun tvProblemText(code: String): String = stringResource(
+internal fun tvProblemText(code: String): String = stringResource(
     when (code) {
         "no_mapping" -> R.string.tv_media_pp_no_mapping
         "quick_connect_off" -> R.string.tv_media_pp_quick_connect_off
@@ -142,6 +142,7 @@ private fun tvProblemText(code: String): String = stringResource(
         MediaPairEnd.BLOCKED -> R.string.tv_media_pp_vpn
         MediaSourcesText.NO_PASSWORD -> R.string.tv_media_pp_no_password
         MediaSourcesText.SIGNED_OUT -> R.string.tv_media_signed_out_short
+        MediaSourcesText.UNAVAILABLE -> R.string.tv_media_server_off
         else -> R.string.tv_media_pp_failed
     },
 )

@@ -31,6 +31,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -45,6 +46,7 @@ import com.gatecontrol.android.media.MediaLogic
 import com.gatecontrol.android.media.MediaPictures
 import com.gatecontrol.android.media.MediaProblem
 import com.gatecontrol.android.media.MediaQuality
+import com.gatecontrol.android.media.MediaSource
 import com.gatecontrol.android.media.MediaTitle
 import com.gatecontrol.android.ui.components.GcCard
 import com.gatecontrol.android.ui.components.GcIcons
@@ -209,9 +211,23 @@ fun linkText(link: MediaLink): String? = when (link.atHome) {
     null -> null
 }
 
+/** „Neu anmelden“ of a page: running („Anmelden …“), or why it did not work (a code as in Medien › Quellen). */
+data class MediaSignInState(
+    val running: Boolean = false,
+    val problem: String? = null,
+    /** The source signed in at (the hint of an unreachable Jellyfin names its network). */
+    val source: MediaSource? = null,
+)
+
 /** Why a page shows nothing, with the way on. */
 @Composable
-fun MediaProblemCard(problem: MediaProblem, onRetry: () -> Unit, modifier: Modifier = Modifier, onSignIn: (() -> Unit)? = null) {
+fun MediaProblemCard(
+    problem: MediaProblem,
+    onRetry: () -> Unit,
+    modifier: Modifier = Modifier,
+    onSignIn: (() -> Unit)? = null,
+    signIn: MediaSignInState = MediaSignInState(),
+) {
     GcCard(modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
         Text(
             stringResource(
@@ -225,7 +241,28 @@ fun MediaProblemCard(problem: MediaProblem, onRetry: () -> Unit, modifier: Modif
             style = MaterialTheme.typography.bodyMedium,
         )
         if (problem == MediaProblem.SIGNED_OUT && onSignIn != null) {
-            GcPrimaryButton(stringResource(R.string.media_sign_in_again), onClick = onSignIn)
+            // the sign-in did not work: why, in the words of Medien › Quellen; then „Erneut versuchen“
+            val why = signIn.problem?.takeIf { !signIn.running }
+            if (why != null) {
+                Text(
+                    sourceProblemText(why, signIn.source),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = GateControlTheme.extraColors.warn,
+                    modifier = Modifier.testTag(SIGN_IN_PROBLEM_TAG),
+                )
+            }
+            GcPrimaryButton(
+                stringResource(
+                    when {
+                        signIn.running -> R.string.media_signing_in
+                        why != null -> R.string.media_retry
+                        else -> R.string.media_sign_in_again
+                    },
+                ),
+                onClick = onSignIn,
+                enabled = !signIn.running,
+                modifier = Modifier.testTag(SIGN_IN_TAG),
+            )
         } else if (problem == MediaProblem.VPN) {
             // away only through the VPN: the page starts it (and asks for the consent once)
             GcPrimaryButton(stringResource(R.string.media_vpn_on), onClick = onRetry)
@@ -246,3 +283,6 @@ fun runtimeText(ms: Long): String {
 fun videoChip(t: com.gatecontrol.android.media.MediaVersion?): String? = t?.video?.let { v ->
     listOfNotNull(MediaQuality.videoLabel(v)?.replace(" ", " · ")).firstOrNull()
 }
+
+internal const val SIGN_IN_TAG = "media-sign-in"
+internal const val SIGN_IN_PROBLEM_TAG = "media-sign-in-problem"

@@ -32,7 +32,13 @@ internal class FakeLibrary(
     /** The progress reported: "start" / "progress" / "stop" with the position. */
     val reports = mutableListOf<Pair<String, Long>>()
 
-    override suspend fun resume(limit: Int) = MediaResult.Ok(resume.take(limit))
+    /** How often "Weiterschauen" was asked for (each load of the overview). */
+    var resumeCalls = 0
+
+    override suspend fun resume(limit: Int): MediaResult<List<MediaTitle>> {
+        resumeCalls++
+        return MediaResult.Ok(resume.take(limit))
+    }
     override suspend fun latest(limit: Int) = MediaResult.Ok(latest.take(limit))
     override suspend fun movies(start: Int, limit: Int) = MediaResult.Ok(MediaPage(movies.drop(start).take(limit), movies.size, start))
     override suspend fun series(start: Int, limit: Int) = MediaResult.Ok(MediaPage(series.drop(start).take(limit), series.size, start))

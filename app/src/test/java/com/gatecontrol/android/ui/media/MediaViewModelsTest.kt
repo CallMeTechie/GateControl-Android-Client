@@ -23,11 +23,14 @@ import com.gatecontrol.android.media.MediaGate
 import com.gatecontrol.android.media.server.MediaMigration
 import com.gatecontrol.android.media.server.MediaServerSources
 import com.gatecontrol.android.media.server.MediaServerState
+import com.gatecontrol.android.media.server.MediaSignIn
+import com.gatecontrol.android.media.MediaProblem
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.cancel
@@ -223,7 +226,89 @@ class MediaViewModelsTest {
         verify { servers.acknowledgeMigration() }
         got.cancel()
 
+    }
+
+    // --- „Neu anmelden“ ---
+
+    /** The Jellyfin server signed out: the overview shows the card. */
+    private fun signedOut() {
+        sources.value = listOf(jellyfin.copy(token = null), share)
+        every { hub.currentSource() } answers { sources.value.first() }
+    }
+
+    @Test
+    fun `Neu anmelden - a source of the server, waited for with Anmelden, then the overview and the open grid anew`() = runTest(dispatcher) {
+        val answer = CompletableDeferred<MediaSignIn>()
+        coEvery { servers.signIn("jf") } coAnswers { answer.await() }
+        val vm = MediaHomeViewModel(hub, requests, pictures, offline, servers).also { models += it }
+        vm.refresh()
+        vm.openGrid(movies = true)
+        advanceUntilIdle()
+        val loads = jfLib.resumeCalls
+        val grids = jfLib.orders.size
+
         vm.repair()
-        verify { servers.repair() }
+        advanceUntilIdle()
+        assertTrue(vm.ui.value.signIn.running, "„Anmelden …“ while it runs")
+        // tapped again meanwhile: nothing more
+        vm.repair()
+        answer.complete(MediaSignIn.Done)
+        advanceUntilIdle()
+        assertFalse(vm.ui.value.signIn.running)
+        assertNull(vm.ui.value.signIn.problem)
+        assertEquals(loads + 1, jfLib.resumeCalls, "the overview loaded anew")
+        assertEquals(grids + 1, jfLib.orders.size, "the grid opened loaded anew")
+        coVerify(exactly = 1) { servers.signIn("jf") }
+        coVerify { hub.prepare(jellyfin) }
+        verify(exactly = 0) { servers.repair() }
+    }
+
+    @Test
+    fun `Neu anmelden - it fails, the card keeps the reason until signed in`() = runTest(dispatcher) {
+        signedOut()
+        coEvery { servers.signIn("jf") } returns MediaSignIn.Problem("quick_connect_off")
+        val vm = MediaHomeViewModel(hub, requests, pictures, offline, servers).also { models += it }
+        vm.refresh()
+        advanceUntilIdle()
+        assertEquals(MediaProblem.SIGNED_OUT, vm.ui.value.problem)
+
+        vm.repair()
+        advanceUntilIdle()
+        assertFalse(vm.ui.value.signIn.running)
+        assertEquals("quick_connect_off", vm.ui.value.signIn.problem)
+        assertEquals("jf", vm.ui.value.signIn.source?.id)
+        assertEquals(MediaProblem.SIGNED_OUT, vm.ui.value.problem)
+        // the page loads again (back to the front): still signed out, the reason stays
+        vm.refresh()
+        advanceUntilIdle()
+        assertEquals("quick_connect_off", vm.ui.value.signIn.problem)
+    }
+
+    @Test
+    fun `Neu anmelden - a source set up by hand leads to Medien - Quellen, once`() = runTest(dispatcher) {
+        signedOut()
+        coEvery { servers.signIn("jf") } returns MediaSignIn.Manual
+        val vm = MediaHomeViewModel(hub, requests, pictures, offline, servers).also { models += it }
+        vm.repair()
+        advanceUntilIdle()
+        assertEquals("jf", vm.ui.value.openSource)
+        assertFalse(vm.ui.value.signIn.running)
+        vm.sourceOpened()
+        assertNull(vm.ui.value.openSource)
+    }
+
+    @Test
+    fun `signed in again in the background (after a revocation) - the page loads anew by itself`() = runTest(dispatcher) {
+        signedOut()
+        val vm = MediaHomeViewModel(hub, requests, pictures, offline, servers).also { models += it }
+        vm.refresh()
+        advanceUntilIdle()
+        assertEquals(MediaProblem.SIGNED_OUT, vm.ui.value.problem)
+        val loads = jfLib.resumeCalls
+        sources.value = listOf(jellyfin, share)
+        advanceUntilIdle()
+        assertNull(vm.ui.value.problem)
+        assertEquals(loads + 1, jfLib.resumeCalls)
+        assertEquals(listOf("m1"), vm.ui.value.resume.map { it.id })
     }
 }

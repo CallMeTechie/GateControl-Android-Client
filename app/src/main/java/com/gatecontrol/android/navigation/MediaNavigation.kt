@@ -26,9 +26,14 @@ internal object MediaRoutes {
     const val DETAIL = "media/title?source={source}&id={id}&name={name}"
     const val SEARCH = "media/search"
     const val SOURCES = "media/sources"
+
+    /** Medien › Quellen, with the dialog of one source open (`source`: its id; „Neu anmelden“ of a source set up by hand). */
+    const val SOURCES_ROUTE = "media/sources?source={source}"
     const val OFFLINE = "media/offline"
 
     fun detail(t: MediaTitle) = MailRoutes.build("media/title", "source" to t.sourceId, "id" to t.id, "name" to t.name.take(200))
+
+    fun source(id: String) = MailRoutes.build(SOURCES, "source" to id)
 }
 
 /** The ways between the media pages (the tab, a page beside Start, the start card and the routes on top share them). */
@@ -37,9 +42,10 @@ internal class MediaNavigation(private val navController: NavHostController) {
     val detail: (MediaTitle) -> Unit = { t -> navController.navigate(MediaRoutes.detail(t)) }
     val search: () -> Unit = { go(MediaRoutes.SEARCH) }
     val sources: () -> Unit = { go(MediaRoutes.SOURCES) }
+    val source: (String) -> Unit = { id -> go(MediaRoutes.source(id)) }
     val offline: () -> Unit = { go(MediaRoutes.OFFLINE) }
 
-    fun home() = MediaHomeNav(detail = detail, search = search, sources = sources, offline = offline)
+    fun home() = MediaHomeNav(detail = detail, search = search, sources = sources, offline = offline, source = source)
 }
 
 /** The tab's screen (as the tab or as a page beside Start). */
@@ -58,8 +64,8 @@ internal fun NavGraphBuilder.mediaRoutes(navController: NavHostController, navig
         GcContentWidth(maxWidth = 840.dp) { MediaDetailScreen(onBack = back, onOpen = nav.detail, castViewModel = androidx.hilt.navigation.compose.hiltViewModel()) }
     }
     composable(MediaRoutes.SEARCH) { GcContentWidth(maxWidth = 960.dp) { MediaSearchScreen(onBack = back, onOpen = nav.detail) } }
-    composable(MediaRoutes.SOURCES) {
-        GcContentWidth { MediaSourcesScreen(onBack = back, onOffline = nav.offline) }
+    composable(MediaRoutes.SOURCES_ROUTE, arguments = listOf(str("source"))) { entry ->
+        GcContentWidth { MediaSourcesScreen(onBack = back, onOffline = nav.offline, openSource = entry.arguments?.getString("source")) }
     }
     composable(MediaRoutes.OFFLINE) {
         GcContentWidth { MediaOfflineScreen(onBack = back, onSettings = nav.sources, onOpen = nav.detail) }

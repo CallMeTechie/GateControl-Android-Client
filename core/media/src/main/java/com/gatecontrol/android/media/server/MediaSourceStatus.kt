@@ -42,6 +42,9 @@ object MediaSourcesText {
     const val SIGNED_OUT = "signed_out"
     const val NO_PASSWORD = "no_password"
 
+    /** The plugin is off, uninstalled or without licence (a sign-in cannot be asked for). */
+    const val UNAVAILABLE = "plugin_unavailable"
+
     /** „vor 3 Min.“: minutes (below an hour), hours (below a day) or days since [at]; null: never. */
     fun ago(now: Long, at: Long): Pair<Char, Long>? {
         if (at <= 0) return null

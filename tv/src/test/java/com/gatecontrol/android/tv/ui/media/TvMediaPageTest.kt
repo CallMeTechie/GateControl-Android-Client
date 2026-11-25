@@ -119,6 +119,29 @@ class TvMediaPageTest {
         rule.onNodeWithText("The sign-in at the media server has expired.").assertExists()
         rule.onNodeWithText("Sign in again").performSemanticsAction(SemanticsActions.OnClick)
         assertEquals(1, repaired)
+        // running: „Anmelden …“; failed: the reason in the words of Medien › Quellen, then „Erneut versuchen“
+        ui = rows.copy(problem = MediaProblem.SIGNED_OUT, signingIn = true)
+        rule.waitForIdle()
+        rule.onNodeWithText("Signing in …").assertExists()
+        ui = rows.copy(problem = MediaProblem.SIGNED_OUT, signInProblem = "quick_connect_off")
+        rule.waitForIdle()
+        rule.onNodeWithText("Quick Connect is off in Jellyfin. The admin must switch it on.").assertExists()
+        rule.onNodeWithText("Try again").performSemanticsAction(SemanticsActions.OnClick)
+        assertEquals(2, repaired)
+    }
+
+    @Test
+    fun `Neu anmelden of a source set up by hand - Medien - Quellen opens, once`() {
+        var ui by mutableStateOf(rows.copy(problem = MediaProblem.SIGNED_OUT))
+        var opened = 0
+        rule.setContent {
+            GateControlTvTheme { TvMediaPage(TvMediaScreen(ui), TvMediaActions(onSourcesOpened = { opened++; ui = ui.copy(openSources = false) })) }
+        }
+        rule.onNodeWithText("Sign in again").assertExists()
+        ui = ui.copy(openSources = true)
+        rule.waitForIdle()
+        assertEquals(1, opened)
+        rule.onNodeWithText("Media › Sources").assertExists()
     }
 
     @Test

@@ -354,6 +354,8 @@
     <string name="tv_media_signed_out">The sign-in at the media server has expired.</string>
     <string name="tv_media_signed_out_short">sign in again</string>
     <string name="tv_media_sign_in_again">Sign in again</string>
+    <string name="tv_media_signing_in">Signing in …</string>
+    <string name="tv_media_sign_in_retry">Try again</string>
     <string name="tv_media_row_resume">Continue watching</string>
     <string name="tv_media_row_latest">Recently added</string>
     <string name="tv_media_row_movies">Films</string>

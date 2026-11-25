@@ -44,6 +44,7 @@
     <string name="media_problem_failed">The media could not be loaded.</string>
     <string name="media_problem_signed_out">The sign-in to the media server has expired.</string>
     <string name="media_sign_in_again">Sign in again</string>
+    <string name="media_signing_in">Signing in …</string>
     <string name="media_retry">Try again</string>
     <string name="media_play">Play</string>
     <string name="media_resume_from">Resume from %1$s</string>
