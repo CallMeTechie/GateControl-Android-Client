@@ -296,7 +296,7 @@ class MediaServerSources internal constructor(
         val s = _state.value
         if (s.lastContact <= 0) return
         if (now() - s.lastContact > s.maxOfflineDays * MediaServerState.DAY_MS && store.sources.value.any { it.managed && it.kind.share && it.password != null }) {
-            Timber.i("Medien: long without contact to the server, the NAS passwords are removed")
+            Timber.i("Medien: long without contact to the server, the NAS access data on the device is removed")
             store.dropPasswords()
             store.sources.value.filter { it.kind.share }.forEach { hub.forget(it.id) }
         }
