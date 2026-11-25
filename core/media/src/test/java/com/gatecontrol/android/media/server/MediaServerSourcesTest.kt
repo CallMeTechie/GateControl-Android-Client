@@ -12,6 +12,7 @@ import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
@@ -97,7 +98,53 @@ class MediaServerSourcesTest {
                 MediaPairEnd.Paired
             }
         }
-        val sources = MediaServerSources(hub, api, { clock }, pair, scope)
+        val castApi = mockk<MediaCastApi>(relaxed = true)
+        val channel = com.gatecontrol.android.media.cast.MediaCastChannel(castApi, { null }, {})
+        val sources = MediaServerSources(hub, api, { clock }, pair, scope, channel)
+    }
+
+    private fun castData(to: String = "42") = JsonParser.parseString(
+        """{"kind":"media.cast","from":"17","fromName":"Pixel 8","to":"$to","session":"a1b2c3d4e5f6a1b2c3d4e5f6",
+        "body":{"v":1,"session":"a1b2c3d4e5f6a1b2c3d4e5f6","seq":0,"at":1,"type":"cast.play","source":{"id":"jf-1"},"item":{"id":"i1","name":"K"}}}""",
+    )
+
+    @Test
+    fun `cast - allowed by the list, kept, the deliveries go to the channel, never shown`() = runTest {
+        val w = World(this)
+        w.api.list = MediaServerResult.Ok(MediaServerList(rev = "r1", at = null, cast = true, sources = listOf(jf)))
+        w.sources.refresh(force = true)
+        advanceUntilIdle()
+        assertTrue(w.sources.state.value.castAllowed)
+        assertTrue(MediaServerSources(w.hub, w.api, { w.clock }, w.pair, this).state.value.castAllowed, "kept with the list")
+        val got = ArrayList<com.gatecontrol.android.media.cast.CastEnvelope>()
+        val job = launch(kotlinx.coroutines.test.UnconfinedTestDispatcher(testScheduler)) { w.channel.incoming.collect { got += it } }
+        // the silent push (topic media_signal) and the event: one message, consumed (not shown)
+        assertTrue(w.sources.consume(MEDIA_SIGNAL_TOPIC, castData().toString()))
+        w.sources.onEvent("media.cast", castData())
+        assertEquals(1, got.size)
+        assertEquals("42", w.channel.self)
+        // not a revocation: the sources stay
+        assertTrue(w.store.sources.value.any { it.remoteId == "jf-1" })
+
+        // cast switched off in the plugin: nothing is taken any more
+        w.api.list = MediaServerResult.Ok(MediaServerList(rev = "r2", at = null, cast = false, sources = listOf(jf)))
+        w.clock += 10_000
+        w.sources.refresh(force = true)
+        advanceUntilIdle()
+        assertFalse(w.sources.state.value.castAllowed)
+        assertTrue(w.sources.consume(MEDIA_SIGNAL_TOPIC, castData().toString().replace("\"seq\":0", "\"seq\":1")))
+        assertEquals(1, got.size)
+        job.cancel()
+    }
+
+    @Test
+    fun `a state kept before cast was known asks for the whole list again`() {
+        val old = MediaServerState.decode("""{"known":true,"tab":true,"rev":"r1"}""")
+        assertNull(old.rev)
+        assertFalse(old.castAllowed)
+        val now = MediaServerState.decode(MediaServerState.encode(MediaServerState(known = true, rev = "r1", cast = true)))
+        assertEquals("r1", now.rev)
+        assertTrue(now.castAllowed)
     }
 
     @Test

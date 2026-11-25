@@ -49,11 +49,24 @@ interface MediaServerApi {
     suspend fun tab(): Boolean?
 }
 
+/**
+ * The plugin's cast routes („Auf TV/PC abspielen“, cast contract sections 2 and 3): the own TVs and PCs, and one
+ * message to exactly one of them. Refusals as `code`: `forbidden` (cast off), `no_access`, `rate_limited` (60 a minute,
+ * 600 an hour per sending device), `too_large` (more than 3000 bytes), `invalid`.
+ */
+interface MediaCastApi {
+    /** `GET v1/cast/targets`. */
+    suspend fun castTargets(): MediaServerResult<List<com.gatecontrol.android.media.cast.CastTarget>>
+
+    /** `POST v1/cast/{session}/message { to, body }`. */
+    suspend fun castMessage(to: String, message: com.gatecontrol.android.media.cast.CastMessage): MediaServerResult<Unit>
+}
+
 @Singleton
 class MediaServerHttpApi @Inject constructor(
     private val setupRepository: SetupRepository,
     private val apiClientProvider: ApiClientProvider,
-) : MediaServerApi {
+) : MediaServerApi, MediaCastApi {
 
     private fun enc(v: String) = URLEncoder.encode(v, "UTF-8").replace("+", "%20")
 
@@ -130,6 +143,17 @@ class MediaServerHttpApi @Inject constructor(
             problem?.let { addProperty("problem", it) }
         }
         return call({ pluginPost(MEDIA_PLUGIN, "v1/sources/${enc(sourceId)}/report", body) }, unit)
+    }
+
+    override suspend fun castTargets() =
+        call({ pluginGet(MEDIA_PLUGIN, "v1/cast/targets") }, com.gatecontrol.android.media.cast.CastEnvelopes::targets)
+
+    override suspend fun castMessage(to: String, message: com.gatecontrol.android.media.cast.CastMessage): MediaServerResult<Unit> {
+        if (!com.gatecontrol.android.media.cast.CastProtocol.validSession(message.session) || !com.gatecontrol.android.media.cast.CastEnvelopes.validDevice(to)) {
+            return MediaServerResult.Refused(MediaServerError(0, "invalid"))
+        }
+        val body = com.gatecontrol.android.media.cast.CastEnvelopes.request(to, message)
+        return call({ pluginPost(MEDIA_PLUGIN, "v1/cast/${message.session}/message", body) }, unit)
     }
 
     override suspend fun tab(): Boolean? {

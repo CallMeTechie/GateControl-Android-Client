@@ -16,7 +16,9 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
@@ -45,6 +47,7 @@ import javax.inject.Inject
 @AndroidEntryPoint
 class MediaPlayerActivity : ComponentActivity() {
 
+    @Inject lateinit var phoneCast: com.gatecontrol.android.media.PhoneCast
     @Inject lateinit var session: MediaPlayerSession
     @Inject lateinit var settingsRepository: SettingsRepository
 
@@ -106,6 +109,24 @@ class MediaPlayerActivity : ComponentActivity() {
             LaunchedEffect(landscape, pip.value) { systemBars(show = !landscape && !pip.value) }
             GateControlTheme(darkTheme = dark) {
                 val current = ui ?: return@GateControlTheme
+                // "Abspielen auf …": paused here, the other device starts at this place, the phone becomes its remote
+                var casting by remember { mutableStateOf<Long?>(null) }
+                // only when the plugin allows it and an own TV / PC is there
+                val castable by phoneCast.available.collectAsStateWithLifecycle()
+                LaunchedEffect(Unit) { phoneCast.refreshTargets() }
+                casting?.let { at ->
+                    MediaCastSheet(
+                        current.title,
+                        positionMs = at,
+                        audio = current.choices?.audioIndex,
+                        subtitle = current.choices?.subtitleIndex,
+                        onDismiss = { casting = null },
+                        onStarted = {
+                            casting = null
+                            session.close()
+                        },
+                    )
+                }
                 MediaPlayerScreen(
                     ui = current,
                     player = player,
@@ -126,6 +147,10 @@ class MediaPlayerActivity : ComponentActivity() {
                         onCancelCountdown = session::cancelCountdown,
                         onRetry = session::retry,
                         onMobileHintRead = session::mobileHintRead,
+                        onCast = {
+                            session.pause()
+                            casting = player?.currentPosition?.coerceAtLeast(0) ?: 0
+                        }.takeIf { !pip.value && castable && phoneCast.canCast(current.title) },
                     ),
                 )
             }

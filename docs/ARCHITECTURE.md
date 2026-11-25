@@ -72,6 +72,11 @@ app
 tv (GateControl TV) → alle core-Module außer core:rdp
 ```
 
+„Auf GateControl TV / PC abspielen“ (`core:media` `cast/*`, Handy `PhoneCast`, TV `TvCast`) schickt die Nachrichten
+des Cast-Vertrags (Abschnitte 2 und 3) über das Plugin „Medien“: Senden mit `POST v1/cast/{session}/message`, Ziele
+aus `GET v1/cast/targets`, Empfang als Push-Stream-Ereignis und stille Mitteilung `media.cast` (`MediaCastChannel`:
+nur `to` = eigenes Gerät, jede Nachricht einmal nach Absender, Sitzung und `seq`).
+
 Jedes Modul stellt seine Abhängigkeiten über ein Hilt-`@Module` mit `@InstallIn(SingletonComponent::class)` bereit.
 
 ---

@@ -54,9 +54,14 @@ data class MediaServerState(
     val secretRevs: Map<String, Int> = emptyMap(),
     val refreshing: Boolean = false,
     val pairing: Set<String> = emptySet(),
+    /** `cast.enabled` of the list: „Auf TV/PC abspielen“ is allowed. */
+    val cast: Boolean = false,
 ) {
     /** Medien shows (tab, rail, side bar): only while the plugin gives a tab and answers. */
     val visible: Boolean get() = tab && !unavailable && media
+
+    /** „Auf TV/PC abspielen“ may be offered (and a cast taken): the plugin answers and allows it. */
+    val castAllowed: Boolean get() = known && !unavailable && media && cast
 
     /** Long without contact to the server: „Lange keinen Kontakt zum Server“ (question 36 a). */
     fun offlineHint(now: Long): Boolean = lastContact > 0 && now - lastContact > offlineHintDays * DAY_MS
@@ -70,6 +75,7 @@ data class MediaServerState(
             addProperty("unavailable", s.unavailable)
             addProperty("unavailableSince", s.unavailableSince)
             addProperty("media", s.media)
+            addProperty("cast", s.cast)
             s.rev?.let { addProperty("rev", it) }
             addProperty("lastContact", s.lastContact)
             addProperty("maxOfflineDays", s.maxOfflineDays)
@@ -118,7 +124,9 @@ data class MediaServerState(
                 unavailable = o.bool("unavailable") == true,
                 unavailableSince = long("unavailableSince"),
                 media = o.bool("media") != false,
-                rev = o.str("rev"),
+                cast = o.bool("cast") == true,
+                // kept before `cast` was: the whole list once more (an unchanged rev would never bring `cast.enabled`)
+                rev = o.str("rev")?.takeIf { o.has("cast") },
                 lastContact = long("lastContact"),
                 maxOfflineDays = int("maxOfflineDays", MediaServerList.DEFAULT_MAX_OFFLINE_DAYS),
                 offlineHintDays = int("offlineHintDays", MediaServerList.DEFAULT_OFFLINE_HINT_DAYS),
@@ -153,10 +161,12 @@ class MediaServerSources internal constructor(
     private val now: () -> Long,
     private val pair: MediaAutoPair,
     private val scope: CoroutineScope,
+    /** „Auf TV/PC abspielen“: where the deliveries `media.cast` go (event and silent push). */
+    private val cast: com.gatecontrol.android.media.cast.MediaCastChannel? = null,
 ) {
     @Inject
-    constructor(hub: MediaHub, api: MediaServerApi) :
-        this(hub, api, System::currentTimeMillis, MediaAutoPair(hub, api), CoroutineScope(SupervisorJob() + Dispatchers.IO))
+    constructor(hub: MediaHub, api: MediaServerApi, cast: com.gatecontrol.android.media.cast.MediaCastChannel) :
+        this(hub, api, System::currentTimeMillis, MediaAutoPair(hub, api), CoroutineScope(SupervisorJob() + Dispatchers.IO), cast)
 
     private val store get() = hub.store
 
@@ -260,6 +270,7 @@ class MediaServerSources internal constructor(
                 unavailable = false,
                 unavailableSince = 0,
                 media = list.media,
+                cast = list.cast && list.media,
                 rev = list.rev,
                 lastContact = now(),
                 maxOfflineDays = list.maxOfflineDays,
@@ -373,14 +384,21 @@ class MediaServerSources internal constructor(
 
     /**
      * A push of the topic `plugin:gatecontrol-medien:media_signal`: consumed here, never shown (true); `media.revoke`
-     * handled. Anything of another topic: false.
+     * handled, `media.cast` handed to the cast channel. Anything of another topic: false.
      */
     fun consume(topic: String, dataJson: String?): Boolean {
         if (topic != MEDIA_SIGNAL_TOPIC) return false
         val data = runCatching { dataJson?.takeIf { it.length < 64_000 }?.let { JsonParser.parseString(it) } }.getOrNull()
+        if (isCast(data)) {
+            if (_state.value.castAllowed) cast?.receive(data, push = true)
+            return true
+        }
         onSignal(data)
         return true
     }
+
+    private fun isCast(data: JsonElement?): Boolean =
+        data?.takeIf { it.isJsonObject }?.asJsonObject?.str("kind") == com.gatecontrol.android.media.cast.CastEnvelopes.KIND
 
     /** The silent data push of the plugin (topic `media_signal`): `media.revoke`; true when it was one of ours. */
     fun onSignal(data: JsonElement?): Boolean {
@@ -408,6 +426,7 @@ class MediaServerSources internal constructor(
         when (type) {
             "media.changed" -> refreshLater()
             "media.revoke" -> onSignal(data)
+            com.gatecontrol.android.media.cast.CastEnvelopes.KIND -> if (_state.value.castAllowed) cast?.receive(data, push = false)
         }
     }
 
@@ -427,6 +446,7 @@ class MediaServerSources internal constructor(
 
     /** Forget everything of the server (unpaired; the store is cleared by [MediaHub.clear]). */
     fun clear() {
+        cast?.clear()
         pairTried.clear()
         reported.clear()
         lastAttempt = 0
