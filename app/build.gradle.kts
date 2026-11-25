@@ -377,7 +377,7 @@ val faceModels = tasks.register<FaceModelsTask>("faceModels") {
 // Robolectric's Android jar (Compose UI tests) through Gradle and its cache, not Robolectric's own downloader
 // CI points GC_ROBOLECTRIC_DIR at a directory it caches itself (actions/cache): with the jar there, nothing is
 // downloaded (Maven Central answers 429 at times).
-val robolectricAndroidAll = "14-robolectric-10818077-i7"
+val robolectricAndroidAll = "17-robolectric-16653203-i7"
 val robolectricDir: File = providers.environmentVariable("GC_ROBOLECTRIC_DIR").orNull
     ?.let { File(it, project.name) }
     ?: layout.buildDirectory.dir("robolectric").get().asFile
