@@ -155,10 +155,16 @@ class MediaSourceStore internal constructor(private val secrets: MediaSecrets) :
 
     fun setServerState(json: String?) = if (json == null) secrets.remove(KEY_SERVER) else secrets.put(KEY_SERVER, json)
 
+    /** This device's own GateControl id as the plugin's cast deliveries name it (`to`); null: not learned yet. */
+    fun castSelf(): String? = secrets.get(KEY_CAST_SELF)
+
+    fun setCastSelf(id: String) = secrets.put(KEY_CAST_SELF, id)
+
     /** The TV was unpaired (the encrypted storage is cleared): nothing of the sources is left in memory either. */
     @Synchronized
     fun forgetAll() {
         secrets.remove(KEY_SERVER)
+        secrets.remove(KEY_CAST_SELF)
         secrets.remove(KEY_SOURCES)
         secrets.remove(KEY_TRACKS)
         secrets.remove(KEY_PROGRESS)
@@ -245,6 +251,7 @@ class MediaSourceStore internal constructor(private val secrets: MediaSecrets) :
         private const val KEY_PROGRESS = "media_share_progress_v1"
         private const val KEY_GONE = "media_sources_gone_v1"
         private const val KEY_SERVER = "media_server_state_v1"
+        private const val KEY_CAST_SELF = "media_cast_self_v1"
         private const val MAX_GONE = 64
         private const val MAX_TRACK_CHOICES = 200
         const val MAX_PROGRESS = 500

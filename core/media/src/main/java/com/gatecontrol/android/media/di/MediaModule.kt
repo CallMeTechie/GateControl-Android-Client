@@ -1,5 +1,6 @@
 package com.gatecontrol.android.media.di
 
+import com.gatecontrol.android.media.server.MediaCastApi
 import com.gatecontrol.android.media.server.MediaServerApi
 import com.gatecontrol.android.media.server.MediaServerHttpApi
 import dagger.Binds
@@ -13,4 +14,8 @@ import dagger.hilt.components.SingletonComponent
 abstract class MediaModule {
     @Binds
     abstract fun bindServerApi(impl: MediaServerHttpApi): MediaServerApi
+
+    /** „Auf TV/PC abspielen“: the plugin's cast routes. */
+    @Binds
+    abstract fun bindCastApi(impl: MediaServerHttpApi): MediaCastApi
 }

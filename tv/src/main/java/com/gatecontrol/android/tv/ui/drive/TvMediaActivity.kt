@@ -35,6 +35,7 @@ class TvMediaActivity : ComponentActivity() {
     @Inject lateinit var gatedrop: TvGateDrop
     @Inject lateinit var mediaLibrary: com.gatecontrol.android.media.MediaHub
     @Inject lateinit var pinUnlocks: com.gatecontrol.android.tv.security.TvPinUnlocks
+    @Inject lateinit var cast: com.gatecontrol.android.tv.cast.TvCast
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -43,6 +44,7 @@ class TvMediaActivity : ComponentActivity() {
         val sendId = selection.localSend
         val queue = selection.media
         val photos = selection.photos
+        val castSession = selection.cast
         if (items.isEmpty() && local.isEmpty() && queue == null && photos == null) {
             finish()
             return
@@ -61,7 +63,9 @@ class TvMediaActivity : ComponentActivity() {
                 } else if (queue != null) {
                     // Medien: films and episodes of the NAS (no "Senden an …")
                     val videos = remember { com.gatecontrol.android.tv.media.TvMediaVideos(queue, mediaLibrary, resources) }
-                    TvVideoPlayer(videos, at.coerceIn(0, videos.count - 1), onAt = { at = it }, onClose = ::finish)
+                    // played from a phone ("Auf GateControl TV abspielen"): its keys come in, its state goes out
+                    val remote = remember { cast.remoteFor(castSession) }
+                    TvVideoPlayer(videos, at.coerceIn(0, videos.count - 1), onAt = { at = it }, onClose = ::finish, remote = remote)
                 } else if (local.isNotEmpty() && sendId != null) {
                     val i = at.coerceIn(0, local.size - 1)
                     val files = remember { local.map { it.second } }

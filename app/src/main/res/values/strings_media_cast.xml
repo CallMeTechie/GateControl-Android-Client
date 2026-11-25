@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- "Play on …" (stage 4, question 23a): an own device with GateControl plays, the phone is the remote -->
+    <string name="media_cast">Play on …</string>
+    <string name="media_cast_this_phone">This phone</string>
+    <string name="media_cast_from">from %1$s</string>
+    <string name="media_cast_from_start">from the start</string>
+    <string name="media_cast_tv">GateControl TV</string>
+    <string name="media_cast_pc">GateControl for Windows</string>
+    <string name="media_cast_starts_there">%1$s · starts there %2$s</string>
+    <string name="media_cast_online">%1$s · online</string>
+    <string name="media_cast_offline">%1$s · offline</string>
+    <string name="media_cast_running">Playing on %1$s</string>
+    <string name="media_cast_open_remote">Open the remote</string>
+    <string name="media_cast_hint">The device fetches the video from the NAS itself. The phone stays the remote: pause, seek, sound and subtitles.</string>
+    <string name="media_cast_none">No own device with GateControl TV or GateControl for Windows found.</string>
+    <string name="media_cast_not_allowed">“Play on TV/PC” is not enabled for you on this server.</string>
+    <string name="media_cast_offline_list">No connection to the server.</string>
+    <string name="media_cast_send_failed">Could not be sent to %1$s.</string>
+    <string name="media_cast_remote">Remote</string>
+    <string name="media_cast_close_remote">Close the remote</string>
+    <string name="media_cast_connecting">Connecting to %1$s …</string>
+    <string name="media_cast_loading">Starting …</string>
+    <string name="media_cast_playing">Playing</string>
+    <string name="media_cast_paused">Paused</string>
+    <string name="media_cast_buffering">Buffering …</string>
+    <string name="media_cast_ended">Finished</string>
+    <string name="media_cast_stopped">Stopped</string>
+    <string name="media_cast_stop">Stop</string>
+    <string name="media_cast_audio">Sound</string>
+    <string name="media_cast_subtitles">Subtitles</string>
+    <string name="media_cast_go_on_here">Go on on this phone from %1$s</string>
+    <string name="media_cast_done">Close</string>
+    <string name="media_cast_error_source_missing">The source is not there on %1$s. Open Media there so the sources load from the server, or ask your administrator for access.</string>
+    <string name="media_cast_error_signed_out">%1$s is not signed in to the source. Open Media there, it signs in automatically.</string>
+    <string name="media_cast_error_not_found">%1$s does not find the title in its source.</string>
+    <string name="media_cast_error_offline">%1$s cannot reach the source right now.</string>
+    <string name="media_cast_error_unsupported">%1$s cannot play this title.</string>
+    <string name="media_cast_error_blocked">GateControl is not in front on %1$s. Open GateControl there and try again.</string>
+    <string name="media_cast_error_taken_over">Another device took over the playback.</string>
+    <string name="media_cast_error_closed">Ended on %1$s.</string>
+    <string name="media_cast_error_failed">The playback on %1$s is disturbed.</string>
+    <string name="media_cast_no_answer">%1$s does not answer. Is GateControl open there, and up to date?</string>
+    <string name="media_cast_rate_limited">Too many commands in a short time. Wait a minute and try again.</string>
+</resources>

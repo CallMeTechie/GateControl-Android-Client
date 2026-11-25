@@ -83,7 +83,13 @@ import com.gatecontrol.android.ui.theme.GateControlTheme
  * "Von vorn", "Gesehen", sound and subtitle before the start; a series with its seasons and episodes.
  */
 @Composable
-fun MediaDetailScreen(onBack: () -> Unit, onOpen: (MediaTitle) -> Unit, viewModel: MediaDetailViewModel = hiltViewModel()) {
+fun MediaDetailScreen(
+    onBack: () -> Unit,
+    onOpen: (MediaTitle) -> Unit,
+    viewModel: MediaDetailViewModel = hiltViewModel(),
+    /** "Abspielen auf …"; null: not offered (as in the tests of the page). */
+    castViewModel: MediaCastViewModel? = null,
+) {
     val ui by viewModel.ui.collectAsStateWithLifecycle()
     val link by viewModel.link.collectAsStateWithLifecycle()
     var first by remember { mutableStateOf(true) }
@@ -94,13 +100,16 @@ fun MediaDetailScreen(onBack: () -> Unit, onOpen: (MediaTitle) -> Unit, viewMode
         onPauseOrDispose { }
     }
     var sheet by remember { mutableStateOf<TrackSheet?>(null) }
+    // "Abspielen auf …" (question 23a): only when the plugin allows it and an own TV / PC is there
+    var cast by remember { mutableStateOf(false) }
+    val castable by (castViewModel?.available ?: remember { kotlinx.coroutines.flow.MutableStateFlow(false) }).collectAsStateWithLifecycle()
     var loadSheet by remember { mutableStateOf<LoadSheet?>(null) }
     var offlineMenu by remember { mutableStateOf(false) }
     val wifi by viewModel.wifi.collectAsStateWithLifecycle()
     val gate by viewModel.gate.collectAsStateWithLifecycle()
     CompositionLocalProvider(LocalMediaPictures provides viewModel.pictures, LocalOfflineWifi provides wifi) {
         LazyColumn(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).testTag(DETAIL_TAG), contentPadding = PaddingValues(bottom = 32.dp)) {
-            item(key = "head") { DetailHead(ui.title, onBack) }
+            item(key = "head") { DetailHead(ui.title, onBack, onCast = { cast = true }.takeIf { castable && ui.title.playable && ui.detail != null && castViewModel?.canCast(ui.title) == true }) }
             item(key = "vpn") { MediaVpnGate(gate, onConsent = viewModel::consent, onRetry = viewModel::load) }
             when {
                 ui.loading && ui.detail == null -> item(key = "loading") {
@@ -150,6 +159,10 @@ fun MediaDetailScreen(onBack: () -> Unit, onOpen: (MediaTitle) -> Unit, viewMode
                 }
             }
         }
+        if (cast && castViewModel != null) {
+            val t = ui.title
+            MediaCastSheet(t, positionMs = if (t.resumable) t.positionMs else 0, audio = ui.audio, subtitle = ui.subtitle, onDismiss = { cast = false }, onStarted = { cast = false }, viewModel = castViewModel)
+        }
         sheet?.let { which ->
             TrackChooser(which, ui, onPick = { index ->
                 if (which == TrackSheet.AUDIO) index?.let(viewModel::chooseAudio) else viewModel.chooseSubtitle(index)
@@ -171,7 +184,7 @@ private enum class TrackSheet { AUDIO, SUBTITLE }
 
 /** Backdrop with the way back, then the poster beside the name and the line "2025 · 1 Std. 48 Min. · Drama". */
 @Composable
-private fun DetailHead(t: MediaTitle, onBack: () -> Unit) {
+private fun DetailHead(t: MediaTitle, onBack: () -> Unit, onCast: (() -> Unit)? = null) {
     val x = GateControlTheme.extraColors
     val backdrop = rememberMediaPicture(t, backdrop = true)
     val poster = rememberMediaPicture(t)
@@ -181,6 +194,11 @@ private fun DetailHead(t: MediaTitle, onBack: () -> Unit) {
             Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color.Transparent, MaterialTheme.colorScheme.background))))
             Box(Modifier.statusBarsPadding().padding(8.dp).clip(CircleShape).background(Color.Black.copy(alpha = 0.35f))) {
                 GcIconButton(GcIcons.Back, contentDescription = stringResource(R.string.common_back), onClick = onBack, tint = Color.White)
+            }
+            if (onCast != null) {
+                Box(Modifier.align(Alignment.TopEnd).statusBarsPadding().padding(8.dp).clip(CircleShape).background(Color.Black.copy(alpha = 0.35f))) {
+                    GcIconButton(GcIcons.Cast, contentDescription = stringResource(R.string.media_cast), onClick = onCast, tint = Color.White, modifier = Modifier.testTag(CAST_TAG))
+                }
             }
         }
         Row(Modifier.padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.Bottom) {
@@ -536,6 +554,7 @@ private fun EpisodeRow(e: MediaTitle, offline: OfflineItem?, onPlay: () -> Unit,
 }
 
 internal const val DETAIL_TAG = "media-detail"
+internal const val CAST_TAG = "media-cast"
 internal const val PLAY_TAG = "media-play"
 internal const val PLAYED_TAG = "media-played"
 internal const val LOAD_TAG = "media-load"

@@ -67,7 +67,12 @@ import com.gatecontrol.android.media.player.PlaybackReporter
 import com.gatecontrol.android.media.player.PlayerTrack
 import com.gatecontrol.android.media.player.PlayerTrackMenu
 import com.gatecontrol.android.media.player.PlayerTracks
+import com.gatecontrol.android.media.cast.CastCmd
+import com.gatecontrol.android.media.cast.CastReceiverRules
 import com.gatecontrol.android.tv.R
+import com.gatecontrol.android.tv.cast.TvCastPick
+import com.gatecontrol.android.tv.cast.TvCastTracks
+import com.gatecontrol.android.tv.cast.TvVideoRemote
 import com.gatecontrol.android.tv.drive.TvDriveLogic
 import com.gatecontrol.android.tv.player.TvPlayerAction
 import com.gatecontrol.android.tv.player.TvPlayerKeys
@@ -93,6 +98,8 @@ fun TvVideoPlayer(
     onClose: () -> Unit,
     /** "Senden an …" in the panel (GateDrop); null: not offered. */
     onSend: (() -> Unit)? = null,
+    /** A phone plays this here and controls it ("Auf GateControl TV abspielen"); null: none. */
+    remote: TvVideoRemote? = null,
 ) {
     val context = LocalContext.current
     val key = source.key(at)
@@ -271,10 +278,91 @@ fun TvVideoPlayer(
     // the source's own panel, read again after each opening
     val choices = remember(key, reload, info, tracks) { source.choices(at) }
 
-    fun close() {
+    // ─── the phone's remote ("Auf GateControl TV abspielen") ───
+    val trackFallback = stringResource(R.string.tv_player_track)
+    val subtitleFallback = stringResource(R.string.tv_player_subtitle)
+    val subtitlesOff = stringResource(R.string.tv_player_subtitles_off)
+    val nowChoices by rememberUpdatedState(choices)
+    val nowMenu by rememberUpdatedState(menu)
+    val nowTrouble by rememberUpdatedState(trouble)
+    val nowCountdown by rememberUpdatedState(countdown)
+    var remoteClosed by remember { mutableStateOf(false) }
+
+    fun tellRemote(force: Boolean = false) {
+        val r = remote ?: return
+        val p = player ?: return
+        val dur = p.duration.takeIf { it != C.TIME_UNSET } ?: 0
+        val phase = TvCastTracks.phase(
+            trouble = nowTrouble != null,
+            idle = p.playbackState == Player.STATE_IDLE,
+            buffering = p.playbackState == Player.STATE_BUFFERING,
+            ended = p.playbackState == Player.STATE_ENDED,
+            playWhenReady = p.playWhenReady,
+            countdown = nowCountdown != null,
+            last = nowAt >= count - 1,
+        )
+        val audio = TvCastTracks.audio(nowChoices, nowMenu) { t, n -> PlayerTracks.name(t, n, trackFallback) }
+        val text = TvCastTracks.subtitles(nowChoices, nowMenu, subtitlesOff) { t, n -> PlayerTracks.name(t, n, subtitleFallback) }
+        r.state(phase, p.currentPosition.coerceAtLeast(0), dur, source.name(nowAt), audio, text, force)
+    }
+
+    fun closeRemote(byRemote: Boolean) {
+        val r = remote ?: return
+        if (remoteClosed) return
+        remoteClosed = true
+        val p = player
+        r.closed(p?.currentPosition?.coerceAtLeast(0) ?: position, p?.duration?.takeIf { it != C.TIME_UNSET } ?: duration, byRemote)
+    }
+
+    fun close(byRemote: Boolean = false) {
         keep()
         stopReport()
+        closeRemote(byRemote)
         onClose()
+    }
+
+    if (remote != null) {
+        // how it plays, once a second to the remote (it tells the phone only changes, jumps and a heartbeat)
+        LaunchedEffect(player, key) {
+            while (true) {
+                tellRemote()
+                delay(1_000)
+            }
+        }
+        LaunchedEffect(player, remote) {
+            remote.commands.collect { c ->
+                val p = player ?: return@collect
+                touched++
+                when (c.cmd) {
+                    CastCmd.PLAY -> {
+                        countdown = null
+                        if (p.playbackState == Player.STATE_ENDED) p.seekTo(0)
+                        p.play()
+                    }
+                    CastCmd.PAUSE -> p.pause()
+                    CastCmd.SEEK -> c.positionMs?.let { to -> p.seekTo(CastReceiverRules.seekTarget(to, 0, p.duration.takeIf { it != C.TIME_UNSET } ?: 0)) }
+                    CastCmd.SEEK_BY -> c.deltaMs?.let { d -> p.seekTo(CastReceiverRules.seekTarget(p.currentPosition, d, p.duration.takeIf { it != C.TIME_UNSET } ?: 0)) }
+                    CastCmd.AUDIO, CastCmd.SUBTITLE -> when (val pick = c.track?.let { TvCastTracks.pick(it, c.cmd == CastCmd.AUDIO, nowChoices, nowMenu) }) {
+                        is TvCastPick.Choice -> if (source.choose(nowAt, pick.choice)) {
+                            reloadFrom = p.currentPosition
+                            reload++
+                        }
+                        is TvCastPick.Track -> p.trackSelectionParameters = PlayerTracks.choose(p.trackSelectionParameters, p.currentTracks, pick.track)
+                        TvCastPick.SubtitlesOff -> p.trackSelectionParameters = PlayerTracks.subtitlesOff(p.trackSelectionParameters)
+                        null -> Unit
+                    }
+                    CastCmd.STOP -> {
+                        close(byRemote = true)
+                        return@collect
+                    }
+                    CastCmd.STATUS -> Unit
+                }
+                position = p.currentPosition
+                tellRemote(force = c.cmd == CastCmd.STATUS)
+            }
+        }
+        // gone without "Stopp" (the TV's Zurück, another app): the phone hears it
+        DisposableEffect(remote) { onDispose { closeRemote(byRemote = false) } }
     }
 
     fun act(action: TvPlayerAction, repeat: Int): Boolean {

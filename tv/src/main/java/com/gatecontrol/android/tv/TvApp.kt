@@ -17,6 +17,9 @@ class TvApp : Application() {
     @Inject lateinit var tvTunnel: TvTunnel
     @Inject lateinit var supervisor: TvSupervisor
 
+    /** „Auf GateControl TV abspielen“: listens from the start (a phone's start comes as a push, also with no page open). */
+    @Inject lateinit var cast: com.gatecontrol.android.tv.cast.TvCast
+
     override fun onCreate() {
         super.onCreate()
         if (applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE != 0) Timber.plant(Timber.DebugTree())

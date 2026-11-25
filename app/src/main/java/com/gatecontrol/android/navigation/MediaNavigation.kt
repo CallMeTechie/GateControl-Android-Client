@@ -55,7 +55,7 @@ internal fun NavGraphBuilder.mediaRoutes(navController: NavHostController, navig
     val str = { name: String -> navArgument(name) { type = NavType.StringType; nullable = true; defaultValue = null } }
     composable(MediaRoutes.TAB) { home() }
     composable(MediaRoutes.DETAIL, arguments = listOf(str(MediaDetailViewModel.ARG_SOURCE), str(MediaDetailViewModel.ARG_ID), str(MediaDetailViewModel.ARG_NAME))) {
-        GcContentWidth(maxWidth = 840.dp) { MediaDetailScreen(onBack = back, onOpen = nav.detail) }
+        GcContentWidth(maxWidth = 840.dp) { MediaDetailScreen(onBack = back, onOpen = nav.detail, castViewModel = androidx.hilt.navigation.compose.hiltViewModel()) }
     }
     composable(MediaRoutes.SEARCH) { GcContentWidth(maxWidth = 960.dp) { MediaSearchScreen(onBack = back, onOpen = nav.detail) } }
     composable(MediaRoutes.SOURCES) {
