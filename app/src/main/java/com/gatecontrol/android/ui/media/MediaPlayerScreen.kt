@@ -135,6 +135,7 @@ internal fun lineParts(line: MediaPlayLine): List<Pair<String, GcTone>> = buildL
         null -> Unit
     }
     when {
+        line.offline != null -> add(stringResource(R.string.media_offline_line, line.offline) to GcTone.Ok)
         line.share != null -> add(stringResource(R.string.media_player_line_share, line.share) to GcTone.Ok)
         line.converted -> add(
             (line.convertedBps?.let { stringResource(R.string.media_player_line_converted, MediaQuality.resolution(it), MediaQuality.label(it)) }
@@ -500,7 +501,7 @@ private fun Infos(ui: MediaPlayerUi, onPlayAt: (Int) -> Unit, onSheet: () -> Uni
                 }
             }
         }
-        if (ui.choices != null || ui.share) {
+        if (ui.choices != null || ui.share || ui.offline) {
             item(key = "tracks") {
                 Row(
                     Modifier.fillMaxWidth().clickable(role = Role.Button, onClick = onSheet).padding(horizontal = 16.dp, vertical = 12.dp),
@@ -626,7 +627,7 @@ private fun TrackSheet(ui: MediaPlayerUi, menu: PlayerTrackMenu, actions: MediaP
     ModalBottomSheet(onDismissRequest = onDismiss, containerColor = MaterialTheme.colorScheme.surface, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
         Column(Modifier.padding(bottom = 24.dp).verticalScroll(rememberScrollState()).testTag(SHEET_TAG)) {
             val c = ui.choices
-            if (c != null) JellyfinChoices(ui, c, actions, onDismiss) else ShareChoices(menu, actions, onDismiss)
+            if (c != null) JellyfinChoices(ui, c, actions, onDismiss) else ShareChoices(menu, actions, onDismiss, offline = ui.line?.offline?.takeIf { ui.offline })
         }
     }
 }
@@ -685,7 +686,7 @@ private fun playerAudioNote(s: MediaStream, c: MediaPlayerChoices): String {
 }
 
 @Composable
-private fun ShareChoices(menu: PlayerTrackMenu, actions: MediaPlayerActions, onDismiss: () -> Unit) {
+private fun ShareChoices(menu: PlayerTrackMenu, actions: MediaPlayerActions, onDismiss: () -> Unit, offline: String? = null) {
     val trackWord = stringResource(R.string.media_audio)
     val subtitleWord = stringResource(R.string.media_subtitle)
     if (menu.audio.isNotEmpty()) {
@@ -696,7 +697,7 @@ private fun ShareChoices(menu: PlayerTrackMenu, actions: MediaPlayerActions, onD
     Choice(stringResource(R.string.media_subtitles_off), null, menu.textOff) { onDismiss(); actions.onSubtitlesOff() }
     menu.text.forEachIndexed { n, t -> Choice(PlayerTracks.name(t, n + 1, subtitleWord), null, t.selected) { onDismiss(); actions.onTrack(t) } }
     SheetHead(stringResource(R.string.media_player_quality))
-    Text(stringResource(R.string.media_player_quality_only_original), style = MaterialTheme.typography.bodySmall, color = GateControlTheme.extraColors.muted, modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp))
+    Text(offline?.let { stringResource(R.string.media_offline_quality_note, it) } ?: stringResource(R.string.media_player_quality_only_original), style = MaterialTheme.typography.bodySmall, color = GateControlTheme.extraColors.muted, modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp))
 }
 
 @Composable

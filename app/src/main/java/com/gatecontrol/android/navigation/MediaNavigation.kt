@@ -15,6 +15,7 @@ import com.gatecontrol.android.ui.media.MediaDetailScreen
 import com.gatecontrol.android.ui.media.MediaDetailViewModel
 import com.gatecontrol.android.ui.media.MediaHomeNav
 import com.gatecontrol.android.ui.media.MediaHomeScreen
+import com.gatecontrol.android.ui.media.MediaOfflineScreen
 import com.gatecontrol.android.ui.media.MediaSearchScreen
 import com.gatecontrol.android.ui.media.MediaSourcesScreen
 
@@ -28,6 +29,7 @@ internal object MediaRoutes {
     const val SEARCH = "media/search"
     const val SOURCES = "media/sources"
     const val ADD = "media/add?source={source}"
+    const val OFFLINE = "media/offline"
 
     fun detail(t: MediaTitle) = MailRoutes.build("media/title", "source" to t.sourceId, "id" to t.id, "name" to t.name.take(200))
 
@@ -43,8 +45,9 @@ internal class MediaNavigation(private val navController: NavHostController) {
     val sources: () -> Unit = { go(MediaRoutes.SOURCES) }
     val add: () -> Unit = { go(MediaRoutes.add()) }
     val signInAgain: (String) -> Unit = { id -> go(MediaRoutes.add(id)) }
+    val offline: () -> Unit = { go(MediaRoutes.OFFLINE) }
 
-    fun home() = MediaHomeNav(detail = detail, search = search, sources = sources, add = add, signInAgain = { signInAgain(it.id) })
+    fun home() = MediaHomeNav(detail = detail, search = search, sources = sources, add = add, signInAgain = { signInAgain(it.id) }, offline = offline)
 }
 
 /** The tab's screen (as the tab or as a page beside Start). */
@@ -64,7 +67,10 @@ internal fun NavGraphBuilder.mediaRoutes(navController: NavHostController, navig
     }
     composable(MediaRoutes.SEARCH) { GcContentWidth(maxWidth = 960.dp) { MediaSearchScreen(onBack = back, onOpen = nav.detail) } }
     composable(MediaRoutes.SOURCES) {
-        GcContentWidth { MediaSourcesScreen(onBack = back, onAdd = nav.add, onSignInAgain = { nav.signInAgain(it.id) }) }
+        GcContentWidth { MediaSourcesScreen(onBack = back, onAdd = nav.add, onSignInAgain = { nav.signInAgain(it.id) }, onOffline = nav.offline) }
+    }
+    composable(MediaRoutes.OFFLINE) {
+        GcContentWidth { MediaOfflineScreen(onBack = back, onSettings = nav.sources, onOpen = nav.detail) }
     }
     composable(MediaRoutes.ADD, arguments = listOf(str(MediaAddViewModel.ARG_SOURCE))) {
         GcContentWidth {

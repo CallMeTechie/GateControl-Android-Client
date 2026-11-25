@@ -170,6 +170,8 @@ data class MediaVersion(
     val transcodingProtocol: String? = null,
     /** Why the server would convert (`ContainerNotSupported`, `AudioCodecNotSupported`, `SubtitleCodecNotSupported` …). */
     val transcodeReasons: List<String> = emptyList(),
+    /** The file's size in bytes (Jellyfin `Size`); null: unknown. */
+    val size: Long? = null,
 ) {
     val video: MediaStream? get() = streams.firstOrNull { it.type == MediaStream.Type.VIDEO }
     val audio: List<MediaStream> get() = streams.filter { it.type == MediaStream.Type.AUDIO }

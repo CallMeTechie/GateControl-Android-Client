@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Media: download for offline (question 22 a) -->
+    <string name="media_offline_title">Offline</string>
+    <string name="media_offline_open">Offline titles</string>
+    <string name="media_offline_used">Used</string>
+    <string name="media_offline_rules">Wi-Fi only · Quality %1$s</string>
+    <string name="media_offline_rules_converted">Wi-Fi only · Quality %1$s (converted by the NAS first)</string>
+    <string name="media_offline_note">Progress watched offline is kept and sent to Jellyfin at the next contact. Files are kept encrypted in the app\'s storage, not in the gallery.</string>
+    <string name="media_offline_empty">Nothing downloaded yet. Tap “Download” on a film or episode; for a series a whole season works too.</string>
+    <string name="media_offline_ready">%1$s · %2$s · ready</string>
+    <string name="media_offline_loading">%1$s · %2$s · downloading %3$d %%</string>
+    <string name="media_offline_loading_short">downloading %1$d %%</string>
+    <string name="media_offline_waiting_wifi">waiting for Wi-Fi</string>
+    <string name="media_offline_waiting">waiting</string>
+    <string name="media_offline_failed">not downloaded: %1$s</string>
+    <string name="media_offline_failure_limit">storage limit reached</string>
+    <string name="media_offline_failure_space">not enough room on the phone</string>
+    <string name="media_offline_failure_not_allowed">Jellyfin does not allow downloads</string>
+    <string name="media_offline_failure_gone">title no longer there</string>
+    <string name="media_offline_failure_signed_out">sign in again</string>
+    <string name="media_offline_failure_failed">download failed</string>
+    <string name="media_offline_load">Download</string>
+    <string name="media_offline_load_season">Download season</string>
+    <string name="media_offline_load_in">Download for offline</string>
+    <plurals name="media_offline_load_season_in">
+        <item quantity="one">Download season %1$d (%2$d episode)</item>
+        <item quantity="other">Download season %1$d (%2$d episodes)</item>
+    </plurals>
+    <string name="media_offline_quality_original">Original</string>
+    <string name="media_offline_quality_original_note">The file as it is on the NAS</string>
+    <string name="media_offline_quality_converted_note">Converted by the NAS first · H.264, sound AAC stereo</string>
+    <string name="media_offline_about">about %1$s</string>
+    <string name="media_offline_sheet_foot">Wi-Fi only, waits otherwise · Used %1$s</string>
+    <string name="media_offline_sheet_load">Converted downloads load the NAS about as much as watching away.</string>
+    <string name="media_offline_state_ready">Offline</string>
+    <string name="media_offline_state_queued">Waiting</string>
+    <string name="media_offline_state_retry">Retry</string>
+    <string name="media_offline_status_ready">Available offline · %1$s · %2$s</string>
+    <string name="media_offline_status_loading">Downloading %1$d %% · %2$s</string>
+    <string name="media_offline_status_waiting_wifi">Waiting for Wi-Fi · %1$s</string>
+    <string name="media_offline_status_waiting">Waiting · %1$s</string>
+    <string name="media_offline_status_failed">Not downloaded: %1$s</string>
+    <string name="media_offline_not_allowed">Downloading is off for this user in Jellyfin. An admin can switch it on in the dashboard under Users › Profile (“Allow media downloading”).</string>
+    <string name="media_offline_from_phone">No connection: from the phone</string>
+    <string name="media_offline_cancel">Cancel</string>
+    <string name="media_offline_delete">Delete</string>
+    <string name="media_offline_play">Play</string>
+    <string name="media_offline_menu">Download menu</string>
+    <string name="media_offline_delete_title">Delete download?</string>
+    <string name="media_offline_delete_text">“%1$s” is deleted from the phone. Nothing changes on the NAS.</string>
+    <string name="media_offline_row">Available offline</string>
+    <string name="media_offline_line">Offline · %1$s</string>
+    <string name="media_offline_quality_note">Offline copy · %1$s</string>
+    <string name="media_offline_settings">Downloads</string>
+    <string name="media_offline_setting_quality">Quality of downloads</string>
+    <string name="media_offline_setting_quality_desc">Suggested when downloading. Converted is smaller, the NAS converts first.</string>
+    <string name="media_offline_setting_limit">Storage limit</string>
+    <string name="media_offline_setting_limit_desc">Used %1$s. Downloads run on Wi-Fi only.</string>
+    <string name="media_offline_gb">%1$d GB</string>
+    <string name="media_offline_channel">Media downloads</string>
+    <string name="media_offline_notification">Downloading for offline</string>
+    <string name="media_offline_season_letter">S</string>
+    <string name="media_offline_episode_letter">E</string>
+    <string name="media_offline_audio_warning">Sound %1$s: no sound on the phone, better download converted</string>
+</resources>

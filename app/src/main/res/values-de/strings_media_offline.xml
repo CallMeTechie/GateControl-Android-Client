@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Medien: Download für offline (Frage 22 a) -->
+    <string name="media_offline_title">Offline</string>
+    <string name="media_offline_open">Offline-Titel</string>
+    <string name="media_offline_used">Belegt</string>
+    <string name="media_offline_rules">Nur im WLAN · Qualität %1$s</string>
+    <string name="media_offline_rules_converted">Nur im WLAN · Qualität %1$s (NAS rechnet vorher um)</string>
+    <string name="media_offline_note">Fortschritt offline wird gemerkt und beim nächsten Kontakt an Jellyfin gemeldet. Dateien liegen verschlüsselt im App-Speicher, nicht in der Galerie.</string>
+    <string name="media_offline_empty">Noch nichts geladen. Im Detail eines Films oder einer Folge „Laden“ antippen, bei Serien geht auch eine ganze Staffel.</string>
+    <string name="media_offline_ready">%1$s · %2$s · bereit</string>
+    <string name="media_offline_loading">%1$s · %2$s · lädt %3$d %%</string>
+    <string name="media_offline_loading_short">lädt %1$d %%</string>
+    <string name="media_offline_waiting_wifi">wartet auf WLAN</string>
+    <string name="media_offline_waiting">wartet</string>
+    <string name="media_offline_failed">nicht geladen: %1$s</string>
+    <string name="media_offline_failure_limit">Speichergrenze erreicht</string>
+    <string name="media_offline_failure_space">zu wenig Platz auf dem Handy</string>
+    <string name="media_offline_failure_not_allowed">Jellyfin erlaubt das Herunterladen nicht</string>
+    <string name="media_offline_failure_gone">Titel nicht mehr da</string>
+    <string name="media_offline_failure_signed_out">neu anmelden</string>
+    <string name="media_offline_failure_failed">Fehler beim Laden</string>
+    <string name="media_offline_load">Laden</string>
+    <string name="media_offline_load_season">Staffel laden</string>
+    <string name="media_offline_load_in">Laden für offline</string>
+    <plurals name="media_offline_load_season_in">
+        <item quantity="one">Staffel %1$d laden (%2$d Folge)</item>
+        <item quantity="other">Staffel %1$d laden (%2$d Folgen)</item>
+    </plurals>
+    <string name="media_offline_quality_original">Original</string>
+    <string name="media_offline_quality_original_note">Die Datei, wie sie auf der NAS liegt</string>
+    <string name="media_offline_quality_converted_note">NAS rechnet vorher um · H.264, Ton AAC Stereo</string>
+    <string name="media_offline_about">etwa %1$s</string>
+    <string name="media_offline_sheet_foot">Nur im WLAN, wartet sonst · Belegt %1$s</string>
+    <string name="media_offline_sheet_load">Umgerechnete Downloads belasten die NAS etwa so wie ein Film unterwegs.</string>
+    <string name="media_offline_state_ready">Offline</string>
+    <string name="media_offline_state_queued">Wartet</string>
+    <string name="media_offline_state_retry">Nochmal</string>
+    <string name="media_offline_status_ready">Offline verfügbar · %1$s · %2$s</string>
+    <string name="media_offline_status_loading">Lädt %1$d %% · %2$s</string>
+    <string name="media_offline_status_waiting_wifi">Wartet auf WLAN · %1$s</string>
+    <string name="media_offline_status_waiting">Wartet · %1$s</string>
+    <string name="media_offline_status_failed">Nicht geladen: %1$s</string>
+    <string name="media_offline_not_allowed">In Jellyfin ist das Herunterladen für diesen Benutzer aus. Ein Admin schaltet es im Dashboard unter Benutzer › Profil ein („Herunterladen von Medien erlauben“).</string>
+    <string name="media_offline_from_phone">Ohne Verbindung: vom Handy</string>
+    <string name="media_offline_cancel">Abbrechen</string>
+    <string name="media_offline_delete">Löschen</string>
+    <string name="media_offline_play">Abspielen</string>
+    <string name="media_offline_menu">Download-Menü</string>
+    <string name="media_offline_delete_title">Download löschen?</string>
+    <string name="media_offline_delete_text">„%1$s“ wird vom Handy gelöscht. Auf der NAS bleibt alles, wie es ist.</string>
+    <string name="media_offline_row">Offline verfügbar</string>
+    <string name="media_offline_line">Offline · %1$s</string>
+    <string name="media_offline_quality_note">Offline-Kopie · %1$s</string>
+    <string name="media_offline_settings">Downloads</string>
+    <string name="media_offline_setting_quality">Qualität für Downloads</string>
+    <string name="media_offline_setting_quality_desc">Wird beim Laden vorgeschlagen. Umgerechnet ist kleiner, die NAS rechnet vorher um.</string>
+    <string name="media_offline_setting_limit">Speichergrenze</string>
+    <string name="media_offline_setting_limit_desc">Belegt %1$s. Geladen wird nur im WLAN.</string>
+    <string name="media_offline_gb">%1$d GB</string>
+    <string name="media_offline_channel">Medien-Downloads</string>
+    <string name="media_offline_notification">Lädt für offline</string>
+    <string name="media_offline_season_letter">S</string>
+    <string name="media_offline_episode_letter">F</string>
+    <string name="media_offline_audio_warning">Ton %1$s: am Handy kein Ton, lieber umgerechnet laden</string>
+</resources>

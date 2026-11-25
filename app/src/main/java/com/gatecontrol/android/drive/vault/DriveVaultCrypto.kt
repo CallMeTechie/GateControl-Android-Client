@@ -399,6 +399,99 @@ object DriveVaultCrypto {
     }
 
     /**
+     * The content format written as the bytes come, when their number is not known before (a video converted while it
+     * is downloaded): a chunk goes out once the next byte shows it is not the last; [finish] writes the last one. At
+     * most one chunk in memory. [resume] goes on after the whole chunks of a file cut off before [finish] (its header
+     * and [chunksDone] chunks, none of them the last). The result is read by [openContent] and [decryptContent] as
+     * [encryptContent]'s.
+     */
+    class ContentWriter private constructor(
+        private val output: OutputStream,
+        private val head: ByteArray,
+        private val key: ByteArray,
+        private val chunkSize: Int,
+        private var index: Long,
+    ) : java.io.Closeable {
+        private val buf = ByteArray(chunkSize)
+        private var filled = 0
+        private var done = false
+
+        /** Bytes of plaintext taken so far (a resumed one counts the chunks before). */
+        var written: Long = index * chunkSize
+            private set
+
+        fun write(bytes: ByteArray, off: Int = 0, len: Int = bytes.size - off) {
+            check(!done) { "finished" }
+            var at = off
+            var left = len
+            while (left > 0) {
+                if (filled == chunkSize) flush(last = false)
+                val n = minOf(left, chunkSize - filled)
+                System.arraycopy(bytes, at, buf, filled, n)
+                filled += n
+                at += n
+                left -= n
+                written += n
+            }
+        }
+
+        private fun flush(last: Boolean) {
+            output.write(gcm(true, key, chunkNonce(index), chunkAad(head, index, last), buf, 0, filled))
+            index++
+            filled = 0
+        }
+
+        /** The last chunk (an empty content is one empty chunk); nothing can be written after. */
+        fun finish() {
+            check(!done) { "finished" }
+            flush(last = true)
+            done = true
+            output.flush()
+        }
+
+        /** Overwrites the key (the output is the caller's to close). */
+        override fun close() {
+            done = true
+            buf.fill(0)
+            key.fill(0)
+        }
+
+        companion object {
+            /** A new content: its header goes out first. */
+            fun start(
+                tk: ByteArray,
+                vaultId: String,
+                keyVersion: Int,
+                output: OutputStream,
+                prefix: String = PREFIX_DRIVE,
+                chunkSize: Int = CHUNK,
+                salt: ByteArray = randomBytes(16),
+            ): ContentWriter {
+                val head = header(keyVersion, chunkSize, salt)
+                output.write(head)
+                return ContentWriter(output, head, fileKey(tk, vaultId, salt, prefix), chunkSize, 0)
+            }
+
+            /**
+             * On after [chunksDone] whole chunks of a content whose header is [head] ([output] appends right after
+             * them). `invalid` when [head] is not a content header.
+             */
+            fun resume(tk: ByteArray, vaultId: String, head: ByteArray, chunksDone: Long, output: OutputStream, prefix: String = PREFIX_DRIVE): ContentWriter {
+                if (head.size < HEADER) throw DriveVaultException("invalid", "too short")
+                val h = head.copyOf(HEADER)
+                contentVersion(h) ?: throw DriveVaultException("invalid", "not a vault file")
+                val cs = readU32(h, 9)
+                if (cs < 1024 || cs > 16_777_216) throw DriveVaultException("invalid", "chunk size")
+                require(chunksDone >= 0) { "chunks" }
+                return ContentWriter(output, h, fileKey(tk, vaultId, h.copyOfRange(13, 29), prefix), cs.toInt(), chunksDone)
+            }
+
+            /** Whole chunks of a cut-off content of [cipherSize] bytes with [chunkSize] (to go on after them). */
+            fun chunksIn(cipherSize: Long, chunkSize: Int = CHUNK): Long = ((cipherSize - HEADER) / (chunkSize.toLong() + TAG)).coerceAtLeast(0)
+        }
+    }
+
+    /**
      * Random access to a vault file's content (the viewer, Drive plugin 1.22): the [header] (its first [HEADER] bytes)
      * and the ciphertext's [cipherSize] give the chunks; [decryptChunk] opens chunk `i` of its ciphertext bytes — one
      * chunk at a time in memory, the plaintext never written anywhere. [close] overwrites the file key.

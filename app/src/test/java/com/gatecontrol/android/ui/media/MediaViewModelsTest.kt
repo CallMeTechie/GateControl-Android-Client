@@ -92,12 +92,13 @@ class MediaViewModelsTest {
         every { caps() } returns MediaDeviceCaps.fromDecoders(listOf("audio/mp4a-latm"), hdrScreen = false, name = "GateControl")
     }
     private val playback = mockk<MediaPlayback>(relaxed = true)
-    private val requests = MediaPlayRequests(hub, playback)
+    private val offline = fakeOffline()
+    private val requests = MediaPlayRequests(hub, playback, offline)
     private val pictures = mockk<MediaPictures>(relaxed = true)
 
     @Test
     fun `the overview over Jellyfin and the share, a film in both once`() = runTest(dispatcher) {
-        val vm = MediaHomeViewModel(hub, requests, pictures).also { models += it }
+        val vm = MediaHomeViewModel(hub, requests, pictures, offline).also { models += it }
         vm.refresh()
         advanceUntilIdle()
         val ui = vm.ui.value
@@ -111,7 +112,7 @@ class MediaViewModelsTest {
 
     @Test
     fun `the grid of films with the share's titles in their places, the chips' order to the library`() = runTest(dispatcher) {
-        val vm = MediaHomeViewModel(hub, requests, pictures).also { models += it }
+        val vm = MediaHomeViewModel(hub, requests, pictures, offline).also { models += it }
         vm.openGrid(movies = true)
         advanceUntilIdle()
         assertEquals(listOf("Kobaltnacht", "Kupferstadt", "Sternwarte 9"), vm.movies.value.items.map { it.name })
@@ -126,7 +127,7 @@ class MediaViewModelsTest {
 
     @Test
     fun `a card of Weiterschauen plays through the requests, the player is stage 4c`() = runTest(dispatcher) {
-        val vm = MediaHomeViewModel(hub, requests, pictures).also { models += it }
+        val vm = MediaHomeViewModel(hub, requests, pictures, offline).also { models += it }
         val got = mutableListOf<MediaQueue>()
         val collecting = launch { requests.queues.collect { got += it } }
         advanceUntilIdle()
@@ -150,9 +151,12 @@ class MediaViewModelsTest {
             defaultAudio = 1,
         )
         jfLib.details = mapOf("m1" to MediaDetail(kobalt, listOf(version)))
-        val settings = mockk<MediaPhoneSettings> { every { mobileCap } returns MutableStateFlow(3_000_000L) }
+        val settings = mockk<MediaPhoneSettings> {
+            every { mobileCap } returns MutableStateFlow(3_000_000L)
+            every { offlineQuality } returns MutableStateFlow(com.gatecontrol.android.media.offline.OfflineQuality.P1080)
+        }
         val network = mockk<MediaNetwork> { every { cellular() } returns false }
-        val vm = MediaDetailViewModel(SavedStateHandle(mapOf("source" to "jf", "id" to "m1", "name" to "Kobaltnacht")), hub, requests, settings, network, pictures)
+        val vm = MediaDetailViewModel(SavedStateHandle(mapOf("source" to "jf", "id" to "m1", "name" to "Kobaltnacht")), hub, requests, settings, network, pictures, offline)
             .also { models += it }
         advanceUntilIdle()
         val ui = vm.ui.value
@@ -181,7 +185,7 @@ class MediaViewModelsTest {
     fun `signing in a device confirms the code with the phone's access to Jellyfin`() = runTest(dispatcher) {
         coEvery { hub.authorize(jellyfin, "731 205") } returns JellyfinAuthorize.CONFIRMED
         val settings = mockk<MediaPhoneSettings>(relaxed = true)
-        val vm = MediaSourcesViewModel(hub, settings).also { models += it }
+        val vm = MediaSourcesViewModel(hub, settings, offline).also { models += it }
         assertEquals(jellyfin, vm.authorizeSource())
         vm.setCode("731 205!")
         assertEquals("731 205", vm.authorize.value.code)

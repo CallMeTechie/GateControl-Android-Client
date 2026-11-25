@@ -17,6 +17,10 @@ import com.gatecontrol.android.media.MediaQualityOffer
 import com.gatecontrol.android.media.MediaSource
 import com.gatecontrol.android.media.MediaTitle
 import com.gatecontrol.android.media.jellyfin.JellyfinDeviceCaps
+import com.gatecontrol.android.media.offline.MediaOffline
+import com.gatecontrol.android.media.offline.OfflineAllowed
+import com.gatecontrol.android.media.offline.OfflineItem
+import com.gatecontrol.android.media.offline.OfflineQuality
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -42,7 +46,18 @@ data class MediaDetailUi(
     val caps: JellyfinDeviceCaps = JellyfinDeviceCaps(),
     /** On mobile data the limit of the settings holds (bit/s); null: it does not apply now. */
     val mobileLimit: Long? = null,
-)
+    /** The download of this film or episode (question 22 a); null: none. */
+    val offline: OfflineItem? = null,
+    /** The downloads of the episodes listed, by the episode's id. */
+    val episodesOffline: Map<String, OfflineItem> = emptyMap(),
+    /** Whether Jellyfin lets the user download ("Laden" or the note). */
+    val allowed: OfflineAllowed = OfflineAllowed.UNKNOWN,
+    /** Shown from the download, without a connection. */
+    val fromPhone: Boolean = false,
+) {
+    /** "Laden" is offered: Jellyfin, not refused. */
+    val canLoad: Boolean get() = source?.kind == com.gatecontrol.android.media.MediaSourceKind.JELLYFIN && allowed != OfflineAllowed.NO && !fromPhone
+}
 
 @HiltViewModel
 class MediaDetailViewModel @Inject constructor(
@@ -52,6 +67,7 @@ class MediaDetailViewModel @Inject constructor(
     private val settings: MediaPhoneSettings,
     private val network: MediaNetwork,
     val pictures: MediaPictures,
+    private val offline: MediaOffline,
 ) : ViewModel() {
 
     private val browse = MediaBrowse(hub) {}
@@ -68,9 +84,27 @@ class MediaDetailViewModel @Inject constructor(
 
     val link: StateFlow<MediaLink> = hub.link
 
+    /** On Wi-Fi now ("wartet auf WLAN"). */
+    val wifi: StateFlow<Boolean> get() = offline.wifi
+
+    /** The quality "Laden" offers first (Medien › Quellen). */
+    val offlineQuality: StateFlow<OfflineQuality> = settings.offlineQuality
+
     init {
         load()
+        viewModelScope.launch {
+            offline.items.collect { list -> _ui.update { offlineInto(it, list) } }
+        }
     }
+
+    private fun offlineInto(u: MediaDetailUi, list: List<OfflineItem>): MediaDetailUi {
+        val mine = list.firstOrNull { it.sourceId == u.title.sourceId && it.itemId == u.title.id }
+        val eps = u.episodes.mapNotNull { e -> list.firstOrNull { it.sourceId == e.sourceId && it.itemId == e.id }?.let { e.id to it } }.toMap()
+        return u.copy(offline = mine, episodesOffline = eps)
+    }
+
+    /** Bytes used by the downloads and the limit ("Belegt 7,4 / 20 GB" in the sheet). */
+    fun storage(): Pair<Long, Long> = offline.usedBytes() to offline.limitBytes()
 
     /** Loaded (again: back from the player, "Erneut versuchen"). */
     fun load() {
@@ -83,6 +117,13 @@ class MediaDetailViewModel @Inject constructor(
             if (hub.link.value.atHome == null) hub.check()
             val (loaded, problem) = browse.detail(t)
             if (loaded == null) {
+                // no connection: a downloaded title shows (and plays) from the phone
+                val kept = offline.ready(t.sourceId, t.id)
+                if (kept != null && problem == MediaProblem.OFFLINE) {
+                    val title = kept.titleNow()
+                    _ui.update { offlineInto(it.copy(title = title, detail = MediaDetail(title, listOfNotNull(kept.version)), loading = false, problem = null, fromPhone = true, caps = hub.caps()), offline.items.value) }
+                    return@launch
+                }
                 _ui.update { it.copy(loading = false, problem = problem) }
                 return@launch
             }
@@ -98,8 +139,10 @@ class MediaDetailViewModel @Inject constructor(
                     offer = loaded.offer,
                     caps = hub.caps(),
                     mobileLimit = MediaPhoneLogic.mobileLimit(network.cellular(), hub.link.value.atHome, settings.mobileCap.value),
+                    fromPhone = false,
                 )
             }
+            _ui.value.source?.let { s -> launch { val a = offline.canDownload(s); _ui.update { it.copy(allowed = a) } } }
             if (detail.title.kind == MediaTitle.Kind.SERIES) {
                 val seasons = browse.seasons(detail.title)
                 _ui.update { it.copy(seasons = seasons) }
@@ -114,7 +157,7 @@ class MediaDetailViewModel @Inject constructor(
         _ui.update { it.copy(seasonId = seasonId) }
         viewModelScope.launch {
             val episodes = browse.episodes(series, seasonId)
-            _ui.update { if (it.seasonId == seasonId) it.copy(episodes = episodes) else it }
+            _ui.update { if (it.seasonId == seasonId) offlineInto(it.copy(episodes = episodes), offline.items.value) else it }
         }
     }
 
@@ -159,6 +202,25 @@ class MediaDetailViewModel @Inject constructor(
         val u = _ui.value
         viewModelScope.launch { requests.play(u.title, fromStart, u.audio, u.subtitle) }
     }
+
+    /** "Laden" of this film or episode in [quality], with the sound chosen here; the NAS converts first if asked. */
+    fun download(quality: OfflineQuality) {
+        val u = _ui.value
+        settings.setOfflineQuality(quality)
+        offline.enqueue(listOf(u.title), quality, u.audio)
+    }
+
+    /** "Staffel laden": the episodes of the season shown, those not loaded yet. */
+    fun downloadSeason(quality: OfflineQuality) {
+        val u = _ui.value
+        settings.setOfflineQuality(quality)
+        offline.enqueue(u.episodes.filter { e -> u.episodesOffline[e.id] == null }, quality)
+    }
+
+    /** "Abbrechen" (loading or waiting) or "Löschen" (ready). */
+    fun removeDownload(item: OfflineItem) = offline.delete(item.id)
+
+    fun retryDownload(item: OfflineItem) = offline.retry(item.id)
 
     /** An episode of the list: on from where it was left (its own sound and subtitle: the series' choice). */
     fun playEpisode(episode: MediaTitle) {
