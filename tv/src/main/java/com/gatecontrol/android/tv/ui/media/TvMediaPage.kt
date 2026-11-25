@@ -161,14 +161,14 @@ private fun Header(screen: TvMediaScreen, onSources: (() -> Unit)?, modifier: Mo
     val colors = GateControlTvTheme.colors
     Row(modifier.fillMaxWidth().padding(end = 30.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
         Text(stringResource(R.string.tv_nav_media), style = MaterialTheme.typography.titleMedium, color = colors.text)
-        screen.ui.source?.let { TvPill(MediaLogic.sourceLabel(it), TvPillTone.Accent) }
+        // only the kind of the sources, never a host or server name (those are on the page of the sources)
+        screen.ui.source?.let { TvPill(MediaLogic.kindLabel(it), TvPillTone.Accent) }
         val shareWord = stringResource(R.string.tv_media_share)
-        for (share in screen.ui.shares.take(MAX_SHARE_PILLS)) {
-            val label = MediaLogic.sourceLabel(share, shareWord)
-            if (share.id in screen.ui.shareProblems) {
-                TvPill(stringResource(R.string.tv_media_share_unreachable, label), TvPillTone.Warn)
+        if (screen.ui.shares.isNotEmpty()) {
+            if (screen.ui.shares.any { it.id in screen.ui.shareProblems }) {
+                TvPill(stringResource(R.string.tv_media_share_unreachable, shareWord), TvPillTone.Warn)
             } else {
-                TvPill(label, TvPillTone.Accent)
+                TvPill(shareWord, TvPillTone.Accent)
             }
         }
         LinkPill(screen.link)
@@ -426,7 +426,6 @@ private fun PosterCard(t: MediaTitle, pictures: Map<String, Bitmap>, actions: Tv
 internal val PictureBg = Color(0xFF0B0F14)
 
 /** At most this many shares in the header (more are in "Quellen"). */
-private const val MAX_SHARE_PILLS = 2
 
 /** "NAS" top left on a picture: the title comes from an SMB or WebDAV share (mockup 7). */
 @Composable

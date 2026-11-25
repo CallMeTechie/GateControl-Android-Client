@@ -18,6 +18,12 @@ data class JellyfinAuth(val token: String, val userId: String, val userName: Str
     override fun toString(): String = "JellyfinAuth(user=$userId, server=$serverId)"
 }
 
+/** A library of the person (`/UserViews`) or a folder in it, for the page "Ordner". */
+data class JellyfinFolder(val id: String, val name: String)
+
+/** What a library or folder holds: its sub-folders and its films, series and videos ([total]: as the server counts). */
+data class JellyfinFolderPage(val folders: List<JellyfinFolder>, val titles: List<MediaTitle>, val total: Int? = null)
+
 /** Quick Connect: the [code] shown on the TV and the [secret] the TV asks with. */
 data class JellyfinQuickConnect(val code: String, val secret: String) {
     override fun toString(): String = "JellyfinQuickConnect(code=$code)"
@@ -86,6 +92,48 @@ object JellyfinJson {
             else -> emptyList()
         }
         return list.mapNotNull { title(it, sourceId) }
+    }
+
+    /** The libraries without video (music, books, photos, live TV): not on the page "Ordner". */
+    private val NO_VIDEO_COLLECTIONS = setOf("music", "books", "photos", "livetv", "audiobooks")
+
+    /** Folders without video (an album, a photo album, a book). */
+    private val NO_VIDEO_FOLDERS = setOf("MusicAlbum", "MusicArtist", "PhotoAlbum", "AudioBook", "Book", "Photo", "Audio")
+
+    private fun objectsOf(e: JsonElement?): List<JsonObject> = when {
+        e == null -> emptyList()
+        e.isJsonArray -> e.asJsonArray.mapNotNull { it.takeIf { x -> x.isJsonObject }?.asJsonObject }
+        e.isJsonObject -> e.asJsonObject.objects("Items")
+        else -> emptyList()
+    }
+
+    private fun folder(o: JsonObject): JellyfinFolder? {
+        val id = o.str("Id") ?: return null
+        return JellyfinFolder(id, (o.str("Name") ?: return null).take(200))
+    }
+
+    /** `GET /UserViews`: the person's libraries with video, in the server's order. */
+    fun views(e: JsonElement?): List<JellyfinFolder> = objectsOf(e)
+        .filterNot { (it.str("CollectionType")?.lowercase(java.util.Locale.ROOT)) in NO_VIDEO_COLLECTIONS }
+        .mapNotNull { folder(it) }
+
+    /**
+     * `GET /Items?parentId=…`: a library's or folder's content. Films, series, seasons, episodes and videos are titles
+     * (a series opens its page); other folders (a box set, a plain folder) are folders; music, books and photos are
+     * left out.
+     */
+    fun folderPage(e: JsonElement?, sourceId: String): JellyfinFolderPage {
+        val folders = mutableListOf<JellyfinFolder>()
+        val titles = mutableListOf<MediaTitle>()
+        for (o in objectsOf(e)) {
+            val t = title(o, sourceId)
+            when {
+                t != null -> titles += t
+                o.bool("IsFolder") == true && o.str("Type") !in NO_VIDEO_FOLDERS &&
+                    (o.str("CollectionType")?.lowercase(java.util.Locale.ROOT)) !in NO_VIDEO_COLLECTIONS -> folder(o)?.let { folders += it }
+            }
+        }
+        return JellyfinFolderPage(folders, titles, total(e))
     }
 
     fun total(e: JsonElement?): Int? = e?.takeIf { it.isJsonObject }?.asJsonObject?.int("TotalRecordCount")

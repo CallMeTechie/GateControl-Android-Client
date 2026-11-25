@@ -573,7 +573,7 @@ class TvActivity : ComponentActivity() {
                         drivePreviews = drivePreviews,
                         drops = if (TvStartRow.GATEDROP in rowsOff) emptyList() else dropEntries,
                         media = if (TvStartRow.MEDIA in rowsOff || !mediaServer.visible) emptyList() else mediaUi.resume,
-                        mediaSource = (mediaUi.source ?: mediaUi.shares.firstOrNull())?.let { MediaLogic.sourceLabel(it, getString(R.string.tv_media_share)) },
+                        mediaSource = (mediaUi.source ?: mediaUi.shares.firstOrNull())?.let { MediaLogic.kindLabel(it, getString(R.string.tv_media_share)) },
                         mediaPictures = mediaPictures,
                         home = if (TvStartRow.HOME_TODAY in rowsOff) null else homeUi.home,
                         today = homeUi.today,

@@ -2,4 +2,5 @@
 <resources>
     <!-- Dark page color of the Compose theme (bg #0D1015). -->
     <color name="gc_window_bg">#0D1015</color>
+    <bool name="gc_light_bars">false</bool>
 </resources>

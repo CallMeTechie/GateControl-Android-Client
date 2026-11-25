@@ -73,9 +73,11 @@ data class MediaFolderUi(
     val query: String = "",
     val searching: Boolean = false,
     val found: List<MediaFileRow>? = null,
+    /** Jellyfin's libraries are on the page too: a share is not opened by itself, its root leads back to the list. */
+    val withLibraries: Boolean = false,
 ) {
-    /** A step up is possible: inside a folder, or inside one of several shares. */
-    val canGoUp: Boolean get() = share != null && (path.isNotEmpty() || shares.size > 1)
+    /** A step up is possible: inside a folder, or inside one of several shares (or beside Jellyfin's libraries). */
+    val canGoUp: Boolean get() = share != null && (path.isNotEmpty() || shares.size > 1 || withLibraries)
 
     /** The folders shown: while searching only those whose name holds the words. */
     val shownFolders: List<MediaFolderRow>
@@ -118,11 +120,12 @@ class MediaFolderViewModel @Inject constructor(
     /** The page came to the front (or back from the player): the shares, the folder again (the progress). */
     fun refresh() {
         val shares = hub.shares()
+        val withLibraries = hub.store.sources.value.any { it.kind == MediaSourceKind.JELLYFIN }
         val open = _ui.value.share?.let { s -> shares.firstOrNull { it.id == s.id } }
-        _ui.update { it.copy(shares = shares, share = open, path = if (open == null) "" else it.path) }
+        _ui.update { it.copy(shares = shares, share = open, path = if (open == null) "" else it.path, withLibraries = withLibraries) }
         when {
             open != null -> load(quiet = _ui.value.loaded)
-            shares.size == 1 -> openShare(shares.single())
+            shares.size == 1 && !withLibraries -> openShare(shares.single())
             else -> _ui.update { it.copy(folders = emptyList(), files = emptyList(), loaded = false, problem = null) }
         }
     }

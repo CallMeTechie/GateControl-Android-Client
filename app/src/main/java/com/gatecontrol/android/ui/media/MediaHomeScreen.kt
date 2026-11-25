@@ -43,6 +43,8 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -131,7 +133,7 @@ fun MediaHomeScreen(nav: MediaHomeNav, viewModel: MediaHomeViewModel = hiltViewM
                 MediaTab.OVERVIEW -> MediaOverview(ui, viewModel, nav, onSeries = { tab = MediaTab.SERIES }, onSignIn = signIn)
                 MediaTab.MOVIES -> MediaGridPage(movies = true, viewModel = viewModel, nav = nav, onSignIn = signIn)
                 MediaTab.SERIES -> MediaGridPage(movies = false, viewModel = viewModel, nav = nav, onSignIn = signIn)
-                MediaTab.FOLDERS -> MediaFolderPage()
+                MediaTab.FOLDERS -> MediaFolderPage(onDetail = nav.detail)
             }
         }
     }
@@ -147,42 +149,55 @@ private fun MediaEmpty() {
     }
 }
 
-/** "● Jellyfin · DS918+ ▾" (another server when there are several) and "Zuhause · direkt". */
+/**
+ * The status dot and "Zuhause · direkt"; with several Jellyfin servers the chip "● Jellyfin ▾" to switch. Only the
+ * kind of the source, never its host or server name (those are on Medien › Quellen and in the switch's list).
+ */
 @Composable
-private fun SourceLine(ui: MediaHomeUi, link: MediaLink, onSelect: (MediaSource) -> Unit) {
+internal fun SourceLine(ui: MediaHomeUi, link: MediaLink, onSelect: (MediaSource) -> Unit) {
     val x = GateControlTheme.extraColors
     var open by remember { mutableStateOf(false) }
     val shareWord = stringResource(R.string.media_share)
-    val label = ui.source?.let { MediaLogic.sourceLabel(it, shareWord) }
-        ?: ui.shares.firstOrNull()?.let { MediaLogic.sourceLabel(it, shareWord) }
+    val shown = ui.source ?: ui.shares.firstOrNull()
+    val kind = shown?.let { MediaLogic.kindLabel(it, shareWord) }
     val net = linkText(link)
+    val dotColor = if (ui.source?.token == null && ui.source != null) x.warn else MaterialTheme.colorScheme.primary
     Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        if (label != null) {
-            Box {
-                val several = ui.servers.size > 1
-                Row(
-                    Modifier.clip(RoundedCornerShape(10.dp)).background(x.accentBg)
-                        .then(if (several) Modifier.clickable(role = Role.Button) { open = true } else Modifier)
-                        .padding(horizontal = 10.dp, vertical = 6.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                ) {
-                    Box(Modifier.size(8.dp).clip(RoundedCornerShape(4.dp)).background(if (ui.source?.token == null && ui.source != null) x.warn else MaterialTheme.colorScheme.primary))
-                    Text(label, style = MaterialTheme.typography.labelLarge, color = x.accentText, maxLines = 1)
-                    if (several) Icon(GcIcons.ChevronDown, contentDescription = stringResource(R.string.media_switch_source), tint = x.accentText, modifier = Modifier.size(16.dp))
-                }
-                DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
-                    ui.servers.forEach { s ->
-                        DropdownMenuItem(
-                            text = { Text(MediaLogic.sourceLabel(s, shareWord)) },
-                            onClick = {
-                                open = false
-                                onSelect(s)
-                            },
-                            trailingIcon = if (s.id == ui.source?.id) { { Icon(GcIcons.Check, contentDescription = null, modifier = Modifier.size(18.dp)) } } else null,
-                        )
+        if (kind != null) {
+            val several = ui.servers.size > 1
+            if (several) {
+                Box {
+                    Row(
+                        Modifier.clip(RoundedCornerShape(10.dp)).background(x.accentBg)
+                            .clickable(role = Role.Button) { open = true }
+                            .padding(horizontal = 10.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    ) {
+                        Box(Modifier.size(8.dp).clip(RoundedCornerShape(4.dp)).background(dotColor))
+                        Text(kind, style = MaterialTheme.typography.labelLarge, color = x.accentText, maxLines = 1)
+                        Icon(GcIcons.ChevronDown, contentDescription = stringResource(R.string.media_switch_source), tint = x.accentText, modifier = Modifier.size(16.dp))
+                    }
+                    DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+                        ui.servers.forEach { s ->
+                            DropdownMenuItem(
+                                text = { Text(MediaLogic.sourceLabel(s, shareWord)) },
+                                onClick = {
+                                    open = false
+                                    onSelect(s)
+                                },
+                                trailingIcon = if (s.id == ui.source?.id) { { Icon(GcIcons.Check, contentDescription = null, modifier = Modifier.size(18.dp)) } } else null,
+                            )
+                        }
                     }
                 }
+            } else {
+                // one source: only the dot (its kind for TalkBack), then the way
+                Box(
+                    Modifier.padding(start = 2.dp).size(8.dp).clip(RoundedCornerShape(4.dp)).background(dotColor)
+                        .semantics { contentDescription = kind }
+                        .testTag(SOURCE_DOT_TAG),
+                )
             }
         }
         if (net != null) Text(net, style = MaterialTheme.typography.labelLarge, color = x.muted, maxLines = 1)
@@ -374,6 +389,7 @@ private fun OrderChips(movies: Boolean, g: MediaGridUi, onOrder: (MediaOrder) ->
 }
 
 internal const val OVERVIEW_TAG = "media-overview"
+internal const val SOURCE_DOT_TAG = "media-source-dot"
 internal const val OFFLINE_ROW_TAG = "media-offline-row"
 internal const val OFFLINE_OPEN_TAG = "media-offline-open"
 internal const val MOVIES_TAG = "media-movies"

@@ -76,6 +76,10 @@ class MediaLogicTest {
         assertEquals("NAS-Freigabe · \\\\nas\\filme", MediaLogic.sourceLabel(smb))
         assertEquals("NAS share · 192.168.1.20:5006/serien", MediaLogic.sourceLabel(alone, "NAS share"))
         assertEquals("Jellyfin · DS918+", MediaLogic.sourceLabel(jelly, "NAS share"))
+        // the head of the page: only the kind, never the host or the server's name
+        assertEquals("Jellyfin", MediaLogic.kindLabel(jelly, "NAS share"))
+        assertEquals("NAS share", MediaLogic.kindLabel(alone, "NAS share"))
+        assertEquals("NAS-Freigabe", MediaLogic.kindLabel(smb))
     }
 
     private fun movie(id: String, name: String, year: Int? = null, share: Boolean = false, playedAt: Long? = null, addedAt: Long? = null) =

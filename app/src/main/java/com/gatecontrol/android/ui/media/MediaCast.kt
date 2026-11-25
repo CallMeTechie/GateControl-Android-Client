@@ -77,6 +77,7 @@ import com.gatecontrol.android.ui.components.GcIcons
 import com.gatecontrol.android.ui.components.GcOutlineButton
 import com.gatecontrol.android.ui.components.GcPrimaryButton
 import com.gatecontrol.android.ui.theme.GateControlTheme
+import com.gatecontrol.android.ui.theme.GcSystemBars
 import dagger.hilt.android.AndroidEntryPoint
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.delay
@@ -302,6 +303,7 @@ class MediaCastActivity : ComponentActivity() {
                 "light" -> false
                 else -> isSystemInDarkTheme()
             }
+            GcSystemBars(dark)
             GateControlTheme(darkTheme = dark) {
                 MediaRemoteScreen(onClose = ::finish)
             }

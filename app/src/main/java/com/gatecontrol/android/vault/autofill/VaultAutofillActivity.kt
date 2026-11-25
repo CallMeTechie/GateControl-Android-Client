@@ -50,6 +50,7 @@ import com.gatecontrol.android.ui.components.GcSectionLabel
 import com.gatecontrol.android.ui.components.GcSubpageBar
 import com.gatecontrol.android.ui.components.GcTextField
 import com.gatecontrol.android.ui.theme.GateControlTheme
+import com.gatecontrol.android.ui.theme.GcSystemBars
 import com.gatecontrol.android.ui.vault.VaultEntryRow
 import com.gatecontrol.android.ui.vault.VaultLockGate
 import com.gatecontrol.android.ui.vault.VaultRowsCard
@@ -101,6 +102,7 @@ class VaultAutofillActivity : FragmentActivity() {
                 "light" -> false
                 else -> androidx.compose.foundation.isSystemInDarkTheme()
             }
+            GcSystemBars(dark)
             GateControlTheme(darkTheme = dark) {
                 // Its own window over another app's form: locked or not, no screenshot, no picture in the recent apps.
                 SecureScreenEffect()

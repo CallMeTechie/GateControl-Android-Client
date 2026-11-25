@@ -115,6 +115,9 @@ class RdpSessionActivity : ComponentActivity() {
         WindowCompat.setDecorFitsSystemWindows(window, false)
         val windowController = WindowInsetsControllerCompat(window, window.decorView)
         windowController.hide(WindowInsetsCompat.Type.systemBars())
+        // light bar icons over the remote screen, whatever the design (the window theme gives dark ones in light mode)
+        windowController.isAppearanceLightStatusBars = false
+        windowController.isAppearanceLightNavigationBars = false
         windowController.systemBarsBehavior =
             WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
 

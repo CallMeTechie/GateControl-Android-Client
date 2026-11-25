@@ -61,6 +61,8 @@ import com.gatecontrol.android.R
 import com.gatecontrol.android.media.MediaLogic
 import com.gatecontrol.android.media.MediaSource
 import com.gatecontrol.android.media.MediaSourceKind
+import com.gatecontrol.android.media.MediaTitle
+import com.gatecontrol.android.media.jellyfin.JellyfinFolder
 import com.gatecontrol.android.media.share.ShareFolders
 import com.gatecontrol.android.ui.components.GcCard
 import com.gatecontrol.android.ui.components.GcIconButton
@@ -77,25 +79,44 @@ import com.gatecontrol.android.ui.theme.MonoFontFamily
  * Ton", played anyway). A tap plays the folder from there, a long press offers "Von vorn" and "Gesehen".
  */
 @Composable
-fun MediaFolderPage(viewModel: MediaFolderViewModel = hiltViewModel()) {
+fun MediaFolderPage(
+    onDetail: (MediaTitle) -> Unit = {},
+    viewModel: MediaFolderViewModel = hiltViewModel(),
+    libraries: MediaLibraryFolderViewModel = hiltViewModel(),
+) {
     val ui by viewModel.ui.collectAsStateWithLifecycle()
+    val lib by libraries.ui.collectAsStateWithLifecycle()
     var searchOpen by rememberSaveable { mutableStateOf(false) }
-    LifecycleResumeEffect(viewModel) {
+    LifecycleResumeEffect(viewModel, libraries) {
+        libraries.refresh()
         viewModel.refresh()
         onPauseOrDispose { }
     }
-    BackHandler(enabled = searchOpen || ui.canGoUp) {
-        if (searchOpen) {
-            searchOpen = false
-            viewModel.setQuery("")
-        } else {
-            viewModel.up()
+    BackHandler(enabled = searchOpen || lib.open != null || ui.canGoUp) {
+        when {
+            searchOpen -> {
+                searchOpen = false
+                viewModel.setQuery("")
+            }
+            lib.open != null -> libraries.up()
+            else -> viewModel.up()
         }
     }
     CompositionLocalProvider(LocalMediaPictures provides viewModel.pictures) {
+        lib.open?.let { place ->
+            LibraryPlacePage(
+                place,
+                onUp = { libraries.up() },
+                onTrail = libraries::openTrail,
+                onFolder = libraries::openFolder,
+                onTitle = onDetail,
+                onRetry = libraries::retry,
+            )
+            return@CompositionLocalProvider
+        }
         val share = ui.share
         if (share == null) {
-            ShareList(ui.shares, onOpen = viewModel::openShare)
+            FolderRoots(lib, ui.shares, onLibrary = libraries::openLibrary, onShare = viewModel::openShare, onRetry = libraries::retry)
             return@CompositionLocalProvider
         }
         LazyColumn(
@@ -107,7 +128,7 @@ fun MediaFolderPage(viewModel: MediaFolderViewModel = hiltViewModel()) {
                 PathBar(
                     ui = ui,
                     share = share,
-                    onRoot = if (ui.shares.size > 1) viewModel::allShares else null,
+                    onRoot = if (ui.shares.size > 1 || ui.withLibraries) viewModel::allShares else null,
                     onFolder = viewModel::openFolder,
                     onSearch = {
                         searchOpen = !searchOpen
@@ -134,23 +155,148 @@ fun MediaFolderPage(viewModel: MediaFolderViewModel = hiltViewModel()) {
     }
 }
 
-/** More than one share: which to open (each with its way at home and away). */
+/**
+ * Where to look (mockup 5): the libraries of the Jellyfin servers and the shares (each with its way at home and away).
+ * Nothing there: a line says so (before, an empty card was all that showed); a server not read: why.
+ */
 @Composable
-private fun ShareList(shares: List<MediaSource>, onOpen: (MediaSource) -> Unit) {
+private fun FolderRoots(
+    lib: MediaLibraryFoldersUi,
+    shares: List<MediaSource>,
+    onLibrary: (MediaLibraryRow) -> Unit,
+    onShare: (MediaSource) -> Unit,
+    onRetry: () -> Unit,
+) {
     val x = GateControlTheme.extraColors
-    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        item(key = "shares") {
-            GcCard(contentPadding = PaddingValues(vertical = 4.dp), verticalArrangement = Arrangement.Top) {
-                shares.forEach { s ->
-                    GcListRow(
-                        title = MediaLogic.shareAddress(s),
-                        description = stringResource(if (s.pairWith != null) R.string.media_pair_note else if (s.kind == MediaSourceKind.SMB) R.string.media_type_smb else R.string.media_type_webdav),
-                        leading = { Icon(GcIcons.Folder, contentDescription = null, tint = x.blue, modifier = Modifier.size(22.dp)) },
-                        trailing = { Icon(GcIcons.ChevronRight, contentDescription = null, tint = x.faint, modifier = Modifier.size(18.dp)) },
-                        onClick = { onOpen(s) },
-                    )
+    LazyColumn(Modifier.fillMaxSize().testTag(FOLDER_ROOTS_TAG), contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        lib.problem?.let { p -> item(key = "problem") { MediaProblemCard(p, onRetry = onRetry) } }
+        if (lib.libraries.isNotEmpty() || shares.isNotEmpty()) {
+            item(key = "roots") {
+                GcCard(contentPadding = PaddingValues(vertical = 4.dp), verticalArrangement = Arrangement.Top) {
+                    lib.libraries.forEach { row ->
+                        GcListRow(
+                            title = row.folder.name,
+                            description = stringResource(R.string.media_type_jellyfin_library),
+                            leading = { Icon(GcIcons.Folder, contentDescription = null, tint = x.blue, modifier = Modifier.size(22.dp)) },
+                            trailing = { Icon(GcIcons.ChevronRight, contentDescription = null, tint = x.faint, modifier = Modifier.size(18.dp)) },
+                            onClick = { onLibrary(row) },
+                        )
+                    }
+                    shares.forEach { s ->
+                        GcListRow(
+                            title = MediaLogic.shareAddress(s),
+                            description = stringResource(if (s.pairWith != null) R.string.media_pair_note else if (s.kind == MediaSourceKind.SMB) R.string.media_type_smb else R.string.media_type_webdav),
+                            leading = { Icon(GcIcons.Folder, contentDescription = null, tint = x.blue, modifier = Modifier.size(22.dp)) },
+                            trailing = { Icon(GcIcons.ChevronRight, contentDescription = null, tint = x.faint, modifier = Modifier.size(18.dp)) },
+                            onClick = { onShare(s) },
+                        )
+                    }
                 }
             }
+        } else if (lib.loading || !lib.loaded) {
+            item(key = "loading") { Box(Modifier.fillMaxWidth().height(80.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(Modifier.size(22.dp), strokeWidth = 2.dp) } }
+        } else if (lib.problem == null) {
+            item(key = "empty") {
+                Text(
+                    stringResource(R.string.media_folders_none),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = x.muted,
+                    modifier = Modifier.padding(vertical = 8.dp).testTag(FOLDER_ROOTS_EMPTY_TAG),
+                )
+            }
+        }
+    }
+}
+
+/** A Jellyfin library or folder: the way into it (each part tappable), its folders, then its films, series and videos. */
+@Composable
+private fun LibraryPlacePage(
+    place: MediaLibraryPlace,
+    onUp: () -> Unit,
+    onTrail: (Int) -> Unit,
+    onFolder: (JellyfinFolder) -> Unit,
+    onTitle: (MediaTitle) -> Unit,
+    onRetry: () -> Unit,
+) {
+    val x = GateControlTheme.extraColors
+    val mono = MaterialTheme.typography.labelMedium.copy(fontFamily = MonoFontFamily)
+    LazyColumn(
+        Modifier.fillMaxSize().testTag(LIBRARY_TAG),
+        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 24.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        item(key = "path") {
+            Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), verticalAlignment = Alignment.CenterVertically) {
+                Icon(GcIcons.ChevronLeft, contentDescription = stringResource(R.string.media_folder_all_shares), tint = x.muted, modifier = Modifier.size(28.dp).clip(RoundedCornerShape(8.dp)).clickable(role = Role.Button, onClick = onUp).padding(4.dp))
+                place.trail.forEachIndexed { i, f ->
+                    if (i > 0) Text(" › ", style = mono, color = x.faint)
+                    Crumb(f.name, mono, current = i == place.trail.lastIndex) { onTrail(i) }
+                }
+            }
+        }
+        place.problem?.let { p -> item(key = "problem") { MediaProblemCard(p, onRetry = onRetry) } }
+        when {
+            !place.loaded && place.loading ->
+                item(key = "loading") { Box(Modifier.fillMaxWidth().height(80.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(Modifier.size(22.dp), strokeWidth = 2.dp) } }
+            place.folders.isEmpty() && place.titles.isEmpty() -> if (place.loaded && place.problem == null) {
+                item(key = "empty") {
+                    Text(stringResource(R.string.media_folder_empty), style = MaterialTheme.typography.bodyMedium, color = x.muted, modifier = Modifier.padding(vertical = 8.dp))
+                }
+            }
+            else -> item(key = "list") {
+                GcCard(contentPadding = PaddingValues(horizontal = 12.dp, vertical = 2.dp), verticalArrangement = Arrangement.Top) {
+                    place.folders.forEach { f -> LibraryFolderRow(f.name, onClick = { onFolder(f) }) }
+                    place.titles.forEach { t -> LibraryTitleRow(t, onClick = { onTitle(t) }) }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun LibraryFolderRow(name: String, onClick: () -> Unit) {
+    val x = GateControlTheme.extraColors
+    Row(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).clickable(role = Role.Button, onClick = onClick).padding(vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Icon(GcIcons.Folder, contentDescription = null, tint = x.blue, modifier = Modifier.size(22.dp))
+        Text(name, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+        Icon(GcIcons.ChevronRight, contentDescription = null, tint = x.faint, modifier = Modifier.size(18.dp))
+    }
+}
+
+/** A film, series or video of a Jellyfin folder: picture, name, "2024 · 1 Std. 48 Min."; a tap opens its page. */
+@Composable
+private fun LibraryTitleRow(t: MediaTitle, onClick: () -> Unit) {
+    val x = GateControlTheme.extraColors
+    val picture = rememberMediaPicture(t)
+    Row(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).clickable(role = Role.Button, onClick = onClick).padding(vertical = 8.dp).testTag(LIBRARY_TITLE_TAG),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Box(Modifier.width(68.dp).height(38.dp).clip(RoundedCornerShape(8.dp)).background(x.panel2)) {
+            if (picture != null) {
+                Image(picture, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+            } else {
+                Icon(if (t.kind == MediaTitle.Kind.SERIES) GcIcons.Folder else GcIcons.Film, contentDescription = null, tint = x.muted, modifier = Modifier.align(Alignment.Center).size(18.dp))
+            }
+            if (t.played) {
+                Box(Modifier.align(Alignment.TopEnd).padding(3.dp).size(14.dp).clip(RoundedCornerShape(7.dp)).background(MaterialTheme.colorScheme.primary), contentAlignment = Alignment.Center) {
+                    Icon(GcIcons.Check, contentDescription = stringResource(R.string.media_played), tint = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.size(10.dp))
+                }
+            }
+        }
+        Column(Modifier.weight(1f)) {
+            Text(t.name, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            val parts = listOfNotNull(
+                t.year?.toString(),
+                t.runtimeMs?.takeIf { it > 0 && t.playable }?.let { runtimeText(it) },
+                t.leftMs?.let { leftText(it) },
+            )
+            if (parts.isNotEmpty()) Text(parts.joinToString(" · "), style = MaterialTheme.typography.bodySmall, color = x.muted, maxLines = 1)
         }
     }
 }
@@ -382,6 +528,10 @@ private fun WayNote(ui: MediaFolderUi) {
 }
 
 internal const val FOLDERS_TAG = "media-folders"
+internal const val FOLDER_ROOTS_TAG = "media-folder-roots"
+internal const val FOLDER_ROOTS_EMPTY_TAG = "media-folder-roots-empty"
+internal const val LIBRARY_TAG = "media-library"
+internal const val LIBRARY_TITLE_TAG = "media-library-title"
 internal const val FOLDER_SEARCH_TAG = "media-folder-search"
 internal const val FILE_TAG = "media-folder-file"
 internal const val FILE_LINE_TAG = "media-folder-file-line"

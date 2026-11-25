@@ -112,6 +112,27 @@ class JellyfinLibrary(
             names.distinctBy { it.lowercase(java.util.Locale.ROOT) }
         }
 
+    /** "Ordner": the person's libraries (`/UserViews`), those with video. */
+    suspend fun views(): MediaResult<List<JellyfinFolder>> =
+        client.get("UserViews", mapOf("userId" to user)).map { JellyfinJson.views(it) }
+
+    /** "Ordner": what a library or folder holds, A–Z (at most [limit]); the page shows the folders first. */
+    suspend fun children(parentId: String, limit: Int = FOLDER_LIMIT): MediaResult<JellyfinFolderPage> =
+        client.get(
+            "Items",
+            mapOf(
+                "userId" to user,
+                "parentId" to parentId,
+                "sortBy" to "SortName",
+                "sortOrder" to "Ascending",
+                "limit" to limit,
+                "fields" to "$FIELDS,ChildCount",
+                "enableUserData" to true,
+                "enableTotalRecordCount" to true,
+                "enableImageTypes" to IMAGES,
+            ),
+        ).map { JellyfinJson.folderPage(it, source.id) }
+
     override suspend fun seasons(seriesId: String): MediaResult<List<MediaTitle>> =
         client.get("Shows/$seriesId/Seasons", mapOf("userId" to user, "fields" to FIELDS, "enableUserData" to true))
             .map { JellyfinJson.items(it, source.id) }
@@ -332,6 +353,9 @@ class JellyfinLibrary(
 
         const val FIELDS = "PrimaryImageAspectRatio,DateCreated,Genres,OfficialRating"
         const val IMAGES = "Primary,Backdrop,Thumb"
+
+        /** The most of a folder shown on the page "Ordner". */
+        const val FOLDER_LIMIT = 500
 
         /** The bytes of one bandwidth measurement (about a second at 20 Mbit/s). */
         const val MEASURE_BYTES = 2_500_000
