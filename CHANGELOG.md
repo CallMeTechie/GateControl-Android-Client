@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.154.0] - 2026-11-25
+
+### Features
+- NAS-Ordner für Medien am Handy (Stufe 4d) (#293)
+
+---
+
 ## [1.153.0] - 2026-11-25
 
 ### Features
