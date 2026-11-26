@@ -87,6 +87,12 @@ interface TvVideoSource {
 
     /** Seconds of "Nächste Folge in …" at the end before the next one starts; 0: at once (Drive's folder). */
     val nextCountdownSeconds: Int get() = 0
+
+    /** A film or episode of Medien: the player keeps more ahead in memory (MediaPlayers.loadControl). */
+    val longBuffer: Boolean get() = false
+
+    /** The player is gone: what the source kept for it goes too (Medien: what was loaded ahead). */
+    fun release() {}
 }
 
 class TvDrivePhotos(private val items: List<DNode>, private val media: TvDriveMedia) : TvPhotoSource {

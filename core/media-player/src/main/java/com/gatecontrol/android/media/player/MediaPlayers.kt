@@ -9,7 +9,9 @@ import androidx.media3.common.MimeTypes
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.DataSource
 import androidx.media3.datasource.okhttp.OkHttpDataSource
+import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.LoadControl
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import com.gatecontrol.android.media.MediaHub
 import com.gatecontrol.android.media.MediaPlan
@@ -34,9 +36,31 @@ object MediaPlayers {
         return OkHttpDataSource.Factory(hub.http(source)).setDefaultRequestProperties(hub.library(source).headers())
     }
 
-    /** A player reading through [factory]. */
-    fun player(context: Context, factory: DataSource.Factory): ExoPlayer =
-        ExoPlayer.Builder(context).setMediaSourceFactory(DefaultMediaSourceFactory(factory)).build()
+    /** A player reading through [factory]; [media]: a film or episode of Medien ([loadControl]). */
+    fun player(context: Context, factory: DataSource.Factory, media: Boolean = false): ExoPlayer {
+        val b = ExoPlayer.Builder(context).setMediaSourceFactory(DefaultMediaSourceFactory(factory))
+        if (media) b.setLoadControl(loadControl())
+        return b.build()
+    }
+
+    /** Seconds the player of a film keeps ahead in memory at least / at most, and behind (jumping back). */
+    const val MIN_BUFFER_MS = 50_000
+    const val MAX_BUFFER_MS = 120_000
+    const val BACK_BUFFER_MS = 20_000
+
+    /**
+     * The buffer of a film (stage 1 of „mitladen“): further ahead than Media3's 50 s and a little behind, within its
+     * usual memory (the size limit of its allocator stays); what lies beyond is in [PlayAhead]'s space on the device.
+     */
+    fun loadControl(): LoadControl = DefaultLoadControl.Builder()
+        .setBufferDurationsMs(
+            MIN_BUFFER_MS,
+            MAX_BUFFER_MS,
+            DefaultLoadControl.DEFAULT_BUFFER_FOR_PLAYBACK_MS,
+            DefaultLoadControl.DEFAULT_BUFFER_FOR_PLAYBACK_AFTER_REBUFFER_MS,
+        )
+        .setBackBuffer(BACK_BUFFER_MS, true)
+        .build()
 
     /**
      * The item of [plan] (with [mediaId]): HLS when converted, the side subtitles with it (Jellyfin's shown at once,

@@ -20,11 +20,13 @@ import com.gatecontrol.android.drive.DriveMediaLogic
 import com.gatecontrol.android.media.offline.MediaOffline
 import com.gatecontrol.android.media.offline.MediaOfflineDataSource
 import com.gatecontrol.android.media.player.MediaPlayers
+import com.gatecontrol.android.media.player.PlayAhead
 import com.gatecontrol.android.media.player.PlaybackReporter
 import com.gatecontrol.android.media.player.PlayerTrack
 import com.gatecontrol.android.media.player.PlayerTracks
 import com.gatecontrol.android.ui.media.MediaPlayerActivity
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -69,6 +71,16 @@ data class MediaPlayerUi(
     val vpnConsent: Boolean = false,
     /** The file's sound does not play on this phone (e.g. "DTS"): the picture without sound, a note says so. */
     val silentCodec: String? = null,
+    /** „Wie abspielen?“ (decision 89 b): away the original does not go through, the person chooses. */
+    val awayAsk: MediaAwayFit? = null,
+    /** „Auf dem Gerät mitgeladen“ (part 2, stage 1); null: not loading ahead (at home, converted, a download). */
+    val ahead: MediaPlayAheadState? = null,
+    /** The original's bit rate of what is loaded ahead (for "reicht für ca. 34 Min."). */
+    val aheadBitrate: Long? = null,
+    /** „Original mit Mitladen“: it starts once what is ahead carries the rest. */
+    val aheadWait: Boolean = false,
+    /** The wait left for that; null: not measured yet. */
+    val aheadWaitMs: Long? = null,
 ) {
     val title: MediaTitle get() = queue.items[at]
     val hasNext: Boolean get() = at < queue.items.size - 1
@@ -107,6 +119,13 @@ class MediaPlayerSession @Inject constructor(
     private var tickJob: Job? = null
     private var countdownJob: Job? = null
     private var gateJob: Job? = null
+    private var aheadJob: Job? = null
+
+    /** „Beim Abspielen mitladen“ of this playback; null: off (or no room on the phone). */
+    private var ahead: PlayAhead? = null
+
+    /** „Wie abspielen?“ shown, waiting for the answer. */
+    private var asking: CompletableDeferred<MediaAwayOriginal?>? = null
 
     /** The tracks to choose once the player knows the file's tracks (played directly). */
     private var pending: PhoneOpen.Ready? = null
@@ -125,7 +144,17 @@ class MediaPlayerSession @Inject constructor(
     /** Plays [queue] from its first title (another playback ends first). */
     fun start(queue: MediaQueue) {
         stopPlayer()
-        val v = PhoneMediaVideos(queue, hub, quality = { settings.quality.value }, setQuality = hub::setQuality, mobileCap = { settings.mobileCap.value }, cellular = network::cellular, offline = offline)
+        val v = PhoneMediaVideos(
+            queue,
+            hub,
+            quality = { settings.quality.value },
+            setQuality = hub::setQuality,
+            mobileCap = { settings.mobileCap.value },
+            cellular = network::cellular,
+            offline = offline,
+            awayOriginal = { settings.awayOriginal.value },
+            aheadBytes = { ahead?.limitBytes ?: 0L },
+        )
         videos = v
         val source = v.source
         _ui.value = MediaPlayerUi(queue, queue.at, sourceName = source?.name, share = v.share)
@@ -151,11 +180,19 @@ class MediaPlayerSession @Inject constructor(
      * network with the screen off.
      */
     private fun build(source: MediaSource): ExoPlayer {
+        val upstream = MediaPlayers.dataSource(hub, source)
+        // away the original is loaded further ahead into a space of its own (only for this playback)
+        val root = PlayAhead.root(app.cacheDir)
+        val limit = MediaPlayAhead.limitBytes(settings.aheadGb.value, runCatching { root.apply { mkdirs() }.usableSpace }.getOrDefault(0L))
+        val a = if (limit > 0) runCatching { PlayAhead(root, upstream, limit) }.getOrNull() else null
+        ahead = a
+        val net = a?.factory ?: upstream
         // a download is read from the phone (decrypted chunk by chunk), the rest from the NAS
-        val factory = DataSource.Factory { MediaOfflineDataSource(offline.store::open, MediaPlayers.dataSource(hub, source).createDataSource()) }
+        val factory = DataSource.Factory { MediaOfflineDataSource(offline.store::open, net.createDataSource()) }
         val attrs = AudioAttributes.Builder().setUsage(C.USAGE_MEDIA).setContentType(C.AUDIO_CONTENT_TYPE_MOVIE).build()
         return ExoPlayer.Builder(app)
             .setMediaSourceFactory(DefaultMediaSourceFactory(factory))
+            .setLoadControl(MediaPlayers.loadControl())
             .setAudioAttributes(attrs, true)
             .setHandleAudioBecomingNoisy(true)
             .setWakeMode(C.WAKE_MODE_NETWORK)
@@ -248,9 +285,9 @@ class MediaPlayerSession @Inject constructor(
         p.stop()
         p.clearMediaItems()
         pending = null
-        _ui.update { u -> u?.let { it.copy(at = i, loading = true, trouble = null, countdown = null, ended = false, line = if (from != null) it.line else null, resumedAt = null, vpnConsent = false, silentCodec = null) } }
+        _ui.update { u -> u?.let { it.copy(at = i, loading = true, trouble = null, countdown = null, ended = false, line = if (from != null) it.line else null, resumedAt = null, vpnConsent = false, silentCodec = null, awayAsk = null, aheadWait = false, aheadWaitMs = null) } }
         openJob = main.launch {
-            when (val r = v.open(i, from)) {
+            when (val r = v.open(i, from, ask = ::ask)) {
                 is PhoneOpen.Ready -> {
                     val t = v.items[i]
                     val meta = MediaMetadata.Builder()
@@ -265,9 +302,10 @@ class MediaPlayerSession @Inject constructor(
                     val start = r.startMs?.takeIf { it > 0 }
                     if (start != null) p.setMediaItem(item, start) else p.setMediaItem(item)
                     val hint = r.line.net == MediaNet.CELLULAR && !settings.mobileHintSeen
+                    val following = follow(r)
                     p.prepare()
-                    // the note on the data volume first: it plays once it is read
-                    p.playWhenReady = play && !hint
+                    // the note on the data volume first: it plays once it is read; „Original mit Mitladen“ once enough is ahead
+                    p.playWhenReady = play && !hint && !(r.wait && following)
                     _ui.update {
                         it?.copy(
                             line = r.line,
@@ -275,9 +313,12 @@ class MediaPlayerSession @Inject constructor(
                             offline = r.offline,
                             resumedAt = start?.takeIf { from == null },
                             mobileHint = hint,
+                            aheadWait = r.wait && following,
+                            aheadBitrate = r.plan.version.bitrate,
                         )
                     }
                 }
+                PhoneOpen.Cancelled -> close()
                 PhoneOpen.Offline -> _ui.update { it?.copy(loading = false, trouble = MediaPlayerTrouble.NETWORK) }
                 is PhoneOpen.Vpn -> _ui.update { it?.copy(loading = false, trouble = MediaPlayerTrouble.VPN, vpnConsent = r.consent) }
                 PhoneOpen.SignedOut -> _ui.update { it?.copy(loading = false, trouble = MediaPlayerTrouble.SIGNED_OUT) }
@@ -286,11 +327,84 @@ class MediaPlayerSession @Inject constructor(
         }
     }
 
+    /** „Wie abspielen?“: shown, waited for (the player stays empty meanwhile). */
+    private suspend fun ask(fit: MediaAwayFit): MediaAwayOriginal? {
+        val d = CompletableDeferred<MediaAwayOriginal?>()
+        asking = d
+        _ui.update { it?.copy(awayAsk = fit, loading = false) }
+        return try {
+            d.await()
+        } finally {
+            asking = null
+            _ui.update { it?.copy(awayAsk = null, loading = true) }
+        }
+    }
+
+    /** The answer to „Wie abspielen?“; null: „Abbrechen“ (nothing plays). */
+    fun answerAway(choice: MediaAwayOriginal?) {
+        asking?.complete(choice)
+    }
+
+    /**
+     * Loads ahead what [r] plays when it is the file itself (Jellyfin's original, a share's file) away, not converted
+     * and not a download; on mobile data only ten minutes ahead. True when it does.
+     */
+    private fun follow(r: PhoneOpen.Ready): Boolean {
+        val a = ahead ?: return false
+        val away = r.line.net == MediaNet.AWAY || r.line.net == MediaNet.CELLULAR
+        val file = !r.plan.hls && (r.plan.method == PlayMethod.DIRECT_PLAY || videos?.share == true)
+        if (!away || !file || r.offline) {
+            a.follow(null)
+            _ui.update { it?.copy(ahead = null) }
+            return false
+        }
+        a.follow(r.plan.url, MediaPlayAhead.aheadLimit(a.limitBytes, r.line.net == MediaNet.CELLULAR, r.plan.version.bitrate))
+        if (aheadJob?.isActive != true) {
+            aheadJob = main.launch {
+                while (isActive) {
+                    aheadTick()
+                    delay(AHEAD_TICK_MS)
+                }
+            }
+        }
+        return true
+    }
+
+    /** Each second: the card's numbers; with „Original mit Mitladen“ the start once enough is ahead. */
+    private fun aheadTick() {
+        val a = ahead ?: return
+        val p = _player.value ?: return
+        val u = _ui.value ?: return
+        if (!a.following) return
+        val state = a.state()
+        // played meanwhile (the controls' ▶): no more waiting
+        if (u.aheadWait && p.isPlaying) _ui.update { it?.copy(aheadWait = false, aheadWaitMs = null) }
+        if (!u.aheadWait || p.isPlaying) {
+            _ui.update { it?.copy(ahead = state) }
+            return
+        }
+        val bitrate = u.aheadBitrate ?: 0L
+        val duration = p.duration.takeIf { it > 0 } ?: u.title.runtimeMs ?: 0L
+        val remaining = (duration - p.currentPosition.coerceAtLeast(0)).coerceAtLeast(0)
+        if (MediaPlayAhead.canStart(state.aheadBytes, remaining, bitrate, state.rateBps, state.complete)) {
+            startNow()
+            _ui.update { it?.copy(ahead = state) }
+        } else {
+            _ui.update { it?.copy(ahead = state, aheadWaitMs = MediaPlayAhead.waitLeftMs(state.aheadBytes, remaining, bitrate, state.rateBps)) }
+        }
+    }
+
+    /** „Jetzt abspielen“ while it loads ahead (or enough is ahead now). */
+    fun startNow() {
+        _ui.update { it?.copy(aheadWait = false, aheadWaitMs = null) }
+        if (_ui.value?.mobileHint != true) _player.value?.play()
+    }
+
     /** The note on the data volume was read: it is not shown again, the video plays. */
     fun mobileHintRead() {
         settings.setMobileHintSeen()
         _ui.update { it?.copy(mobileHint = false) }
-        _player.value?.play()
+        if (_ui.value?.aheadWait != true) _player.value?.play()
     }
 
     /** The limit on mobile data now (the note's text); null: none. */
@@ -396,11 +510,19 @@ class MediaPlayerSession @Inject constructor(
         gateJob?.cancel()
         countdownJob?.cancel()
         pending = null
-        val p = _player.value ?: return
-        reporter.stop(p, at)
-        p.removeListener(listener)
-        _player.value = null
-        p.release()
+        aheadJob?.cancel()
+        asking?.complete(null)
+        asking = null
+        val p = _player.value
+        if (p != null) {
+            reporter.stop(p, at)
+            p.removeListener(listener)
+            _player.value = null
+            p.release()
+        }
+        // after the player: what was loaded ahead goes with its key (nothing outlives the playback)
+        ahead?.release()
+        ahead = null
     }
 
     /**
@@ -430,6 +552,11 @@ class MediaPlayerSession @Inject constructor(
             super.stop()
             close()
         }
+    }
+
+    private companion object {
+        /** How often the card „Auf dem Gerät mitgeladen“ (and the wait of „Original mit Mitladen“) is updated. */
+        const val AHEAD_TICK_MS = 1_000L
     }
 }
 

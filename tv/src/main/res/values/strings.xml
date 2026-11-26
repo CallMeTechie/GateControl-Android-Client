@@ -399,7 +399,7 @@
     <string name="tv_media_forced">forced</string>
     <string name="tv_media_detail_keys">OK Play  ·  ⟲ Back</string>
     <string name="tv_media_about">about %1$s</string>
-    <string name="tv_media_original_too_much">%1$s. More than the %2$s away, it would stall.</string>
+    <string name="tv_media_original_too_much">%1$s. More than the %2$s away: may stall, the TV loads ahead meanwhile.</string>
     <string name="tv_media_original_direct">Original (direct)</string>
     <string name="tv_media_adapted">Adapted (the NAS converts)</string>
     <string name="tv_media_audio_stays">audio stays %1$s</string>

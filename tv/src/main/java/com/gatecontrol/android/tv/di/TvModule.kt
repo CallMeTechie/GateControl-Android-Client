@@ -1,6 +1,8 @@
 package com.gatecontrol.android.tv.di
 
+import android.content.Context
 import com.gatecontrol.android.media.MediaDevice
+import com.gatecontrol.android.media.MediaRowsCache
 import com.gatecontrol.android.network.ClientPlatform
 import com.gatecontrol.android.notify.PluginEventSink
 import com.gatecontrol.android.notify.PushPresenter
@@ -18,9 +20,13 @@ import dagger.Binds
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
+import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 import dagger.multibindings.IntoSet
 import dagger.multibindings.Multibinds
+import java.io.File
+import java.util.concurrent.Executors
+import javax.inject.Singleton
 
 /** What the shared core modules need to know about GateControl TV. */
 @Module
@@ -40,6 +46,14 @@ object TvModule {
     /** No app shortcuts, Quick Settings tiles or home-screen widgets on a TV: the pins are only the start page. */
     @Provides
     fun provideQuickActionSurfaces(): QuickActionSurfacesHook = QuickActionSurfacesHook.NONE
+
+    /** Medien: the rows last loaded, per source (the app's cache folder: shown at once on opening Medien, as on the phone). */
+    @Provides
+    @Singleton
+    fun provideMediaRowsCache(@ApplicationContext context: Context): MediaRowsCache {
+        val files = Executors.newSingleThreadExecutor { r -> Thread(r, "media-rows").apply { isDaemon = true } }
+        return MediaRowsCache(File(context.cacheDir, "media-rows"), writer = { files.execute(it) })
+    }
 }
 
 @Module

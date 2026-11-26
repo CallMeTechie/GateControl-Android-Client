@@ -2,6 +2,7 @@ package com.gatecontrol.android.ui.media
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.gatecontrol.android.media.MediaAwayOriginal
 import com.gatecontrol.android.media.MediaHub
 import com.gatecontrol.android.media.MediaPhoneSettings
 import com.gatecontrol.android.media.MediaSource
@@ -40,6 +41,8 @@ class MediaSourcesViewModel @Inject constructor(
     val startCard: StateFlow<Boolean> = settings.startCard
     val offlineQuality: StateFlow<OfflineQuality> = settings.offlineQuality
     val offlineLimitGb: StateFlow<Int> = settings.offlineLimitGb
+    val aheadGb: StateFlow<Int> = settings.aheadGb
+    val awayOriginal: StateFlow<MediaAwayOriginal> = settings.awayOriginal
 
     val rows: StateFlow<List<MediaSourceStatus>> = combine(hub.store.sources, servers.state, hub.link) { list, state, _ ->
         MediaSourcesLogic.rows(list, state, hub::route)
@@ -62,6 +65,11 @@ class MediaSourcesViewModel @Inject constructor(
     fun setMobileCap(bps: Long?) = settings.setMobileCap(bps)
 
     fun setStartCard(on: Boolean) = settings.setStartCard(on)
+
+    /** „Unterwegs mitladen“: the space for one playback (0: off); from the next playback on. */
+    fun setAheadGb(gb: Int) = settings.setAheadGb(gb)
+
+    fun setAwayOriginal(value: MediaAwayOriginal) = settings.setAwayOriginal(value)
 
     /** „Neu laden“: the list of the server, the way, then the sign-in where it is missing. */
     fun reload() {

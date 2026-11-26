@@ -37,6 +37,8 @@ import com.gatecontrol.android.media.MediaLogic
 import com.gatecontrol.android.media.MediaPhoneLogic
 import com.gatecontrol.android.media.MediaQuality
 import com.gatecontrol.android.media.MediaSource
+import com.gatecontrol.android.media.MediaAwayOriginal
+import com.gatecontrol.android.media.MediaPlayAhead
 import com.gatecontrol.android.media.MediaSourceKind
 import com.gatecontrol.android.media.MediaAddress
 import com.gatecontrol.android.media.MediaRoute
@@ -144,6 +146,13 @@ fun MediaSourcesScreen(
                         )
                     }
                     MobileCapRow(cap, onCap = viewModel::setMobileCap)
+                    // loading ahead away (part 2, stage 1): the space, and what plays when the original does not go through
+                    val aheadGb by viewModel.aheadGb.collectAsStateWithLifecycle()
+                    AheadRow(aheadGb, onGb = viewModel::setAheadGb)
+                    if (aheadGb > 0 && sources.any { it.kind == MediaSourceKind.JELLYFIN }) {
+                        val away by viewModel.awayOriginal.collectAsStateWithLifecycle()
+                        AwayOriginalRow(away, onChoose = viewModel::setAwayOriginal)
+                    }
                     // the downloads for offline (question 22 a: Jellyfin only), under „Auf diesem Gerät“
                     if (sources.any { it.kind == MediaSourceKind.JELLYFIN }) {
                         val quality by viewModel.offlineQuality.collectAsStateWithLifecycle()
@@ -313,6 +322,74 @@ private fun MobileCapRow(cap: Long?, onCap: (Long?) -> Unit) {
     )
 }
 
+/** "Unterwegs mitladen · 4 GB ▾": the space on the phone for one playback, deleted after it; "Aus". */
+@Composable
+internal fun AheadRow(gb: Int, onGb: (Int) -> Unit) {
+    var open by remember { mutableStateOf(false) }
+    @Composable
+    fun name(v: Int) = if (v <= 0) stringResource(R.string.media_ahead_off) else stringResource(R.string.media_offline_gb, v)
+    GcListRow(
+        title = stringResource(R.string.media_ahead_setting),
+        description = stringResource(if (gb > 0) R.string.media_ahead_setting_desc else R.string.media_ahead_setting_off_desc),
+        onClick = { open = true },
+        trailing = {
+            Box {
+                Text(name(gb), style = MaterialTheme.typography.labelLarge, color = GateControlTheme.extraColors.accentText)
+                DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+                    MediaPlayAhead.LIMITS_GB.forEach { v ->
+                        DropdownMenuItem(
+                            text = { Text(name(v)) },
+                            onClick = {
+                                open = false
+                                onGb(v)
+                            },
+                            trailingIcon = if (v == gb) { { Icon(GcIcons.Check, contentDescription = null, modifier = Modifier.size(18.dp)) } } else null,
+                        )
+                    }
+                }
+            }
+        },
+        modifier = Modifier.testTag(AHEAD_SETTING_TAG),
+    )
+}
+
+/** "Original passt unterwegs nicht · Fragen ▾" (decision 89 b): ask, or always the same. */
+@Composable
+internal fun AwayOriginalRow(choice: MediaAwayOriginal, onChoose: (MediaAwayOriginal) -> Unit) {
+    var open by remember { mutableStateOf(false) }
+    @Composable
+    fun name(v: MediaAwayOriginal) = stringResource(
+        when (v) {
+            MediaAwayOriginal.ASK -> R.string.media_away_setting_ask
+            MediaAwayOriginal.CONVERTED -> R.string.media_away_converted
+            MediaAwayOriginal.WAIT -> R.string.media_away_wait
+            MediaAwayOriginal.NOW -> R.string.media_away_now
+        },
+    )
+    GcListRow(
+        title = stringResource(R.string.media_away_setting),
+        description = stringResource(R.string.media_away_setting_desc),
+        onClick = { open = true },
+        trailing = {
+            Box {
+                Text(name(choice), style = MaterialTheme.typography.labelLarge, color = GateControlTheme.extraColors.accentText)
+                DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+                    MediaAwayOriginal.entries.forEach { v ->
+                        DropdownMenuItem(
+                            text = { Text(name(v)) },
+                            onClick = {
+                                open = false
+                                onChoose(v)
+                            },
+                            trailingIcon = if (v == choice) { { Icon(GcIcons.Check, contentDescription = null, modifier = Modifier.size(18.dp)) } } else null,
+                        )
+                    }
+                }
+            }
+        },
+    )
+}
+
 /** "Qualität für Downloads · 1080p ▾". */
 @Composable
 private fun OfflineQualityRow(quality: OfflineQuality, onQuality: (OfflineQuality) -> Unit) {
@@ -373,3 +450,4 @@ internal const val RELOAD_TAG = "media-sources-reload"
 internal const val ADMIN_HINT_TAG = "media-sources-admin"
 internal const val SOURCE_ROW_TAG = "media-source-row"
 internal const val OFFLINE_SETTINGS_TAG = "media-offline-settings"
+internal const val AHEAD_SETTING_TAG = "media-ahead-setting"

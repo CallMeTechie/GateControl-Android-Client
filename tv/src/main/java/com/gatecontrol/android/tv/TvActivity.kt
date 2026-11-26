@@ -339,7 +339,7 @@ class TvActivity : ComponentActivity() {
     }
 
     private fun mediaActions(showMedia: () -> Unit) = TvMediaActions(
-        onStart = mediaVm::refresh,
+        onStart = mediaVm::show,
         onRetry = mediaVm::refresh,
         onOpen = { t ->
             mediaVm.open(t)

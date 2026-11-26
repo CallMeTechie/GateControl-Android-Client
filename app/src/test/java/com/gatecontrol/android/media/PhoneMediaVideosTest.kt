@@ -269,4 +269,48 @@ class PhoneMediaVideosTest {
         verify { offline.record(item.id, 1_200_000, 2_640_000, stopped = true) }
         assertEquals(reportsBefore, jfLib.reports.size)
     }
+
+    private fun awayVideos(kept: MediaAwayOriginal = MediaAwayOriginal.ASK) =
+        PhoneMediaVideos(series, hub, { quality }, { quality = it }, { cap }, { cellular }, awayOriginal = { kept }, aheadBytes = { 4L shl 30 })
+
+    @Test
+    fun `away the original is too much - Wie abspielen is asked once, Mitladen plays the original and waits`() = runTest {
+        cellular = false
+        link.value = MediaLink(atHome = false, bps = 18_000_000)
+        val asked = mutableListOf<MediaAwayFit>()
+        val v = awayVideos()
+        val r = v.open(0, ask = { asked += it; MediaAwayOriginal.WAIT }) as PhoneOpen.Ready
+        assertEquals(1, asked.size)
+        assertEquals(20_000_000, asked.single().originalBps)
+        assertEquals(MediaQuality.step(18_000_000), asked.single().convertedBps)
+        assertEquals(MediaQuality.ORIGINAL_BPS, jfLib.plays.last().maxBitrate)
+        assertTrue(r.wait)
+        // again at the same place (another sound): no question, no waiting
+        val again = v.open(0, from = 60_000, ask = { asked += it; null }) as PhoneOpen.Ready
+        assertFalse(again.wait)
+        // the next episode: the answer holds for the queue
+        v.open(1, ask = { asked += it; null })
+        assertEquals(1, asked.size)
+        assertEquals(MediaQuality.ORIGINAL_BPS, jfLib.plays.last().maxBitrate)
+    }
+
+    @Test
+    fun `Wie abspielen - converted, cancelled, kept in the settings, not asked at home or with the mobile limit`() = runTest {
+        cellular = false
+        link.value = MediaLink(atHome = false, bps = 18_000_000)
+        val v = awayVideos()
+        v.open(0, ask = { MediaAwayOriginal.CONVERTED })
+        assertEquals(MediaQuality.step(18_000_000), jfLib.plays.last().maxBitrate)
+        assertEquals(PhoneOpen.Cancelled, awayVideos().open(0, ask = { null }))
+        // kept: nothing asked
+        awayVideos(MediaAwayOriginal.NOW).open(0, ask = { error("not asked") })
+        assertEquals(MediaQuality.ORIGINAL_BPS, jfLib.plays.last().maxBitrate)
+        link.value = MediaLink(atHome = true)
+        awayVideos().open(0, ask = { error("not asked") })
+        // on mobile data the limit decides
+        cellular = true
+        link.value = MediaLink(atHome = false, bps = 18_000_000)
+        awayVideos().open(0, ask = { error("not asked") })
+        assertEquals(3_000_000, jfLib.plays.last().maxBitrate)
+    }
 }
