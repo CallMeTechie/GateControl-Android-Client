@@ -9,7 +9,10 @@ plugins {
 
 android {
     namespace = "com.termux.view"
-    compileSdk = 37
+    // 37.1: the Compose 1.13 AARs (BOM 2026.11) require compiling against API 37.1 or later.
+    compileSdk {
+        version = release(37) { minorApiLevel = 1 }
+    }
 
     defaultConfig {
         minSdk = 31
