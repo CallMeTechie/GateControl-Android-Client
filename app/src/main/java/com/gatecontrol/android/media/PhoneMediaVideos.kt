@@ -24,6 +24,12 @@ sealed interface PhoneOpen {
     ) : PhoneOpen
 
     data object Offline : PhoneOpen
+
+    /**
+     * Away without the VPN (Netz-Regel): the app tried to start it itself and it did not come up, or Android's consent
+     * is missing ([consent]: the player asks for it). „Unterwegs nur über VPN“, not „offline“.
+     */
+    data class Vpn(val consent: Boolean = false) : PhoneOpen
     data object SignedOut : PhoneOpen
     data object Failed : PhoneOpen
 }
@@ -93,13 +99,22 @@ class PhoneMediaVideos(
         val title = items[i]
         offline?.ready(src.id, title.id)?.let { return openLocal(i, it, from) }
         hub.check(src)
+        // away with the VPN off: the app starts it itself, as on opening Medien
+        if (hub.route(src) == MediaRoute.BLOCKED) {
+            when (hub.prepare(src)) {
+                MediaGate.OPEN -> Unit
+                MediaGate.CONSENT -> return PhoneOpen.Vpn(consent = true)
+                MediaGate.CONNECTING, MediaGate.BLOCKED -> return PhoneOpen.Vpn()
+            }
+            if (hub.route(src) == MediaRoute.BLOCKED) return PhoneOpen.Vpn()
+        }
         val link = hub.link.value
         val cell = cellular()
         // the file first: its bit rate decides the quality, its streams the series' sound and subtitle
         val detail = when (val d = lib.detail(title.id)) {
             is MediaResult.Ok -> d.value
             MediaResult.Unauthorized -> return PhoneOpen.SignedOut
-            MediaResult.Offline -> return PhoneOpen.Offline
+            MediaResult.Offline -> return offline(src)
             else -> return PhoneOpen.Failed
         }
         val version = detail.version
@@ -117,7 +132,7 @@ class PhoneMediaVideos(
         val plan = when (val p = lib.play(MediaPlay(title.id, version?.id, startMs = 0, audioIndex = a, subtitleIndex = s, maxBitrate = cap))) {
             is MediaResult.Ok -> p.value
             MediaResult.Unauthorized -> return PhoneOpen.SignedOut
-            MediaResult.Offline -> return PhoneOpen.Offline
+            MediaResult.Offline -> return offline(src)
             else -> return PhoneOpen.Failed
         }
         plans[i] = plan
@@ -144,6 +159,9 @@ class PhoneMediaVideos(
             textOff = subtitle == MediaPlay.SUBTITLES_OFF || subtitle == null && plan.sideSubtitles.isEmpty() && direct,
         )
     }
+
+    /** Not reachable: away the VPN went down meanwhile („Unterwegs nur über VPN“), else offline. */
+    private fun offline(src: MediaSource): PhoneOpen = if (hub.route(src) == MediaRoute.BLOCKED) PhoneOpen.Vpn() else PhoneOpen.Offline
 
     /**
      * Video [i] from its download: the file as it is, the sound and subtitle chosen on the detail page by their place

@@ -39,8 +39,8 @@ import kotlinx.coroutines.launch
 import javax.inject.Inject
 import javax.inject.Singleton
 
-/** Why the player shows no picture. */
-enum class MediaPlayerTrouble { NETWORK, SIGNED_OUT, FAILED, CANNOT_PLAY }
+/** Why the player shows no picture ([VPN]: away only through the VPN, it is off). */
+enum class MediaPlayerTrouble { NETWORK, VPN, SIGNED_OUT, FAILED, CANNOT_PLAY }
 
 /** What the player's screen shows besides the picture. */
 data class MediaPlayerUi(
@@ -63,6 +63,12 @@ data class MediaPlayerUi(
     val ended: Boolean = false,
     /** Played from a download on the phone (question 22 a): its file's own tracks in the sheet. */
     val offline: Boolean = false,
+    /** „VPN wird verbunden …“: the app starts the VPN itself to play away (Netz-Regel). */
+    val vpnConnecting: Boolean = false,
+    /** With [MediaPlayerTrouble.VPN]: Android's VPN consent is missing (the screen asks for it once by itself). */
+    val vpnConsent: Boolean = false,
+    /** The file's sound does not play on this phone (e.g. "DTS"): the picture without sound, a note says so. */
+    val silentCodec: String? = null,
 ) {
     val title: MediaTitle get() = queue.items[at]
     val hasNext: Boolean get() = at < queue.items.size - 1
@@ -100,6 +106,7 @@ class MediaPlayerSession @Inject constructor(
     private var openJob: Job? = null
     private var tickJob: Job? = null
     private var countdownJob: Job? = null
+    private var gateJob: Job? = null
 
     /** The tracks to choose once the player knows the file's tracks (played directly). */
     private var pending: PhoneOpen.Ready? = null
@@ -128,6 +135,7 @@ class MediaPlayerSession @Inject constructor(
         }
         val p = build(source)
         _player.value = p
+        gateJob = main.launch { hub.gate.collect { g -> _ui.update { it?.copy(vpnConnecting = g == MediaGate.CONNECTING) } } }
         tickJob = main.launch {
             while (isActive) {
                 delay(PlaybackReporter.EVERY_MS)
@@ -186,6 +194,8 @@ class MediaPlayerSession @Inject constructor(
         }
 
         override fun onTracksChanged(tracks: Tracks) {
+            // a sound the phone does not decode (DTS of a share or an original download): a note instead of silence
+            if (tracks.groups.isNotEmpty()) _ui.update { it?.copy(silentCodec = PlayerTracks.silentAudio(tracks)) }
             val want = pending ?: return
             val p = _player.value ?: return
             if (tracks.groups.isEmpty()) return
@@ -238,7 +248,7 @@ class MediaPlayerSession @Inject constructor(
         p.stop()
         p.clearMediaItems()
         pending = null
-        _ui.update { u -> u?.let { it.copy(at = i, loading = true, trouble = null, countdown = null, ended = false, line = if (from != null) it.line else null, resumedAt = null) } }
+        _ui.update { u -> u?.let { it.copy(at = i, loading = true, trouble = null, countdown = null, ended = false, line = if (from != null) it.line else null, resumedAt = null, vpnConsent = false, silentCodec = null) } }
         openJob = main.launch {
             when (val r = v.open(i, from)) {
                 is PhoneOpen.Ready -> {
@@ -269,6 +279,7 @@ class MediaPlayerSession @Inject constructor(
                     }
                 }
                 PhoneOpen.Offline -> _ui.update { it?.copy(loading = false, trouble = MediaPlayerTrouble.NETWORK) }
+                is PhoneOpen.Vpn -> _ui.update { it?.copy(loading = false, trouble = MediaPlayerTrouble.VPN, vpnConsent = r.consent) }
                 PhoneOpen.SignedOut -> _ui.update { it?.copy(loading = false, trouble = MediaPlayerTrouble.SIGNED_OUT) }
                 PhoneOpen.Failed -> _ui.update { it?.copy(loading = false, trouble = MediaPlayerTrouble.FAILED) }
             }
@@ -299,6 +310,17 @@ class MediaPlayerSession @Inject constructor(
             return
         }
         again()
+    }
+
+    /**
+     * The screen asked for Android's VPN consent ([MediaPlayerTrouble.VPN] with [MediaPlayerUi.vpnConsent]): given, the
+     * VPN starts and the video opens again; refused, „Unterwegs nur über VPN“ stays.
+     */
+    fun vpnConsent(granted: Boolean) {
+        main.launch {
+            val gate = hub.consent(granted)
+            if (gate == MediaGate.OPEN) retry() else _ui.update { it?.copy(trouble = MediaPlayerTrouble.VPN, vpnConsent = false, loading = false) }
+        }
     }
 
     fun chooseAudio(index: Int) {
@@ -371,6 +393,7 @@ class MediaPlayerSession @Inject constructor(
     private fun stopPlayer() {
         openJob?.cancel()
         tickJob?.cancel()
+        gateJob?.cancel()
         countdownJob?.cancel()
         pending = null
         val p = _player.value ?: return
@@ -414,13 +437,13 @@ class MediaPlayerSession @Inject constructor(
 object MediaPlayerTracks {
     /** The file's own sound / subtitle by place (Jellyfin's stream of that place), or subtitles off. */
     fun apply(params: TrackSelectionParameters, tracks: Tracks, want: PhoneOpen.Ready): TrackSelectionParameters {
-        val all = PlayerTracks.of(tracks)
         var p = params
-        want.audioOrdinal?.let { n -> all.filter { it.kind == PlayerTrack.Kind.AUDIO }.getOrNull(n)?.let { p = PlayerTracks.choose(p, tracks, it) } }
+        // by place among all the file's tracks; one the phone does not play is not forced (Media3 keeps one it plays)
+        want.audioOrdinal?.let { n -> PlayerTracks.byOrdinal(tracks, PlayerTrack.Kind.AUDIO, n)?.let { p = PlayerTracks.choose(p, tracks, it) } }
         if (want.textOff) {
             p = PlayerTracks.subtitlesOff(p)
         } else {
-            want.textOrdinal?.let { n -> all.filter { it.kind == PlayerTrack.Kind.TEXT }.getOrNull(n)?.let { p = PlayerTracks.choose(p, tracks, it) } }
+            want.textOrdinal?.let { n -> PlayerTracks.byOrdinal(tracks, PlayerTrack.Kind.TEXT, n)?.let { p = PlayerTracks.choose(p, tracks, it) } }
         }
         return p
     }

@@ -7,6 +7,7 @@ import com.gatecontrol.android.media.MediaSourceKind
 import com.gatecontrol.android.media.MediaTrackChoice
 import com.gatecontrol.android.media.MediaTracks
 import com.gatecontrol.android.media.jellyfin.JellyfinLibrary
+import com.gatecontrol.android.media.share.SubtitleText
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
@@ -37,9 +38,9 @@ interface OfflineLink {
 /**
  * Loads the waiting downloads one after the other (the worker runs it, only on Wi-Fi): asks Jellyfin whether the
  * user may download, the title's file, then the original (`Items/{id}/Download`, going on after a break with a range)
- * or the file the NAS converts as it goes (MPEG-TS, from the start after a break), encrypted as it comes; then the
- * text subtitles and the poster. Holds to the storage limit and the phone's free room. [limit]: bytes allowed in all;
- * [free]: bytes free on the phone.
+ * or the file the NAS converts as it goes (MPEG-TS, from the start after a break: [OfflineItem.restarted]), encrypted
+ * as it comes; then the text subtitles and the poster. Holds to the storage limit and the phone's free room.
+ * [limit]: bytes allowed in all; [free]: bytes free on the phone.
  */
 class MediaOfflineDownloader(
     private val store: MediaOfflineStore,
@@ -110,7 +111,7 @@ class MediaOfflineDownloader(
         // the title as the server has it now, the progress as it was kept here
         val title = detail.title.copy(positionMs = start.positionMs, played = start.played, playedAt = start.playedAt.takeIf { it > 0 } ?: detail.title.playedAt)
         var item = store.update(start.id) {
-            it.copy(state = OfflineState.LOADING, failure = null, quality = quality, expected = expected, version = kept, subtitles = subs, audioIndex = audioIndex, title = title)
+            it.copy(state = OfflineState.LOADING, failure = null, quality = quality, expected = expected, version = kept, subtitles = subs, audioIndex = audioIndex, title = title, restarted = false)
         } ?: return Step.Next
         onProgress(item)
 
@@ -127,9 +128,18 @@ class MediaOfflineDownloader(
                 else -> return r
             }
         } catch (e: CancellationException) {
-            // the worker was stopped (no Wi-Fi any more): it waits again, a cut-off original goes on later
+            // the worker was stopped (no Wi-Fi any more): it waits again, a cut-off original goes on later; a converted
+            // one starts over (the NAS converts as it goes, there is no place to go on at) and says so
             withContext(NonCancellable) {
-                store.update(item.id) { if (it.state == OfflineState.LOADING) it.copy(state = OfflineState.QUEUED) else it }
+                val converted = quality.converted
+                store.update(item.id) {
+                    when {
+                        it.state != OfflineState.LOADING -> it
+                        converted -> it.copy(state = OfflineState.QUEUED, loaded = 0, restarted = it.loaded > 0)
+                        else -> it.copy(state = OfflineState.QUEUED)
+                    }
+                }
+                if (converted) store.file(item.id, MediaOfflineLogic.VIDEO).delete()
             }
             throw e
         }
@@ -137,7 +147,8 @@ class MediaOfflineDownloader(
         // the text subtitles (WebVTT) and the poster; one that cannot be loaded is left out
         val loadedSubs = item.subtitles.filter { s ->
             val bytes = small(http, lib.subtitleUrl(item.itemId, version.id, s.index), headers) ?: return@filter false
-            store.writeSmall(item.id, MediaOfflineLogic.subPart(s.index), bytes)
+            // as UTF-8 (a Windows-1252 file's umlauts right)
+            store.writeSmall(item.id, MediaOfflineLogic.subPart(s.index), SubtitleText.toUtf8(bytes))
             true
         }
         lib.imageUrl(item.title, backdrop = false, maxHeight = 450)?.let { u -> small(http, u, headers)?.let { store.writeSmall(item.id, MediaOfflineStore.POSTER, it) } }
@@ -227,12 +238,13 @@ class MediaOfflineDownloader(
                             }
                         } catch (e: IOException) {
                             currentCoroutineContext().ensureActive()
-                            store.update(item.id) { it.copy(state = OfflineState.QUEUED, loaded = if (resumable) w.written else 0) }
+                            store.update(item.id) { it.copy(state = OfflineState.QUEUED, loaded = if (resumable) w.written else 0, restarted = !resumable && w.written > 0) }
                             if (!resumable) file.delete()
                             return@withContext Step.Retry
                         }
                         if (total != null && w.written < total) {
-                            store.update(item.id) { it.copy(state = OfflineState.QUEUED, loaded = w.written) }
+                            store.update(item.id) { it.copy(state = OfflineState.QUEUED, loaded = if (resumable) w.written else 0, restarted = !resumable && w.written > 0) }
+                            if (!resumable) file.delete()
                             return@withContext Step.Retry
                         }
                         w.finish()

@@ -1,12 +1,14 @@
 package com.gatecontrol.android.media.jellyfin
 
 import com.gatecontrol.android.media.MediaClientInfo
+import com.gatecontrol.android.media.MediaPlan
 import com.gatecontrol.android.media.MediaPlay
 import com.gatecontrol.android.media.MediaProgress
 import com.gatecontrol.android.media.MediaQuality
 import com.gatecontrol.android.media.MediaResult
 import com.gatecontrol.android.media.MediaSource
 import com.gatecontrol.android.media.MediaSourceKind
+import com.gatecontrol.android.media.MediaStream
 import com.gatecontrol.android.media.MediaTitle
 import com.gatecontrol.android.media.PlayMethod
 import com.google.gson.JsonParser
@@ -201,6 +203,42 @@ class JellyfinLibraryTest {
         val body = JsonParser.parseString(server.takeRequest().body.readUtf8()).asJsonObject
         assertEquals(8_000_000L, body.get("MaxStreamingBitrate").asLong)
         assertEquals(8_000_000L, body.getAsJsonObject("DeviceProfile").get("MaxStreamingBitrate").asLong)
+    }
+
+    @Test
+    fun `DTS a phone does not decode - asked again, the NAS converts the sound instead of silence`() = runTest {
+        val phone = library(com.gatecontrol.android.media.MediaDeviceCaps.fromDecoders(listOf("video/hevc", "audio/mp4a-latm"), hdrScreen = true, name = "GateControl"))
+        val converting = version.replace("\"SupportsDirectPlay\":true", "\"SupportsDirectPlay\":false")
+            .replace(
+                "\"DefaultAudioStreamIndex\":1,",
+                "\"DefaultAudioStreamIndex\":1,\"TranscodingSubProtocol\":\"hls\"," +
+                    "\"TranscodingUrl\":\"/videos/m1/master.m3u8?MediaSourceId=v1&TranscodeReasons=AudioCodecNotSupported\",",
+            )
+        // the server says the file plays as it is (its DTS would be silent on the phone)
+        server.enqueue(json("""{"MediaSources":[$version],"PlaySessionId":"ps1"}"""))
+        server.enqueue(json("""{"MediaSources":[$converting],"PlaySessionId":"ps2"}"""))
+        val plan = (phone.play(MediaPlay("m1")) as MediaResult.Ok).value
+        assertEquals(PlayMethod.TRANSCODE, plan.method)
+        assertEquals("ps2", plan.playSessionId)
+        val first = JsonParser.parseString(server.takeRequest().body.readUtf8()).asJsonObject
+        assertTrue(first.get("EnableDirectPlay").asBoolean)
+        val again = JsonParser.parseString(server.takeRequest().body.readUtf8()).asJsonObject
+        assertFalse(again.get("EnableDirectPlay").asBoolean)
+        assertFalse(again.get("EnableDirectStream").asBoolean)
+        assertFalse(again.get("AllowAudioStreamCopy").asBoolean)
+        assertTrue(again.get("AllowVideoStreamCopy").asBoolean)
+    }
+
+    @Test
+    fun `the sound plays as it is - decoded, passed to the receiver, converted, or not known`() {
+        val v = JellyfinJson.versions(JsonParser.parseString("""{"MediaSources":[$version]}""").asJsonObject).first()
+        val phone = com.gatecontrol.android.media.MediaDeviceCaps.fromDecoders(listOf("audio/mp4a-latm"), hdrScreen = false, name = "GateControl")
+        val direct = MediaPlan("m1", "u", PlayMethod.DIRECT_PLAY, v, null, hls = false, audioIndex = 1, subtitleIndex = null)
+        assertFalse(JellyfinProfile.soundPlays(direct, phone), "DTS on a phone")
+        assertTrue(JellyfinProfile.soundPlays(direct, JellyfinDeviceCaps(passthrough = setOf("dts"))), "DTS to the AV receiver")
+        assertFalse(JellyfinProfile.soundPlays(direct.copy(audioIndex = 2), JellyfinDeviceCaps(passthrough = setOf("dts"))), "TrueHD without passthrough")
+        assertTrue(JellyfinProfile.soundPlays(direct.copy(method = PlayMethod.TRANSCODE), phone))
+        assertTrue(JellyfinProfile.soundPlays(direct.copy(audioIndex = null, version = v.copy(streams = v.streams.filter { it.type != MediaStream.Type.AUDIO })), phone))
     }
 
     @Test

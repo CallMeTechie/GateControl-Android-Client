@@ -24,6 +24,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withTimeoutOrNull
 import timber.log.Timber
 import java.util.concurrent.ConcurrentHashMap
 import javax.inject.Inject
@@ -175,7 +176,7 @@ class MediaServerSources internal constructor(
     private val scope: CoroutineScope,
     /** „Auf TV/PC abspielen“: where the deliveries `media.cast` go (event and silent push). */
     private val cast: com.gatecontrol.android.media.cast.MediaCastChannel? = null,
-) {
+) : MediaServerSwitch {
     @Inject
     constructor(hub: MediaHub, api: MediaServerApi, cast: com.gatecontrol.android.media.cast.MediaCastChannel) :
         this(hub, api, System::currentTimeMillis, MediaAutoPair(hub, api), CoroutineScope(SupervisorJob() + Dispatchers.IO), cast)
@@ -510,6 +511,49 @@ class MediaServerSources internal constructor(
         runCatching { api.deleteDevice(null) }
     }
 
+    /**
+     * Another server or token comes ([MediaServerSwitch]): while the old token still counts, this device is signed out of
+     * Jellyfin (at most [SIGN_OUT_MS], never blocking the switch).
+     */
+    override suspend fun leaving(): Boolean {
+        if (store.sources.value.none { it.managed && it.kind == MediaSourceKind.JELLYFIN }) return false
+        withTimeoutOrNull(SIGN_OUT_MS) { signOutDevice() }
+        return true
+    }
+
+    override fun switched(ok: Boolean, sameServer: Boolean, signedOut: Boolean) {
+        when {
+            // another server: the old one's sources, passwords and downloads go; the new one's list comes
+            ok && !sameServer -> forgetServer()
+            // the same server (or the old setup back) after the sign-out: the Jellyfin accesses are signed in again
+            signedOut -> signInAgain()
+            ok -> refreshLater()
+        }
+    }
+
+    /** The sources of the server left, and what it said; then the list of the one used now. */
+    private fun forgetServer() {
+        removeAll(store.sources.value.filter { it.managed })
+        cast?.clear()
+        pairTried.clear()
+        reported.clear()
+        lastAttempt = 0
+        val fresh = MediaServerState()
+        hub.setNetworkRule(fresh.network)
+        synchronized(this) { save(fresh) }
+        refreshLater()
+    }
+
+    /** This device was signed out of Jellyfin: the managed Jellyfin sources lose their access and sign in again. */
+    private fun signInAgain() {
+        store.sources.value.filter { it.managed && it.kind == MediaSourceKind.JELLYFIN && it.token != null }.forEach { s ->
+            store.dropToken(s.id)
+            hub.forget(s.id)
+            pairTried.remove(s.id)
+        }
+        refreshLater()
+    }
+
     /** Forget everything of the server (unpaired; the store is cleared by [MediaHub.clear]). */
     fun clear() {
         cast?.clear()
@@ -539,5 +583,8 @@ class MediaServerSources internal constructor(
         private const val MIN_MS = 5_000L
         const val PAIR_EVERY_MS = 5 * 60_000L
         const val UNAVAILABLE_KEEP_MS = 24 * 60 * 60_000L
+
+        /** How long the sign-out at Jellyfin may hold up a switch of the server (as the TV's „Kopplung aufheben“). */
+        const val SIGN_OUT_MS = 5_000L
     }
 }

@@ -59,6 +59,20 @@ object JellyfinProfile {
         return listOf("aac") + listOf("ac3", "eac3").filter { it in direct } + caps.passthrough.filter { it == "dts" }
     }
 
+    /** The sound stream [plan] plays (the chosen one, else the file's default); null when it has none known. */
+    fun soundOf(plan: com.gatecontrol.android.media.MediaPlan): com.gatecontrol.android.media.MediaStream? =
+        plan.version.audio.firstOrNull { it.index == plan.audioIndex } ?: plan.version.audio.firstOrNull { it.index == plan.version.defaultAudio }
+
+    /**
+     * The sound of [plan] plays on [caps]' device as the server sends it: converted, or its codec is one the device
+     * decodes (or passes to the AV receiver). Unknown sound counts as playing. Pure, unit-tested.
+     */
+    fun soundPlays(plan: com.gatecontrol.android.media.MediaPlan, caps: JellyfinDeviceCaps): Boolean {
+        if (plan.method == com.gatecontrol.android.media.PlayMethod.TRANSCODE) return true
+        val codec = soundOf(plan)?.codec?.lowercase(Locale.ROOT)?.takeIf { it.isNotBlank() } ?: return true
+        return codec in directAudio(caps)
+    }
+
     fun videoCodecs(caps: JellyfinDeviceCaps): List<String> =
         listOfNotNull("h264", if (caps.hevc) "hevc" else null, if (caps.vp9) "vp9" else null, if (caps.av1) "av1" else null, "mpeg4")
 

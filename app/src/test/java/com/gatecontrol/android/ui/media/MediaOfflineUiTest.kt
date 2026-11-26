@@ -101,6 +101,16 @@ class MediaOfflineUiTest {
         rule.onNodeWithText(context.getString(R.string.media_offline_note)).assertIsDisplayed()
     }
 
+    @Test
+    fun `a cut-off converted download says it starts over`() {
+        val cut = item(kobalt, OfflineQuality.P720, OfflineState.QUEUED, expected = 950_000_000, added = 1).copy(restarted = true)
+        val offline = fakeOffline(MutableStateFlow(listOf(cut))).also { every { it.wifi } returns MutableStateFlow(true) }
+        val vm = MediaOfflineViewModel(offline, mockk<MediaPlayRequests>(relaxed = true), settings(), mockk<MediaPictures>(relaxed = true))
+        rule.setContent { GateControlTheme(darkTheme = false) { MediaOfflineScreen(onBack = {}, onSettings = {}, onOpen = {}, viewModel = vm) } }
+        rule.waitForIdle()
+        rule.onNodeWithText("wartet · unterbrochen, beginnt von vorn (die NAS rechnet neu um)").assertIsDisplayed()
+    }
+
     private fun detail(allowed: OfflineAllowed, items: MutableStateFlow<List<OfflineItem>> = MutableStateFlow(emptyList())): Pair<MediaDetailViewModel, com.gatecontrol.android.media.offline.MediaOffline> {
         val video = MediaStream(0, MediaStream.Type.VIDEO, codec = "hevc", width = 3840, height = 2160)
         val dts = MediaStream(1, MediaStream.Type.AUDIO, codec = "dts", language = "ger", channels = 6)

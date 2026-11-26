@@ -73,4 +73,34 @@ class PlayerTracksTest {
         val gone = PlayerTrack(PlayerTrack.Kind.TEXT, 42, 0, null, null, 0, false)
         assertEquals(off, PlayerTracks.choose(off, tracks, gone))
     }
+
+    private fun dts(lang: String) = Format.Builder().setSampleMimeType(MimeTypes.AUDIO_DTS).setLanguage(lang).setChannelCount(6).build()
+
+    @Test
+    fun `by place among all the file's tracks - one the device does not play is not chosen`() {
+        val t = Tracks(
+            listOf(
+                group(dts("de"), selected = false, supported = false),
+                group(audio("en", 2), selected = true),
+                group(text("de"), selected = false),
+            ),
+        )
+        // Jellyfin's place 1 is the English AAC (the DTS before it counts)
+        assertEquals("en", PlayerTracks.byOrdinal(t, PlayerTrack.Kind.AUDIO, 1)?.language)
+        assertEquals(null, PlayerTracks.byOrdinal(t, PlayerTrack.Kind.AUDIO, 0), "DTS without a decoder is not forced")
+        assertEquals("de", PlayerTracks.byOrdinal(t, PlayerTrack.Kind.TEXT, 0)?.language)
+        assertEquals(null, PlayerTracks.byOrdinal(t, PlayerTrack.Kind.AUDIO, 5))
+        assertEquals(null, PlayerTracks.silentAudio(t), "the AAC plays")
+    }
+
+    @Test
+    fun `only DTS and no decoder - the note names it instead of silence`() {
+        val t = Tracks(listOf(group(dts("de"), selected = false, supported = false)))
+        assertEquals("DTS", PlayerTracks.silentAudio(t))
+        assertEquals(null, PlayerTracks.silentAudio(Tracks(listOf(group(text("de"), selected = false)))), "no sound in the file")
+        assertEquals("TrueHD", PlayerTracks.codecName(MimeTypes.AUDIO_TRUEHD))
+        assertEquals("Dolby Digital Plus", PlayerTracks.codecName(MimeTypes.AUDIO_E_AC3))
+        assertEquals("Dolby Digital", PlayerTracks.codecName(MimeTypes.AUDIO_AC3))
+        assertEquals("DTS", PlayerTracks.codecName(MimeTypes.AUDIO_DTS_HD))
+    }
 }

@@ -70,7 +70,12 @@ class PhoneMediaVideosTest {
         every { caps() } returns MediaDeviceCaps.fromDecoders(listOf("audio/mp4a-latm"), hdrScreen = false, name = "GateControl")
         coEvery { check(any(), any()) } returns Unit
         every { later(any()) } answers { runBlocking { firstArg<suspend () -> Unit>().invoke() } }
+        every { route(any()) } answers { this@PhoneMediaVideosTest.route }
+        coEvery { prepare(any()) } answers { gate().also { g -> if (g == MediaGate.OPEN) this@PhoneMediaVideosTest.route = MediaRoute.VPN } }
     }
+
+    private var route = MediaRoute.VPN
+    private var gate: () -> MediaGate = { MediaGate.OPEN }
 
     private var quality = MediaQualitySetting.AUTO
     private var cap: Long? = 3_000_000
@@ -109,6 +114,41 @@ class PhoneMediaVideosTest {
         assertEquals(MediaNet.HOME, r.line.net)
         assertNull(r.line.limitBps)
         assertFalse(r.line.converted)
+    }
+
+    @Test
+    fun `away with the VPN off - the app starts it itself and plays`() = runTest {
+        route = MediaRoute.BLOCKED
+        val r = videos(series).open(0)
+        assertTrue(r is PhoneOpen.Ready, "$r")
+        io.mockk.coVerify { hub.prepare(jellyfin) }
+    }
+
+    @Test
+    fun `away with the VPN off and it does not come up - Unterwegs nur ueber VPN, not offline`() = runTest {
+        route = MediaRoute.BLOCKED
+        gate = { MediaGate.BLOCKED }
+        assertEquals(PhoneOpen.Vpn(), videos(series).open(0))
+        assertTrue(jfLib.plays.isEmpty(), "nothing goes out")
+        gate = { MediaGate.CONSENT }
+        assertEquals(PhoneOpen.Vpn(consent = true), videos(series).open(0))
+    }
+
+    @Test
+    fun `the VPN went down meanwhile - not reached is the VPN, else offline`() = runTest {
+        var down = false
+        val dead = mockk<MediaLibrary>(relaxed = true) {
+            coEvery { detail(any()) } answers {
+                if (down) this@PhoneMediaVideosTest.route = MediaRoute.BLOCKED
+                MediaResult.Offline
+            }
+        }
+        every { hub.library(jellyfin) } returns dead
+        route = MediaRoute.HOME
+        assertEquals(PhoneOpen.Offline, videos(series).open(0))
+        route = MediaRoute.VPN
+        down = true
+        assertEquals(PhoneOpen.Vpn(), videos(series).open(0))
     }
 
     @Test

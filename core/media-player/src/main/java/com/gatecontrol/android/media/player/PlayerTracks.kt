@@ -74,6 +74,53 @@ object PlayerTracks {
         return out
     }
 
+    /**
+     * The [n]th sound track or subtitle ([kind]) of the file as it lists them, counted over all its tracks of that kind
+     * (Jellyfin's place of a stream); null when there is none or this device does not play it (DTS without a decoder:
+     * Media3 then keeps a sound it plays instead of silence).
+     */
+    @OptIn(UnstableApi::class)
+    fun byOrdinal(tracks: Tracks, kind: PlayerTrack.Kind, n: Int): PlayerTrack? {
+        val type = if (kind == PlayerTrack.Kind.AUDIO) C.TRACK_TYPE_AUDIO else C.TRACK_TYPE_TEXT
+        var seen = 0
+        tracks.groups.forEachIndexed { g, group ->
+            if (group.type != type) return@forEachIndexed
+            for (i in 0 until group.length) {
+                if (seen++ != n) continue
+                if (!group.isTrackSupported(i)) return null
+                val f = group.getTrackFormat(i)
+                return PlayerTrack(kind, g, i, f.label, f.language, f.channelCount, group.isTrackSelected(i))
+            }
+        }
+        return null
+    }
+
+    /**
+     * The file has sound, but none of it plays on this device (DTS, TrueHD without a decoder): the name of its format
+     * ("DTS") for a note instead of silence; null when a sound plays or the file has none.
+     */
+    @OptIn(UnstableApi::class)
+    fun silentAudio(tracks: Tracks): String? {
+        val audio = tracks.groups.filter { it.type == C.TRACK_TYPE_AUDIO && it.length > 0 }
+        if (audio.isEmpty()) return null
+        if (audio.any { g -> (0 until g.length).any { g.isTrackSupported(it) } }) return null
+        return codecName(audio.first().getTrackFormat(0).sampleMimeType ?: audio.first().getTrackFormat(0).codecs)
+    }
+
+    /** "DTS", "TrueHD", "Dolby Digital" from a sound's MIME type (or its codec string). */
+    fun codecName(mime: String?): String {
+        val m = mime?.lowercase(Locale.ROOT).orEmpty()
+        return when {
+            "dts" in m || "dca" in m -> "DTS"
+            "truehd" in m || "true-hd" in m -> "TrueHD"
+            "eac3" in m || "ec-3" in m -> "Dolby Digital Plus"
+            "ac3" in m || "ac-3" in m -> "Dolby Digital"
+            "ac4" in m || "ac-4" in m -> "Dolby AC-4"
+            m.isEmpty() -> "?"
+            else -> m.substringAfter('/').uppercase(Locale.ROOT)
+        }
+    }
+
     /** [params] with [track] chosen (a subtitle also switches subtitles on). */
     fun choose(params: TrackSelectionParameters, tracks: Tracks, track: PlayerTrack): TrackSelectionParameters {
         val group = tracks.groups.getOrNull(track.group) ?: return params

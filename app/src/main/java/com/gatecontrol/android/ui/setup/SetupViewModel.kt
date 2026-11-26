@@ -7,6 +7,7 @@ import com.gatecontrol.android.ui.UiText
 import com.gatecontrol.android.common.EnrollmentLink
 import com.gatecontrol.android.data.MachineFingerprint
 import com.gatecontrol.android.data.SetupRepository
+import com.gatecontrol.android.media.server.MediaServerSwitch
 import com.gatecontrol.android.network.MachineBindingError
 import com.gatecontrol.android.ui.toUiText
 import com.gatecontrol.android.network.ApiClientProvider
@@ -112,6 +113,8 @@ class SetupViewModel @Inject constructor(
     private val machineFingerprint: MachineFingerprint,
     /** Keeps a started Microsoft sign-in (PKCE verifier, state) across process death. */
     private val savedStateHandle: SavedStateHandle,
+    /** Another server or token: this device leaves Jellyfin first (Medien), the old server's sources go. */
+    private val mediaSwitch: MediaServerSwitch = MediaServerSwitch.NONE,
 ) : ViewModel() {
 
     private val appVersion: String by lazy {
@@ -505,6 +508,9 @@ class SetupViewModel @Inject constructor(
             val previousUrl = setupRepository.getServerUrl()
             val previousToken = setupRepository.getApiToken()
             val previousPeerId = setupRepository.getPeerId()
+            // the old token still counts: this device is signed out of Jellyfin first (never blocks the setup)
+            val leaving = MediaServerSwitch.changes(previousUrl, previousToken, url, token)
+            val signedOut = leaving && runCatching { mediaSwitch.leaving() }.getOrDefault(false)
             try {
                 // Save token BEFORE register call so AuthInterceptor can use it
                 setupRepository.save(url, token, -1)
@@ -535,6 +541,7 @@ class SetupViewModel @Inject constructor(
                 response.hash?.let { hash ->
                     setupRepository.saveConfigHash(hash)
                 }
+                if (leaving) mediaSwitch.switched(ok = true, sameServer = MediaServerSwitch.sameServer(previousUrl, url), signedOut = signedOut)
                 // New server / token: the old server's client policy must not stick.
                 resetClientPolicy()
 
@@ -552,6 +559,7 @@ class SetupViewModel @Inject constructor(
                 // Roll back to the previous configuration instead of clearing it
                 setupRepository.save(previousUrl, previousToken, previousPeerId)
                 apiClientProvider.invalidate()
+                if (leaving) mediaSwitch.switched(ok = false, sameServer = true, signedOut = signedOut)
                 val message = MachineBindingError.from(e)?.toUiText()
                     ?: UiText.Res(R.string.setup_error, e.localizedMessage ?: "")
                 _uiState.update {
@@ -599,6 +607,9 @@ class SetupViewModel @Inject constructor(
                     statusType = StatusType.INFO,
                 )
             }
+            val previousUrl = setupRepository.getServerUrl()
+            var leaving = false
+            var signedOut = false
             try {
                 apiClientProvider.invalidate()
                 val response = apiClientProvider.getClient(serverUrl).enroll(
@@ -614,6 +625,9 @@ class SetupViewModel @Inject constructor(
                 if (!response.ok || token.isNullOrBlank()) {
                     throw IllegalStateException(response.error ?: "enroll_failed")
                 }
+                // the old token still counts: this device is signed out of Jellyfin first (never blocks the setup)
+                leaving = MediaServerSwitch.changes(previousUrl, setupRepository.getApiToken(), serverUrl, token)
+                signedOut = leaving && runCatching { mediaSwitch.leaving() }.getOrDefault(false)
                 var peerId = response.peerId ?: -1
                 var config = response.config
                 var hash = response.hash
@@ -634,6 +648,7 @@ class SetupViewModel @Inject constructor(
                 setupRepository.saveWireGuardConfig(config)
                 hash?.let { setupRepository.saveConfigHash(it) }
                 apiClientProvider.invalidate()
+                if (leaving) mediaSwitch.switched(ok = true, sameServer = MediaServerSwitch.sameServer(previousUrl, serverUrl), signedOut = signedOut)
                 resetClientPolicy()
 
                 _uiState.update {
@@ -648,6 +663,7 @@ class SetupViewModel @Inject constructor(
                 }
             } catch (e: Exception) {
                 Timber.w(e, "enroll failed")
+                if (leaving) mediaSwitch.switched(ok = false, sameServer = true, signedOut = signedOut)
                 _uiState.update {
                     it.copy(
                         isLoading = false,

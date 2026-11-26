@@ -170,4 +170,48 @@ class MediaPlayerUiTest {
         rule.onNodeWithTag(MOBILE_HINT_TAG).performClick()
         assertTrue(read.isNotEmpty())
     }
+
+    @Test
+    fun `away with the VPN off - Unterwegs nur ueber VPN with VPN einschalten, not offline`() {
+        val retried = mutableListOf<Unit>()
+        val consent = mutableListOf<Boolean>()
+        rule.setContent {
+            GateControlTheme(darkTheme = true) {
+                MediaPlayerScreen(
+                    ui.copy(trouble = com.gatecontrol.android.media.MediaPlayerTrouble.VPN), player = null, landscape = false, pip = false, mobileCap = null,
+                    actions = MediaPlayerActions(onRetry = { retried += Unit }, onVpnConsent = { consent += it }),
+                )
+            }
+        }
+        rule.onNodeWithTag(VPN_TROUBLE_TAG).assertIsDisplayed()
+        rule.onNodeWithText(context.getString(R.string.media_vpn_blocked)).assertIsDisplayed()
+        rule.onNodeWithText(context.getString(R.string.media_player_network)).assertDoesNotExist()
+        // „VPN einschalten“: Android's consent dialog when it is missing, else the video opens again (the VPN starts);
+        // never both, never a way around the VPN
+        rule.onNodeWithTag(VPN_ON_PLAYER_TAG).assertIsDisplayed().performClick()
+        rule.waitForIdle()
+        assertTrue(retried.size + consent.size <= 1)
+        assertTrue(consent.none { it })
+    }
+
+    @Test
+    fun `while the app starts the VPN it says so`() {
+        rule.setContent {
+            GateControlTheme(darkTheme = true) {
+                MediaPlayerScreen(ui.copy(loading = true, vpnConnecting = true), player = null, landscape = true, pip = false, mobileCap = null, actions = MediaPlayerActions())
+            }
+        }
+        rule.onNodeWithText(context.getString(R.string.media_vpn_connecting)).assertIsDisplayed()
+    }
+
+    @Test
+    fun `a share's DTS without a decoder - a note instead of silence`() {
+        rule.setContent {
+            GateControlTheme(darkTheme = true) {
+                MediaPlayerScreen(ui.copy(share = true, choices = null, silentCodec = "DTS"), player = null, landscape = true, pip = false, mobileCap = null, actions = MediaPlayerActions())
+            }
+        }
+        rule.onNodeWithTag(NO_SOUND_TAG).assertIsDisplayed()
+        rule.onNodeWithText(context.getString(R.string.media_player_no_sound_file, "DTS")).assertIsDisplayed()
+    }
 }

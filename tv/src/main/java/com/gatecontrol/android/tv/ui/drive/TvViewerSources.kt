@@ -44,6 +44,9 @@ sealed interface TvOpen {
         val textOff: Boolean = false,
     ) : TvOpen
     data object Offline : TvOpen
+
+    /** Away with the VPN off and it did not come up (Netz-Regel): „Unterwegs nur über VPN“, not „offline“. */
+    data object Vpn : TvOpen
     data object Failed : TvOpen
     /** The access of the source is no longer valid. */
     data object SignedOut : TvOpen

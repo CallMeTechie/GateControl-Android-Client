@@ -295,6 +295,39 @@ class SettingsViewModelTest {
         org.junit.jupiter.api.Assertions.assertEquals(policy, vm.uiState.value.policy)
     }
 
+    @Test
+    fun `another server - this device leaves Jellyfin before the new access is stored, then the old sources go`() = runTest {
+        val order = mutableListOf<String>()
+        val switch = object : com.gatecontrol.android.media.server.MediaServerSwitch {
+            override suspend fun leaving(): Boolean {
+                order += "leaving:" + setupRepository.getServerUrl()
+                return true
+            }
+
+            override fun switched(ok: Boolean, sameServer: Boolean, signedOut: Boolean) {
+                order += "switched:$ok:$sameServer:$signedOut"
+            }
+        }
+        every { setupRepository.save(any(), any(), any()) } answers { order += "save" }
+        coEvery { apiClient.ping() } returns PingResponse(ok = true, version = "1.0.0", timestamp = "2026-04-05")
+        val vm = SettingsViewModel(
+            setupRepository, settingsRepository, apiClientProvider, licenseRepository,
+            supportBundleCollector, supportBundleUploader,
+            com.gatecontrol.android.service.fakeClientPolicyManager(),
+            machineFingerprint,
+            switch,
+        ).also { models += it }
+        vm.saveServer("https://other.example.com", "gc_othertoken123456")
+        testDispatcher.scheduler.advanceUntilIdle()
+        assertEquals(listOf("leaving:https://gate.example.com", "save", "switched:true:false:true"), order)
+
+        // the same server and token again: nothing to sign out
+        order.clear()
+        vm.saveServer("https://gate.example.com", "gc_testtoken")
+        testDispatcher.scheduler.advanceUntilIdle()
+        assertEquals(listOf("save"), order)
+    }
+
     // ── Support bundle ───────────────────────────────────────────────
 
     private suspend fun awaitSupportResult(): UiText? {

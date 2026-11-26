@@ -63,4 +63,5 @@
     <string name="media_offline_season_letter">S</string>
     <string name="media_offline_episode_letter">F</string>
     <string name="media_offline_audio_warning">Ton %1$s: am Handy kein Ton, lieber umgerechnet laden</string>
+    <string name="media_offline_restart">unterbrochen, beginnt von vorn (die NAS rechnet neu um)</string>
 </resources>

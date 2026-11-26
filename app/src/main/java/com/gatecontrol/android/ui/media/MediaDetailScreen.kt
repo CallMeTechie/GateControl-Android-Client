@@ -321,7 +321,7 @@ private fun OfflineStatus(ui: MediaDetailUi, menu: Boolean, onMenu: (Boolean) ->
             val text = when (o.state) {
                 OfflineState.READY -> stringResource(R.string.media_offline_status_ready, quality, MediaOfflineLogic.sizeText(o.size))
                 OfflineState.LOADING -> stringResource(R.string.media_offline_status_loading, (o.progress * 100).toInt(), quality)
-                OfflineState.QUEUED -> stringResource(if (LocalOfflineWifi.current) R.string.media_offline_status_waiting else R.string.media_offline_status_waiting_wifi, quality)
+                OfflineState.QUEUED -> restartNote(o.restarted, stringResource(if (LocalOfflineWifi.current) R.string.media_offline_status_waiting else R.string.media_offline_status_waiting_wifi, quality))
                 OfflineState.FAILED -> stringResource(R.string.media_offline_status_failed, failureText(o.failure))
             }
             Text(

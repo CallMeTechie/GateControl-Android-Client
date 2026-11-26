@@ -18,6 +18,7 @@ import okio.Buffer
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertArrayEquals
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
@@ -43,6 +44,8 @@ class MediaOfflineDownloaderTest {
     private val original = Random(1).nextBytes(2 * DriveVaultCrypto.CHUNK + 4321)
     private val converted = Random(2).nextBytes(DriveVaultCrypto.CHUNK + 99)
     private var ranges = true
+    private var cutConverted = false
+    private var vtt: ByteArray = "WEBVTT\n\n00:00.000 --> 00:01.000\nHallo\n".toByteArray()
 
     private class PlainCipher : CacheCipher {
         override fun encrypt(plain: ByteArray) = plain
@@ -75,8 +78,10 @@ class MediaOfflineDownloaderTest {
                             MockResponse().setBody(Buffer().write(original))
                         }
                     }
+                    path == "/Videos/m1/stream.ts" && cutConverted ->
+                        MockResponse().setBody(Buffer().write(converted)).setSocketPolicy(okhttp3.mockwebserver.SocketPolicy.DISCONNECT_DURING_RESPONSE_BODY)
                     path == "/Videos/m1/stream.ts" -> MockResponse().setChunkedBody(Buffer().write(converted), 50_000)
-                    path == "/Videos/m1/v1/Subtitles/3/Stream.vtt" -> MockResponse().setBody("WEBVTT\n\n00:00.000 --> 00:01.000\nHallo\n")
+                    path == "/Videos/m1/v1/Subtitles/3/Stream.vtt" -> MockResponse().setBody(Buffer().write(vtt))
                     path.startsWith("/Items/m1/Images/") -> MockResponse().setBody(Buffer().write(byteArrayOf(7, 7, 7)))
                     else -> MockResponse().setResponseCode(404)
                 }
@@ -180,6 +185,40 @@ class MediaOfflineDownloaderTest {
         assertEquals("false", r.queryParameter("static"))
         assertEquals("ts", done.version?.container)
         assertEquals(listOf(3), done.subtitles.map { it.index })
+    }
+
+    @Test
+    fun `a cut-off converted download starts over and says so, then loads from the start`() = runBlocking {
+        cutConverted = true
+        val store = MediaOfflineStore(dir, PlainCipher())
+        val a = store.add(movie, OfflineQuality.P720)
+        val outcome = MediaOfflineDownloader(store, link, limit = { 20_000_000_000 }, free = { -1 }).runAll()
+        assertEquals(MediaOfflineDownloader.Outcome.RETRY, outcome)
+        val cut = store.get(a.id)!!
+        assertEquals(OfflineState.QUEUED, cut.state)
+        assertTrue(cut.restarted, "the list says it starts over")
+        assertEquals(0L, cut.loaded)
+        assertFalse(store.file(a.id, MediaOfflineLogic.VIDEO).exists(), "the cut-off part is not kept")
+        // kept in the encrypted index
+        assertTrue(MediaOfflineStore(dir, PlainCipher()).get(a.id)!!.restarted)
+
+        cutConverted = false
+        MediaOfflineDownloader(store, link, limit = { 20_000_000_000 }, free = { -1 }).runAll()
+        val done = store.get(a.id)!!
+        assertEquals(OfflineState.READY, done.state)
+        assertFalse(done.restarted)
+        assertArrayEquals(converted, plainOf(store, a.id))
+        // the converting URL has no range: the NAS converts as it goes
+        assertTrue(requests.filter { it.requestUrl!!.encodedPath == "/Videos/m1/stream.ts" }.all { it.getHeader("Range") == null })
+    }
+
+    @Test
+    fun `a subtitle in Windows-1252 is kept as UTF-8`() = runBlocking {
+        vtt = "WEBVTT\n\n00:00.000 --> 00:01.000\nGrüße\n".toByteArray(java.nio.charset.Charset.forName("windows-1252"))
+        val store = MediaOfflineStore(dir, PlainCipher())
+        val a = store.add(movie, OfflineQuality.ORIGINAL)
+        MediaOfflineDownloader(store, link, limit = { 20_000_000_000 }, free = { -1 }).runAll()
+        assertEquals("WEBVTT\n\n00:00.000 --> 00:01.000\nGrüße\n", String(store.readSmall(a.id, MediaOfflineLogic.subPart(3))!!, Charsets.UTF_8))
     }
 
     @Test

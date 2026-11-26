@@ -133,6 +133,10 @@ fun TvVideoPlayer(
     val network = stringResource(R.string.tv_player_network)
     val failed = stringResource(R.string.tv_viewer_failed)
     val signedOut = stringResource(R.string.tv_media_signed_out)
+    val vpnBlocked = stringResource(R.string.tv_media_vpn_blocked) + "\n" + stringResource(R.string.tv_media_vpn_blocked_text)
+    // the file's sound does not play here (DTS without an AV receiver): a note instead of silence
+    // (not keyed: the player's listener writes it; reset when a video opens)
+    var silent by remember { mutableStateOf<String?>(null) }
     // the listener lives as long as the player: it reads the video shown now
     val nowAt by rememberUpdatedState(at)
     val nowOnAt by rememberUpdatedState(onAt)
@@ -157,6 +161,7 @@ fun TvVideoPlayer(
 
             override fun onTracksChanged(t: Tracks) {
                 tracks = t
+                if (t.groups.isNotEmpty()) silent = PlayerTracks.silentAudio(t)
                 format = player?.videoFormat?.let { f -> TvPlayerUi.formatLabel(f.height, f.sampleMimeType) }
                 val want = pending ?: return
                 val p = player ?: return
@@ -205,6 +210,7 @@ fun TvVideoPlayer(
         p.clearMediaItems()
         trouble = null
         countdown = null
+        silent = null
         when (val s = source.open(at)) {
             is TvOpen.Ready -> {
                 val item = s.item
@@ -223,6 +229,7 @@ fun TvVideoPlayer(
             TvOpen.Offline -> trouble = network
             TvOpen.Failed -> trouble = failed
             TvOpen.SignedOut -> trouble = signedOut
+            TvOpen.Vpn -> trouble = vpnBlocked
         }
     }
     // the bar's times while it shows (and where the video is, for "Weiter ab")
@@ -457,6 +464,7 @@ fun TvVideoPlayer(
                     if (line != null) TvPill(line, TvPillTone.Accent) else format?.let { TvPill(it, TvPillTone.Neutral, dot = false) }
                     resumedAt?.let { TvPill(stringResource(R.string.tv_player_resumed, TvPlayerKeys.time(it)), TvPillTone.Accent) }
                 }
+                silent?.let { Text(stringResource(R.string.tv_player_no_sound, it), style = MaterialTheme.typography.bodyMedium, color = Color.White) }
             }
             Column(Modifier.align(Alignment.BottomStart).fillMaxWidth().padding(start = 48.dp, end = 48.dp, bottom = 30.dp)) {
                 Scrub(position, buffered, duration)
@@ -587,13 +595,13 @@ internal object TvPlayerUi {
      * stream of that place among the file's tracks of its kind), or subtitles off.
      */
     fun apply(params: androidx.media3.common.TrackSelectionParameters, tracks: Tracks, want: TvOpen.Ready): androidx.media3.common.TrackSelectionParameters {
-        val all = PlayerTracks.of(tracks)
         var p = params
-        want.audioOrdinal?.let { n -> all.filter { it.kind == PlayerTrack.Kind.AUDIO }.getOrNull(n)?.let { p = PlayerTracks.choose(p, tracks, it) } }
+        // by place among all the file's tracks; one the phone does not play is not forced (Media3 keeps one it plays)
+        want.audioOrdinal?.let { n -> PlayerTracks.byOrdinal(tracks, PlayerTrack.Kind.AUDIO, n)?.let { p = PlayerTracks.choose(p, tracks, it) } }
         if (want.textOff) {
             p = PlayerTracks.subtitlesOff(p)
         } else {
-            want.textOrdinal?.let { n -> all.filter { it.kind == PlayerTrack.Kind.TEXT }.getOrNull(n)?.let { p = PlayerTracks.choose(p, tracks, it) } }
+            want.textOrdinal?.let { n -> PlayerTracks.byOrdinal(tracks, PlayerTrack.Kind.TEXT, n)?.let { p = PlayerTracks.choose(p, tracks, it) } }
         }
         return p
     }

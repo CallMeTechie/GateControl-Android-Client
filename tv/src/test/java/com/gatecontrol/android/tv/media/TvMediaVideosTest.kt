@@ -82,7 +82,9 @@ class TvMediaVideosTest {
         every { quality } returns this@TvMediaVideosTest.quality
         every { caps() } returns JellyfinDeviceCaps(passthrough = setOf("dts"))
         every { later(any()) } answers { runBlocking { firstArg<suspend () -> Unit>().invoke() } }
+        every { route(any()) } answers { this@TvMediaVideosTest.route }
     }
+    private var route = com.gatecontrol.android.media.MediaRoute.VPN
     private val res = RuntimeEnvironment.getApplication().resources
     private val asked = mutableListOf<MediaPlay>()
 
@@ -183,6 +185,20 @@ class TvMediaVideosTest {
         assertNull(open.textOrdinal)
         assertFalse(open.textOff)
         assertEquals(1, open.item.localConfiguration?.subtitleConfigurations?.size)
+    }
+
+    @Test
+    fun `away with the VPN off - started by itself, else Unterwegs nur ueber VPN`() = runBlocking {
+        answer(PlayMethod.DIRECT_PLAY)
+        route = com.gatecontrol.android.media.MediaRoute.BLOCKED
+        coEvery { media.prepare(any()) } returns com.gatecontrol.android.media.MediaGate.BLOCKED
+        assertEquals(TvOpen.Vpn, videos().open(0))
+        assertTrue("nothing asked of the NAS", asked.isEmpty())
+        coEvery { media.prepare(any()) } answers {
+            route = com.gatecontrol.android.media.MediaRoute.VPN
+            com.gatecontrol.android.media.MediaGate.OPEN
+        }
+        assertTrue(videos().open(0) is TvOpen.Ready)
     }
 
     @Test

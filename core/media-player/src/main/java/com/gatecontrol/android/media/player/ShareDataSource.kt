@@ -12,7 +12,11 @@ import androidx.media3.datasource.DataSpec
 import com.gatecontrol.android.media.share.ShareFs
 import com.gatecontrol.android.media.share.ShareInput
 import com.gatecontrol.android.media.share.ShareUri
+import com.gatecontrol.android.media.share.SubtitleText
+import java.io.ByteArrayInputStream
+import java.io.ByteArrayOutputStream
 import java.io.IOException
+import java.io.InputStream
 
 /**
  * Media3's way into a share's file (`gcshare://share/…`, [ShareUri]): opened through the library's [ShareFs] (SMB with
@@ -33,7 +37,7 @@ class ShareDataSource(private val files: () -> ShareFs?) : BaseDataSource(true) 
         val path = ShareUri.path(dataSpec.uri.toString()) ?: throw DataSourceException(PlaybackException.ERROR_CODE_IO_FILE_NOT_FOUND)
         val fs = files() ?: throw DataSourceException(PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED)
         val opened = try {
-            fs.open(path, dataSpec.position)
+            if (SubtitleText.isSubtitle(path)) subtitle(fs, path, dataSpec.position) else fs.open(path, dataSpec.position)
         } catch (e: IOException) {
             throw DataSourceException(e, PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED)
         }
@@ -47,6 +51,34 @@ class ShareDataSource(private val files: () -> ShareFs?) : BaseDataSource(true) 
         this.opened = true
         transferStarted(dataSpec)
         return remaining
+    }
+
+    /**
+     * A subtitle file beside the video, read whole and given to the player as UTF-8 ([SubtitleText]: Windows-1252
+     * umlauts right); one larger than [SubtitleText.MAX_BYTES] as it is.
+     */
+    private fun subtitle(fs: ShareFs, path: String, position: Long): ShareInput {
+        val whole = fs.open(path, 0)
+        if (whole.length > SubtitleText.MAX_BYTES) {
+            whole.close()
+            return fs.open(path, position)
+        }
+        val raw = whole.use { it.stream.readNBytesCompat(SubtitleText.MAX_BYTES + 1) }
+        if (raw.size > SubtitleText.MAX_BYTES) return fs.open(path, position)
+        val text = SubtitleText.toUtf8(raw)
+        val from = position.coerceIn(0, text.size.toLong()).toInt()
+        return ShareInput(text.size.toLong(), ByteArrayInputStream(text, from, text.size - from))
+    }
+
+    private fun InputStream.readNBytesCompat(max: Int): ByteArray {
+        val out = ByteArrayOutputStream()
+        val buf = ByteArray(64 * 1024)
+        while (out.size() <= max) {
+            val n = read(buf)
+            if (n < 0) break
+            out.write(buf, 0, n)
+        }
+        return out.toByteArray()
     }
 
     override fun read(buffer: ByteArray, offset: Int, length: Int): Int {

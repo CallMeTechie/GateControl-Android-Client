@@ -53,4 +53,6 @@
     <string name="media_player_mobile_text_none">On mobile data GateControl plays without a limit. In a 5G network a film can quickly use 10 GB. You can set a limit under Media › Sources.</string>
     <string name="media_player_mobile_ok">Got it</string>
     <string name="media_player_episode">Season %1$d · Episode %2$d</string>
+    <string name="media_player_no_sound">No sound: this phone does not play the sound of this video (%1$s). Try again, or choose another sound under Sound &amp; subtitles.</string>
+    <string name="media_player_no_sound_file">No sound: this phone does not play the sound of this file (%1$s). Through Jellyfin the server converts it.</string>
 </resources>

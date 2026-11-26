@@ -3,8 +3,11 @@ package com.gatecontrol.android.ui.media
 import android.app.Activity
 import android.content.Context
 import android.media.AudioManager
+import android.net.VpnService
 import android.view.ViewGroup
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.OptIn
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -121,6 +124,8 @@ class MediaPlayerActions(
     val onPlayAt: (Int) -> Unit = {},
     val onCancelCountdown: () -> Unit = {},
     val onRetry: () -> Unit = {},
+    /** Android's answer to the VPN consent asked for „Unterwegs nur über VPN“. */
+    val onVpnConsent: (Boolean) -> Unit = {},
     val onMobileHintRead: () -> Unit = {},
     /** "Abspielen auf …" (question 23a); null: not offered. */
     val onCast: (() -> Unit)? = null,
@@ -307,7 +312,22 @@ private fun BoxScope.VideoArea(ui: MediaPlayerUi, player: Player?, landscape: Bo
                 )
             },
     )
-    if (ui.loading && ui.trouble == null) CircularProgressIndicator(color = Color.White, modifier = Modifier.align(Alignment.Center).size(40.dp))
+    if (ui.loading && ui.trouble == null) {
+        Column(Modifier.align(Alignment.Center), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            CircularProgressIndicator(color = Color.White, modifier = Modifier.size(40.dp))
+            if (ui.vpnConnecting) Text(stringResource(R.string.media_vpn_connecting), color = Color.White, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.testTag(VPN_CONNECTING_TAG))
+        }
+    }
+    ui.silentCodec?.takeIf { ui.trouble == null }?.let { codec ->
+        Text(
+            stringResource(if (ui.share || ui.offline) R.string.media_player_no_sound_file else R.string.media_player_no_sound, codec),
+            color = Color.White,
+            style = MaterialTheme.typography.labelMedium,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.align(Alignment.TopCenter).padding(12.dp).widthIn(max = 420.dp).clip(RoundedCornerShape(8.dp))
+                .background(Color.Black.copy(alpha = 0.7f)).padding(horizontal = 12.dp, vertical = 8.dp).testTag(NO_SOUND_TAG),
+        )
+    }
     flash?.let { text ->
         Text(
             text,
@@ -349,7 +369,7 @@ private fun BoxScope.VideoArea(ui: MediaPlayerUi, player: Player?, landscape: Bo
             actions = actions,
         )
     }
-    ui.trouble?.let { Trouble(it, actions) }
+    ui.trouble?.let { Trouble(it, actions, consent = ui.vpnConsent) }
     ui.countdown?.let { Countdown(ui, it, actions) }
     ui.resumedAt?.let { at ->
         if (!controls && !locked) {
@@ -566,10 +586,15 @@ private fun BoxScope.Countdown(ui: MediaPlayerUi, seconds: Int, actions: MediaPl
 }
 
 @Composable
-private fun BoxScope.Trouble(trouble: MediaPlayerTrouble, actions: MediaPlayerActions) {
+private fun BoxScope.Trouble(trouble: MediaPlayerTrouble, actions: MediaPlayerActions, consent: Boolean = false) {
+    if (trouble == MediaPlayerTrouble.VPN) {
+        VpnTrouble(actions, consent)
+        return
+    }
     val text = stringResource(
         when (trouble) {
             MediaPlayerTrouble.NETWORK -> R.string.media_player_network
+            MediaPlayerTrouble.VPN -> R.string.media_vpn_blocked_text
             MediaPlayerTrouble.SIGNED_OUT -> R.string.media_player_signed_out
             MediaPlayerTrouble.FAILED -> R.string.media_player_failed
             MediaPlayerTrouble.CANNOT_PLAY -> R.string.media_player_cannot_play
@@ -583,6 +608,46 @@ private fun BoxScope.Trouble(trouble: MediaPlayerTrouble, actions: MediaPlayerAc
         Text(text, color = Color.White, textAlign = TextAlign.Center, style = MaterialTheme.typography.bodyMedium)
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             if (trouble != MediaPlayerTrouble.SIGNED_OUT) TextButton(onClick = actions.onRetry) { Text(stringResource(R.string.media_player_retry), color = Color.White) }
+            TextButton(onClick = actions.onClose) { Text(stringResource(R.string.media_player_close), color = Color.White.copy(alpha = 0.8f)) }
+        }
+    }
+}
+
+/**
+ * Away with the VPN off (Netz-Regel): „Unterwegs nur über VPN“ with „VPN einschalten“, as on the pages of Medien.
+ * Android's consent, when it is missing, is asked once by itself ([consent]), afterwards with the button.
+ */
+@Composable
+private fun BoxScope.VpnTrouble(actions: MediaPlayerActions, consent: Boolean) {
+    val context = LocalContext.current
+    val launcher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { r ->
+        actions.onVpnConsent(r.resultCode == Activity.RESULT_OK)
+    }
+    var asked by rememberSaveable { mutableStateOf(false) }
+    fun ask() {
+        val intent = runCatching { VpnService.prepare(context) }.getOrNull()
+        if (intent == null) actions.onVpnConsent(true) else runCatching { launcher.launch(intent) }.onFailure { actions.onVpnConsent(false) }
+    }
+    LaunchedEffect(consent) {
+        if (consent && !asked) {
+            asked = true
+            ask()
+        }
+    }
+    Column(
+        Modifier.align(Alignment.Center).padding(16.dp).widthIn(max = 420.dp).clip(RoundedCornerShape(14.dp)).background(Color.Black.copy(alpha = 0.75f)).padding(16.dp)
+            .verticalScroll(rememberScrollState()).testTag(VPN_TROUBLE_TAG),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Icon(GcIcons.Shield, contentDescription = null, tint = Color.White, modifier = Modifier.size(22.dp))
+        Text(stringResource(R.string.media_vpn_blocked), color = Color.White, textAlign = TextAlign.Center, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+        Text(stringResource(R.string.media_vpn_blocked_text), color = Color.White.copy(alpha = 0.85f), textAlign = TextAlign.Center, style = MaterialTheme.typography.bodySmall)
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            TextButton(
+                onClick = { if (runCatching { VpnService.prepare(context) != null }.getOrDefault(false)) ask() else actions.onRetry() },
+                modifier = Modifier.testTag(VPN_ON_PLAYER_TAG),
+            ) { Text(stringResource(R.string.media_vpn_on), color = Color.White) }
             TextButton(onClick = actions.onClose) { Text(stringResource(R.string.media_player_close), color = Color.White.copy(alpha = 0.8f)) }
         }
     }
@@ -754,3 +819,7 @@ internal const val SHEET_TAG = "media-player-sheet"
 internal const val QUALITY_TAG = "media-player-quality"
 internal const val COUNTDOWN_TAG = "media-player-countdown"
 internal const val MOBILE_HINT_TAG = "media-player-mobile-hint"
+internal const val VPN_TROUBLE_TAG = "media-player-vpn"
+internal const val VPN_ON_PLAYER_TAG = "media-player-vpn-on"
+internal const val VPN_CONNECTING_TAG = "media-player-vpn-connecting"
+internal const val NO_SOUND_TAG = "media-player-no-sound"

@@ -54,9 +54,10 @@ class MediaServerSourcesTest {
 
         override suspend fun pair(sourceId: String, code: String) = MediaServerResult.Ok(Unit)
         override suspend fun paired(sourceId: String, jellyfinDeviceId: String) = MediaServerResult.Ok(Unit)
+        var deleteResult: MediaServerResult<Unit> = MediaServerResult.Ok(Unit)
         override suspend fun deleteDevice(sourceId: String?): MediaServerResult<Unit> {
             deleted++
-            return MediaServerResult.Ok(Unit)
+            return deleteResult
         }
 
         override suspend fun checked(sourceId: String, ok: Boolean, problem: String?): MediaServerResult<Unit> {
@@ -135,6 +136,67 @@ class MediaServerSourcesTest {
         assertTrue(w.sources.consume(MEDIA_SIGNAL_TOPIC, castData().toString().replace("\"seq\":0", "\"seq\":1")))
         assertEquals(1, got.size)
         job.cancel()
+    }
+
+    @Test
+    fun `another server - this device leaves Jellyfin first, the old server's sources go, the new list comes`() = runTest {
+        val w = World(this)
+        w.api.list = ok(jf, sh)
+        w.sources.refresh(force = true)
+        advanceUntilIdle()
+        assertTrue(w.sources.leaving())
+        assertEquals(1, w.api.deleted, "DELETE v1/jellyfin/device while the old token counts")
+        w.api.list = MediaServerResult.Ok(MediaServerList(rev = "n1", at = null, sources = emptyList()))
+        w.api.since.clear()
+        w.clock += 60_000
+        w.sources.switched(ok = true, sameServer = false, signedOut = true)
+        advanceUntilIdle()
+        assertTrue(w.store.sources.value.isEmpty(), "the old server's sources (and their downloads) are gone")
+        assertEquals("n1", w.sources.state.value.rev)
+        assertEquals(listOf(null), w.api.since, "the new server's whole list")
+    }
+
+    @Test
+    fun `the same server with a new token - the Jellyfin access is signed in again`() = runTest {
+        val w = World(this)
+        w.api.list = ok(jf)
+        w.sources.refresh(force = true)
+        advanceUntilIdle()
+        assertEquals("tok", w.store.sources.value.first().token)
+        w.store.setAccess(w.store.sources.value.first().id, "old", "a71e", "mila")
+        assertTrue(w.sources.leaving())
+        w.clock += 60_000
+        w.sources.switched(ok = true, sameServer = true, signedOut = true)
+        advanceUntilIdle()
+        assertEquals("tok", w.store.sources.value.first().token, "signed in anew, not with the deleted access")
+        coVerify(exactly = 2) { w.pair.pair(any()) }
+    }
+
+    @Test
+    fun `without a Jellyfin source nothing is signed out, a failed sign-out never blocks`() = runTest {
+        val w = World(this)
+        w.api.list = ok(sh)
+        w.sources.refresh(force = true)
+        advanceUntilIdle()
+        assertFalse(w.sources.leaving())
+        assertEquals(0, w.api.deleted)
+        w.api.list = ok(jf)
+        w.clock += 60_000
+        w.sources.refresh(force = true)
+        advanceUntilIdle()
+        w.api.deleteResult = MediaServerResult.Refused(MediaServerError(0, MediaServerError.OFFLINE))
+        assertTrue(w.sources.leaving())
+        assertEquals(1, w.api.deleted)
+    }
+
+    @Test
+    fun `the switch of the server - pure rules`() {
+        assertTrue(MediaServerSwitch.changes("https://gate.example.com", "gc_a", "https://other.example.com", "gc_a"))
+        assertTrue(MediaServerSwitch.changes("https://gate.example.com", "gc_a", "https://gate.example.com/", "gc_b"))
+        assertFalse(MediaServerSwitch.changes("https://gate.example.com", "gc_a", "https://GATE.example.com/", "gc_a"))
+        assertFalse(MediaServerSwitch.changes("", "", "https://gate.example.com", "gc_a"), "nothing set up before")
+        assertTrue(MediaServerSwitch.sameServer("https://gate.example.com", "https://gate.example.com:443/"))
+        assertFalse(MediaServerSwitch.sameServer("https://gate.example.com", "https://gate.example.com:8443"))
     }
 
     @Test
