@@ -64,6 +64,11 @@ data class MediaSource(
      * share's WebDAV base). Null: away only through the VPN.
      */
     val awayAddress: String? = null,
+    /**
+     * Away through the VPN (`away.mode = "vpn"` with an address): the HTTPS address of the source's GateControl route,
+     * reached through the tunnel (the tunnel carries no home network). Null: an older plugin, the home address is taken.
+     */
+    val awayVpnAddress: String? = null,
     /** WebDAV: the SHA-256 of the NAS's certificate (hex), pinned at the home address (self-signed in DSM). */
     val certSha256: String? = null,
     /** A share: the plugin's version of its password; newer than the one kept → fetched again. */

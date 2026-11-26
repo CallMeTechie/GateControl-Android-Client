@@ -125,4 +125,13 @@ class MediaServerMergeTest {
         assertEquals("https://nas.example.test/filme", dav.awayAddress)
         assertNull(r.first { it.kind == MediaSourceKind.SMB }.awayAddress, "SMB never goes over the internet")
     }
+
+    @Test
+    fun `the route's address through the VPN comes along - not for SMB`() {
+        val r = MediaServerMerge.merge(emptyList(), list(jf.copy(awayVpnAddress = "https://jellyfin.example.test"), sh.copy(awayVpnAddress = "https://nas.example.test/filme"))).list
+        assertEquals("https://jellyfin.example.test", r.first { it.kind == MediaSourceKind.JELLYFIN }.awayVpnAddress)
+        assertEquals("https://nas.example.test/filme", r.first { it.kind == MediaSourceKind.WEBDAV }.awayVpnAddress)
+        assertNull(r.first { it.kind == MediaSourceKind.SMB }.awayVpnAddress)
+        assertTrue(r.none { it.awayDirect }, "a route through the VPN is no way without it")
+    }
 }

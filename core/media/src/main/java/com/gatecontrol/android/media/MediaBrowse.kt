@@ -9,7 +9,11 @@ import kotlinx.coroutines.launch
  * Why a page has nothing: no connection, signed out, failed; [VPN]: away, media go only through the VPN and it is off
  * (Netz-Regel: „Unterwegs nur über VPN – VPN einschalten“).
  */
-enum class MediaProblem { OFFLINE, SIGNED_OUT, FAILED, VPN }
+/**
+ * Why a page shows nothing. [NO_ROUTE]: away through the VPN the server gives no route address for the source (an
+ * older plugin), so the home address went through the tunnel and was not reached.
+ */
+enum class MediaProblem { OFFLINE, SIGNED_OUT, FAILED, VPN, NO_ROUTE }
 
 /** What a failed answer of [source] means for a page; a Jellyfin server's refused access is dropped. */
 internal fun mediaProblemOf(hub: MediaHub, r: MediaResult<*>, source: MediaSource): MediaProblem? {
@@ -20,7 +24,7 @@ internal fun mediaProblemOf(hub: MediaHub, r: MediaResult<*>, source: MediaSourc
     }
     return when (r) {
         is MediaResult.Ok -> null
-        MediaResult.Offline -> if (hub.route(source) == MediaRoute.BLOCKED) MediaProblem.VPN else MediaProblem.OFFLINE
+        MediaResult.Offline -> hub.offlineProblem(source)
         MediaResult.Unauthorized -> {
             // a share keeps its password (it may be the NAS that refuses just now); Jellyfin's token is gone
             if (source.kind == MediaSourceKind.JELLYFIN) hub.store.dropToken(source.id)

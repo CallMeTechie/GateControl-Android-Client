@@ -148,7 +148,8 @@ class MediaHub @Inject constructor(
             MediaRoute.HOME -> lanClient(host)
             else -> base
         }
-        val pin = source.certSha256?.takeIf { route != MediaRoute.DIRECT && source.kind == MediaSourceKind.WEBDAV }
+        // the NAS's certificate is pinned at its home address only (a route's HTTPS address has the gateway's own)
+        val pin = source.certSha256?.takeIf { source.kind == MediaSourceKind.WEBDAV && route != MediaRoute.DIRECT && !MediaRouting.awayAddressUsed(source, route) }
         return if (pin != null) clients.getOrPut("pin:$route:$host:$pin") { MediaPinning.client(client, pin) } else client
     }
 
@@ -176,13 +177,8 @@ class MediaHub @Inject constructor(
      * change.
      */
     private fun shareLibrary(source: MediaSource): MediaLibrary {
-        val list = store.sources.value
-        val partner = source.pairWith?.let { id -> list.firstOrNull { it.id == id && it.pairWith == source.id } }
-        val smb = listOfNotNull(source, partner).firstOrNull { it.kind == MediaSourceKind.SMB }
-        val webdav = listOfNotNull(source, partner).firstOrNull { it.kind == MediaSourceKind.WEBDAV }
-        val primary = smb ?: source
+        val (primary, pick) = sharePair(source)
         val atHome = _link.value.atHome
-        val pick = MediaLogic.shareFor(smb, webdav, atHome) ?: source
         val route = route(pick)
         val use = MediaRouting.effective(pick, route)
         val key = "${use.id}:${use.address}:${use.userName}:${use.password.hashCode()}:$atHome:$route"
@@ -192,6 +188,18 @@ class MediaHub @Inject constructor(
         libraries.put(group, key to lib)?.second?.let { old -> retired.put(group, old)?.let { gone -> scope.launch { gone.close() } } }
         return lib
     }
+
+    /** Of share [source]'s pair: the SMB half (the titles' id) and the half its way takes now. */
+    private fun sharePair(source: MediaSource): Pair<MediaSource, MediaSource> {
+        val list = store.sources.value
+        val partner = source.pairWith?.let { id -> list.firstOrNull { it.id == id && it.pairWith == source.id } }
+        val smb = listOfNotNull(source, partner).firstOrNull { it.kind == MediaSourceKind.SMB }
+        val webdav = listOfNotNull(source, partner).firstOrNull { it.kind == MediaSourceKind.WEBDAV }
+        return (smb ?: source) to (MediaLogic.shareFor(smb, webdav, _link.value.atHome) ?: source)
+    }
+
+    /** The source that is asked for [source] now: of a share's pair the half its way takes (away WebDAV). */
+    fun asked(source: MediaSource): MediaSource = if (source.kind.share) sharePair(source).second else source
 
     /** The library a share had before the network changed (a running player may still read from it). */
     private val retired = ConcurrentHashMap<String, MediaLibrary>()
@@ -459,4 +467,10 @@ class MediaHub @Inject constructor(
         const val HOME_MS = 2 * 60_000L
         private const val MAX_PICTURE_BYTES = 4 * 1024 * 1024
     }
+}
+
+/** What „not reachable" of [source] means on its way now (VPN off, no route address of an older plugin, offline). */
+fun MediaHub.offlineProblem(source: MediaSource): MediaProblem {
+    val asked = if (source.kind.share) runCatching { asked(source) }.getOrNull()?.takeIf { it.kind.share } ?: source else source
+    return MediaRouting.offline(asked, runCatching { route(asked) }.getOrNull())
 }

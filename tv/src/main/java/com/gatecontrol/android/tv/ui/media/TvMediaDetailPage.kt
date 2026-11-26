@@ -112,7 +112,13 @@ fun TvMediaDetailPage(
                 Text(it, style = MaterialTheme.typography.bodyMedium, color = colors.text, maxLines = 4, overflow = TextOverflow.Ellipsis, modifier = Modifier.width(560.dp))
             }
             detail.problem?.let {
-                Text(stringResource(if (it == MediaProblem.OFFLINE) R.string.tv_media_offline else R.string.tv_media_failed), style = MaterialTheme.typography.bodyMedium, color = colors.warn)
+                Text(stringResource(
+                        when (it) {
+                            MediaProblem.OFFLINE -> R.string.tv_media_offline
+                            MediaProblem.NO_ROUTE -> R.string.tv_media_no_route
+                            else -> R.string.tv_media_failed
+                        },
+                    ), style = MaterialTheme.typography.bodyMedium, color = colors.warn)
             }
             if (t.playable) {
                 if (t.resumable) Progress(t)

@@ -131,7 +131,7 @@ class MediaDetailViewModel @Inject constructor(
             if (loaded == null) {
                 // no connection (or away without the VPN): a downloaded title shows (and plays) from the phone
                 val kept = offline.ready(t.sourceId, t.id)
-                if (kept != null && (problem == MediaProblem.OFFLINE || problem == MediaProblem.VPN)) {
+                if (kept != null && (problem == MediaProblem.OFFLINE || problem == MediaProblem.VPN || problem == MediaProblem.NO_ROUTE)) {
                     val title = kept.titleNow()
                     _ui.update { offlineInto(it.copy(title = title, detail = MediaDetail(title, listOfNotNull(kept.version)), loading = false, problem = null, fromPhone = true, caps = hub.caps()), offline.items.value) }
                     return@launch

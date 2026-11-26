@@ -39,13 +39,33 @@ object MediaRouting {
         else -> MediaRoute.BLOCKED
     }
 
-    /** The source as it is asked on [route]: away direct its HTTPS address instead of the home one. */
-    fun effective(source: MediaSource, route: MediaRoute): MediaSource =
-        if (route == MediaRoute.DIRECT && source.awayAddress != null && (source.kind == MediaSourceKind.JELLYFIN || source.kind == MediaSourceKind.WEBDAV)) {
-            source.copy(address = source.awayAddress)
-        } else {
-            source
+    /**
+     * The source as it is asked on [route]: away direct its HTTPS address instead of the home one; away through the VPN
+     * the HTTPS address of its route (the tunnel reaches GateControl's routes, not the home network), the home address
+     * only while the plugin gives none (older plugins). At home always the home address. SMB has no away address.
+     */
+    fun effective(source: MediaSource, route: MediaRoute): MediaSource {
+        if (source.kind != MediaSourceKind.JELLYFIN && source.kind != MediaSourceKind.WEBDAV) return source
+        val away = when (route) {
+            MediaRoute.DIRECT -> source.awayAddress
+            MediaRoute.VPN -> source.awayVpnAddress
+            else -> null
         }
+        return if (away != null) source.copy(address = away) else source
+    }
+
+    /** [source] on [route] goes to another address than its home one (its away address). */
+    fun awayAddressUsed(source: MediaSource, route: MediaRoute): Boolean = effective(source, route).address != source.address
+
+    /**
+     * What „not reachable" of [source] on [route] means: away without the VPN [MediaProblem.VPN]; away through the VPN
+     * without a route address (an older plugin) [MediaProblem.NO_ROUTE]; else [MediaProblem.OFFLINE].
+     */
+    fun offline(source: MediaSource, route: MediaRoute?): MediaProblem = when {
+        route == MediaRoute.BLOCKED -> MediaProblem.VPN
+        route == MediaRoute.VPN && (source.kind == MediaSourceKind.JELLYFIN || source.kind == MediaSourceKind.WEBDAV) && source.awayVpnAddress == null -> MediaProblem.NO_ROUTE
+        else -> MediaProblem.OFFLINE
+    }
 
     /** Away, the VPN is needed for at least one of [sources] (none allowed direct). */
     fun needsVpn(sources: List<MediaSource>): Boolean = sources.any { !it.awayDirect }
