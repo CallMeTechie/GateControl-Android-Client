@@ -107,6 +107,46 @@ data class DriveOfflineWant(val node: DNode, val roots: Set<Long>, val path: Str
 
 /** Pure rules of the offline copies (unit-tested). */
 object DriveOfflineStoreLogic {
+
+    /** What the login on this phone looks like right now, for [accountChange]. */
+    data class Login(
+        val serverUrl: String,
+        val token: String,
+        /** A server address is stored, even if it could not be read just now. */
+        val serverStored: Boolean,
+        /** A token is stored, even if it could not be read just now. */
+        val tokenStored: Boolean,
+    ) {
+        /** Really signed out (reset / account removed): neither address nor token is stored. */
+        val signedOut: Boolean get() = !serverStored && !tokenStored
+
+        /** Stored but unreadable at the moment (Keystore busy): says nothing about the account. */
+        val unreadable: Boolean get() = (serverUrl.isBlank() && serverStored) || (token.isBlank() && tokenStored)
+
+        /** Both readable: the login is known. */
+        val known: Boolean get() = serverUrl.isNotBlank() && token.isNotBlank()
+    }
+
+    enum class AccountAction { KEEP, WIPE, FORGET_VAULTS }
+
+    /**
+     * What a change of the login means for the offline copies. They only go when
+     * the user really signed out (nothing stored any more) or a readable login
+     * points to another server; another token on the same server forgets the
+     * vaults. A login that is merely unreadable for a moment, or a lost address
+     * with the token still kept (it may be restored), keeps everything. Without a
+     * known login before, [indexServer] (the server the copies were made for)
+     * decides whether they belong to the login now.
+     */
+    fun accountChange(before: Login?, now: Login, indexServer: String = ""): AccountAction = when {
+        now.signedOut -> AccountAction.WIPE
+        now.unreadable || !now.known -> AccountAction.KEEP
+        before == null || !before.known ->
+            if (indexServer.isNotEmpty() && indexServer != now.serverUrl) AccountAction.WIPE else AccountAction.KEEP
+        before.serverUrl != now.serverUrl -> AccountAction.WIPE
+        before.token != now.token -> AccountAction.FORGET_VAULTS
+        else -> AccountAction.KEEP
+    }
     /** At most this many files are kept for the marks (a marked folder with very many files stops there). */
     const val MAX_FILES = 2_000
 
@@ -446,7 +486,7 @@ class DriveOfflineStore @Inject constructor(
         }
     }
 
-    @Volatile private var account: Pair<String, String>? = null
+    @Volatile private var account: DriveOfflineStoreLogic.Login? = null
 
     /**
      * Follows the login (once, at the start of the app): signed out, another server or another login — the vaults'
@@ -455,21 +495,31 @@ class DriveOfflineStore @Inject constructor(
     fun watchAccount() {
         synchronized(this) {
             if (account != null) return
-            account = setup.getServerUrl() to setup.getApiToken()
+            account = login()
         }
         scope.launch {
-            if (!setup.isConfigured() && (_copies.value.isNotEmpty() || vaultCache.vaultIds().isNotEmpty())) wipe()
+            // Only a real sign-out empties the store at start — not a login unreadable for a moment.
+            if (account?.signedOut == true && (_copies.value.isNotEmpty() || vaultCache.vaultIds().isNotEmpty())) wipe()
             setup.revision.drop(1).collect {
-                val now = setup.getServerUrl() to setup.getApiToken()
+                val now = login()
                 val before = account
-                account = now
-                when {
-                    !setup.isConfigured() || before?.first != now.first -> wipe()
-                    before.second != now.second -> forgetVaults()
+                when (DriveOfflineStoreLogic.accountChange(before, now, server)) {
+                    DriveOfflineStoreLogic.AccountAction.WIPE -> wipe()
+                    DriveOfflineStoreLogic.AccountAction.FORGET_VAULTS -> forgetVaults()
+                    DriveOfflineStoreLogic.AccountAction.KEEP -> Unit
                 }
+                // Remember the last known login; an unreadable one does not replace it.
+                if (now.known || now.signedOut) account = now
             }
         }
     }
+
+    private fun login() = DriveOfflineStoreLogic.Login(
+        serverUrl = setup.getServerUrl(),
+        token = setup.getApiToken(),
+        serverStored = setup.hasStoredServerUrl(),
+        tokenStored = setup.hasStoredApiToken(),
+    )
 
     /** Every vault's copies and entries (another login on the same server). */
     private suspend fun forgetVaults() = lock.withLock {

@@ -9,7 +9,9 @@ import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKeys
 import timber.log.Timber
 import java.security.KeyStore
+import java.security.UnrecoverableKeyException
 import java.util.concurrent.ConcurrentHashMap
+import javax.crypto.BadPaddingException
 import javax.crypto.Cipher
 import javax.crypto.KeyGenerator
 import javax.crypto.SecretKey
@@ -40,6 +42,14 @@ interface SecretBackend {
  * secrets are kept in memory only for this process and the user has to set
  * the app up again after a restart — they never reach disk unencrypted.
  *
+ * Every Keystore operation runs under one lock: Keystore2 only allows a few
+ * concurrent operations per app and "prunes" the rest (`INVALID_OPERATION_HANDLE`,
+ * surfacing as `IllegalBlockSizeException`). Decrypted values are cached in
+ * memory, so repeated reads (every HTTP request reads server URL and token)
+ * do not hit the Keystore at all. A value is only dropped when it can never be
+ * decrypted again (wrong/new key, corrupt data); transient Keystore errors are
+ * retried and then reported as "not readable right now" without deleting it.
+ *
  * On first use, data from the previous implementations is migrated and the
  * old files are deleted: the `security-crypto` EncryptedSharedPreferences
  * file and the plaintext fallback file older versions wrote when the
@@ -49,6 +59,7 @@ interface SecretBackend {
 class EncryptedStorage internal constructor(
     private val backendFactory: () -> Pair<SecretBackend, SecretCipher>?,
     private val legacyMigration: (EncryptedStorage) -> Unit,
+    private val sleep: (Long) -> Unit = { Thread.sleep(it) },
 ) {
 
     @Inject
@@ -59,12 +70,27 @@ class EncryptedStorage internal constructor(
 
     private val memory = ConcurrentHashMap<String, String>()
 
+    /** Decrypted values (with type prefix) of the persistent store; filled on read and write. */
+    private val cache = ConcurrentHashMap<String, String>()
+
+    /** Serializes every Keystore operation and keeps [cache] consistent with the backend. */
+    private val lock = Any()
+
     private val store: Pair<SecretBackend, SecretCipher>? by lazy {
-        val created = try {
-            backendFactory()
-        } catch (e: Exception) {
-            Timber.e(e, "EncryptedStorage: Android Keystore unavailable")
-            null
+        var created: Pair<SecretBackend, SecretCipher>? = null
+        for (attempt in 1..MAX_ATTEMPTS) {
+            try {
+                created = synchronized(lock) { backendFactory() }
+                break
+            } catch (e: Exception) {
+                if (attempt < MAX_ATTEMPTS && isTransientKeystoreFailure(e)) {
+                    Timber.w(e, "EncryptedStorage: Keystore busy, retrying (%d)", attempt)
+                    sleep(backoffMs(attempt))
+                    continue
+                }
+                Timber.e(e, "EncryptedStorage: Android Keystore unavailable")
+                break
+            }
         }
         if (created == null) {
             Timber.e("EncryptedStorage: keeping stored values in memory only (not persisted)")
@@ -113,17 +139,35 @@ class EncryptedStorage internal constructor(
         return if (raw.startsWith("i:")) raw.substring(2).toIntOrNull() ?: default else default
     }
 
+    /**
+     * True when a value is stored for [key] — also when it cannot be decrypted
+     * right now (Keystore busy). Lets callers tell "never set / gone" from
+     * "temporarily unreadable".
+     */
+    fun contains(key: String): Boolean {
+        val s = store ?: return memory.containsKey(key)
+        if (cache.containsKey(key)) return true
+        return s.first.get(key) != null
+    }
+
     fun remove(key: String) {
         memory.remove(key)
-        store?.first?.remove(key)
+        val s = store ?: return
+        synchronized(lock) {
+            cache.remove(key)
+            s.first.remove(key)
+        }
     }
 
     /** Remove every value except the [keep] keys (e.g. the device ID). */
     fun clear(keep: Set<String> = emptySet()) {
-        val kept = keep.mapNotNull { key -> read(key)?.let { key to it } }.toMap()
-        memory.clear()
-        store?.first?.clear()
-        if (kept.isNotEmpty()) write(kept, sync = true)
+        synchronized(lock) {
+            val kept = keep.mapNotNull { key -> read(key)?.let { key to it } }.toMap()
+            memory.clear()
+            cache.clear()
+            store?.first?.clear()
+            if (kept.isNotEmpty()) write(kept, sync = true)
+        }
     }
 
     private fun write(entries: Map<String, String>, sync: Boolean) {
@@ -133,21 +177,57 @@ class EncryptedStorage internal constructor(
             return
         }
         val (backend, cipher) = s
-        backend.put(entries.mapValues { cipher.encrypt(it.value) }, sync)
+        synchronized(lock) {
+            val encrypted = entries.mapValues { encryptWithRetry(cipher, it.value) }
+            backend.put(encrypted, sync)
+            cache.putAll(entries)
+        }
+    }
+
+    private fun encryptWithRetry(cipher: SecretCipher, plain: String): String {
+        var attempt = 1
+        while (true) {
+            try {
+                return cipher.encrypt(plain)
+            } catch (e: Exception) {
+                if (attempt >= MAX_ATTEMPTS || !isTransientKeystoreFailure(e)) throw e
+                Timber.w(e, "EncryptedStorage: Keystore busy on encrypt, retrying (%d)", attempt)
+                sleep(backoffMs(attempt))
+                attempt++
+            }
+        }
     }
 
     private fun read(key: String): String? {
         val s = store ?: return memory[key]
+        cache[key]?.let { return it }
         val (backend, cipher) = s
-        val encoded = backend.get(key) ?: return null
-        return try {
-            cipher.decrypt(encoded)
-        } catch (e: Exception) {
-            // Key lost (e.g. device restore without Keystore) — the value is unusable.
-            Timber.w(e, "EncryptedStorage: cannot decrypt '%s', dropping it", key)
-            backend.remove(key)
-            null
+        for (attempt in 1..MAX_ATTEMPTS) {
+            val failure = synchronized(lock) {
+                cache[key]?.let { return it }
+                val encoded = backend.get(key) ?: return null
+                try {
+                    return cipher.decrypt(encoded).also { cache[key] = it }
+                } catch (e: Exception) {
+                    if (!isTransientKeystoreFailure(e)) {
+                        // The key is gone or the data is corrupt (e.g. device restore without
+                        // Keystore): this value can never be decrypted again.
+                        Timber.w(e, "EncryptedStorage: cannot decrypt '%s' (permanent), dropping it", key)
+                        backend.remove(key)
+                        return null
+                    }
+                    e
+                }
+            }
+            if (attempt < MAX_ATTEMPTS) {
+                Timber.w(failure, "EncryptedStorage: Keystore busy reading '%s', retrying (%d)", key, attempt)
+                sleep(backoffMs(attempt))
+            } else {
+                // Keep the stored value: it is fine, only the Keystore was busy.
+                Timber.w(failure, "EncryptedStorage: cannot decrypt '%s' right now, keeping it", key)
+            }
         }
+        return null
     }
 
     /** Import a legacy value without its type prefix (String/Int/Boolean). */
@@ -166,6 +246,45 @@ class EncryptedStorage internal constructor(
         private const val KEY_ALIAS = "gatecontrol_storage_v2"
         private const val LEGACY_ENCRYPTED_FILE = "gatecontrol_secure"
         private const val LEGACY_PLAINTEXT_FILE = "gatecontrol_secure_fallback"
+        internal const val MAX_ATTEMPTS = 3
+
+        private fun backoffMs(attempt: Int): Long = 30L * attempt * attempt
+
+        /** Markers of Keystore2 errors that go away on their own (operation pruned, busy, …). */
+        private val TRANSIENT_MARKERS = listOf(
+            "pruned", "invalid operation handle", "invalid_operation_handle", "busy",
+            "too many operations", "backend_busy", "operation_handle",
+        )
+
+        /** Failures after which the value can never be decrypted again. */
+        private val PERMANENT_CLASS_NAMES = setOf(
+            "android.security.keystore.KeyPermanentlyInvalidatedException",
+            "javax.crypto.AEADBadTagException",
+        )
+
+        /**
+         * True when [e] is a passing Keystore problem (retry, never delete).
+         *
+         * Permanent are only: a wrong/new key or tampered data (`AEADBadTagException`
+         * and other `BadPaddingException`s), an invalidated key, an unrecoverable key
+         * not caused by the Keystore service, and corrupt stored data
+         * (`IllegalArgumentException` from Base64/length checks) — unless the error
+         * chain names a pruned/busy operation. Anything unknown counts as
+         * transient: losing a value is worse than trying again next time.
+         */
+        internal fun isTransientKeystoreFailure(e: Throwable): Boolean {
+            val chain = generateSequence(e) { it.cause.takeIf { c -> c !== it } }.take(10).toList()
+            val text = chain.joinToString(" ") { "${it.javaClass.name} ${it.message.orEmpty()}" }.lowercase()
+            if (TRANSIENT_MARKERS.any { it in text }) return true
+            val keystoreCause = chain.any { it.javaClass.name.endsWith(".KeyStoreException") }
+            return when {
+                chain.any { it.javaClass.name in PERMANENT_CLASS_NAMES } -> false
+                chain.any { it is BadPaddingException } -> false
+                e is UnrecoverableKeyException && !keystoreCause -> false
+                e is IllegalArgumentException -> false
+                else -> true
+            }
+        }
 
         private fun createKeystoreBackend(context: Context): Pair<SecretBackend, SecretCipher> {
             val cipher = KeystoreCipher(KEY_ALIAS)

@@ -4,6 +4,14 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
+import java.security.KeyStoreException
+import java.security.UnrecoverableKeyException
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicInteger
+import javax.crypto.AEADBadTagException
+import javax.crypto.IllegalBlockSizeException
 
 class EncryptedStorageTest {
 
@@ -26,6 +34,30 @@ class EncryptedStorageTest {
 
     private fun storage(backend: MapBackend = MapBackend(), migration: (EncryptedStorage) -> Unit = {}) =
         EncryptedStorage({ backend to FakeCipher() }, migration)
+
+    /** What Keystore2 throws when it pruned an operation (as in the field log). */
+    private fun pruned() = IllegalBlockSizeException().apply {
+        initCause(KeyStoreException("Invalid operation handle: Call on finalized operation with outcome: Pruned."))
+    }
+
+    /** Counts decrypts; [failures] decides per call whether (and how) it fails. */
+    private class ScriptedCipher(private val failures: (Int) -> Exception? = { null }) : SecretCipher {
+        val decrypts = AtomicInteger()
+        private val fake = FakeCipher()
+        override fun encrypt(plain: String) = fake.encrypt(plain)
+        override fun decrypt(encoded: String): String {
+            val n = decrypts.incrementAndGet()
+            failures(n)?.let { throw it }
+            return fake.decrypt(encoded)
+        }
+    }
+
+    private fun scripted(backend: MapBackend, cipher: ScriptedCipher, sleeps: MutableList<Long> = mutableListOf()) =
+        EncryptedStorage({ backend to cipher }, {}, { sleeps += it })
+
+    private fun stored(vararg entries: Pair<String, String>) = MapBackend().apply {
+        entries.forEach { (k, v) -> data[k] = FakeCipher().encrypt("s:$v") }
+    }
 
     @Test
     fun `values round-trip with their types`() {
@@ -111,5 +143,130 @@ class EncryptedStorageTest {
         assertEquals("", s.getString("token", ""))
         assertEquals("abc", s.getString("device", ""))
         assertEquals(1, backend.data.size)
+    }
+
+    @Test
+    fun `a pruned keystore operation never deletes the value`() {
+        val backend = stored("server_url" to "https://gate.example.com")
+        val cipher = ScriptedCipher { pruned() }
+        val sleeps = mutableListOf<Long>()
+        val s = scripted(backend, cipher, sleeps)
+
+        assertEquals("", s.getString("server_url", ""))
+        assertTrue(backend.data.containsKey("server_url"))
+        assertTrue(s.contains("server_url"))
+        assertEquals(EncryptedStorage.MAX_ATTEMPTS, cipher.decrypts.get())
+        assertEquals(EncryptedStorage.MAX_ATTEMPTS - 1, sleeps.size)
+    }
+
+    @Test
+    fun `a transient failure is retried and then read`() {
+        val backend = stored("server_url" to "https://gate.example.com")
+        val cipher = ScriptedCipher { n -> if (n == 1) pruned() else null }
+        val s = scripted(backend, cipher)
+
+        assertEquals("https://gate.example.com", s.getString("server_url", ""))
+        assertEquals(2, cipher.decrypts.get())
+    }
+
+    @Test
+    fun `unknown errors keep the value as well`() {
+        val backend = stored("api_token" to "gc_secret")
+        val s = scripted(backend, ScriptedCipher { IllegalStateException("something odd") })
+
+        assertEquals("", s.getString("api_token", ""))
+        assertTrue(backend.data.containsKey("api_token"))
+    }
+
+    @Test
+    fun `a wrong key (bad tag) deletes the value`() {
+        val backend = stored("server_url" to "https://gate.example.com")
+        val cipher = ScriptedCipher { AEADBadTagException("tag mismatch") }
+        val s = scripted(backend, cipher)
+
+        assertEquals("", s.getString("server_url", ""))
+        assertFalse(backend.data.containsKey("server_url"))
+        assertFalse(s.contains("server_url"))
+        assertEquals(1, cipher.decrypts.get())
+    }
+
+    @Test
+    fun `classification of keystore failures`() {
+        assertTrue(EncryptedStorage.isTransientKeystoreFailure(pruned()))
+        assertTrue(EncryptedStorage.isTransientKeystoreFailure(IllegalBlockSizeException()))
+        assertTrue(EncryptedStorage.isTransientKeystoreFailure(UnrecoverableKeyException("x").apply { initCause(KeyStoreException("system error")) }))
+        assertTrue(EncryptedStorage.isTransientKeystoreFailure(AEADBadTagException("x").apply { initCause(KeyStoreException("Pruned")) }))
+        assertFalse(EncryptedStorage.isTransientKeystoreFailure(AEADBadTagException("x")))
+        assertFalse(EncryptedStorage.isTransientKeystoreFailure(UnrecoverableKeyException("key gone")))
+        assertFalse(EncryptedStorage.isTransientKeystoreFailure(IllegalArgumentException("ciphertext too short")))
+    }
+
+    @Test
+    fun `decrypted values are cached and the cache follows writes`() {
+        val backend = stored("server_url" to "https://a.example.com")
+        val cipher = ScriptedCipher()
+        val s = scripted(backend, cipher)
+
+        repeat(50) { assertEquals("https://a.example.com", s.getString("server_url", "")) }
+        assertEquals(1, cipher.decrypts.get())
+
+        s.putString("server_url", "https://b.example.com")
+        assertEquals("https://b.example.com", s.getString("server_url", ""))
+        s.commitBatch("server_url" to "https://c.example.com")
+        assertEquals("https://c.example.com", s.getString("server_url", ""))
+        assertEquals(1, cipher.decrypts.get())
+
+        s.remove("server_url")
+        assertEquals("", s.getString("server_url", ""))
+        s.putString("token", "t")
+        s.clear()
+        assertEquals("", s.getString("token", ""))
+        assertTrue(backend.data.isEmpty())
+    }
+
+    @Test
+    fun `parallel reads reach the keystore one at a time`() {
+        val keys = (1..24).map { "k$it" }
+        val backend = stored(*keys.map { it to "v-$it" }.toTypedArray())
+        val active = AtomicInteger()
+        val maxActive = AtomicInteger()
+        // Like Keystore2: a second concurrent operation gets pruned.
+        val cipher = object : SecretCipher {
+            private val fake = FakeCipher()
+            override fun encrypt(plain: String) = fake.encrypt(plain)
+            override fun decrypt(encoded: String): String {
+                val now = active.incrementAndGet()
+                maxActive.accumulateAndGet(now) { a, b -> maxOf(a, b) }
+                try {
+                    if (now > 1) throw pruned()
+                    Thread.sleep(2)
+                    return fake.decrypt(encoded)
+                } finally {
+                    active.decrementAndGet()
+                }
+            }
+        }
+        val s = EncryptedStorage({ backend to cipher }, {})
+        val pool = Executors.newFixedThreadPool(16)
+        val start = CountDownLatch(1)
+        val results = keys.flatMap { key -> List(4) { key } }.map { key ->
+            pool.submit<Pair<String, String>> { start.await(); key to s.getString(key, "") }
+        }
+        start.countDown()
+        val values = results.map { it.get(10, TimeUnit.SECONDS) }
+        pool.shutdown()
+
+        assertEquals(1, maxActive.get())
+        values.forEach { (key, value) -> assertEquals("v-$key", value) }
+        assertEquals(keys.size, backend.data.size)
+    }
+
+    @Test
+    fun `a busy keystore at start is retried before falling back to memory`() {
+        val backend = MapBackend()
+        var calls = 0
+        val s = EncryptedStorage({ calls++; if (calls == 1) throw pruned() else backend to FakeCipher() }, {}, {})
+        assertTrue(s.isPersistent)
+        assertEquals(2, calls)
     }
 }

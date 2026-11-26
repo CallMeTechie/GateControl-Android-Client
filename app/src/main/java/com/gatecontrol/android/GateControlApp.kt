@@ -53,6 +53,15 @@ class GateControlApp : Application() {
             throw e
         }
 
+        // Older versions dropped the server address on a passing Keystore error while the
+        // token stayed: put it back (only when verified) before anything reads the setup.
+        try {
+            val recovery = EntryPointAccessors.fromApplication(this, TileEntryPoint::class.java).serverUrlRecovery()
+            if (recovery.needed()) kotlinx.coroutines.runBlocking(Dispatchers.IO) { recovery.recover() }
+        } catch (e: Throwable) {
+            Timber.w(e, "Setup: server address recovery failed")
+        }
+
         // Tunnel lifecycle outside the UI: Always-on VPN, auto-reconnect, tile state.
         // Must run before the system starts the VPN service for Always-on.
         // Also registered for the Quick Settings tile, which can't use Hilt DI.
@@ -222,6 +231,7 @@ class GateControlApp : Application() {
         fun updateCoordinator(): com.gatecontrol.android.update.UpdateCoordinator
         fun gateDropStartup(): com.gatecontrol.android.gatedrop.GateDropStartup
         fun apkUpdater(): com.gatecontrol.android.update.ApkUpdater
+        fun serverUrlRecovery(): com.gatecontrol.android.support.ServerUrlRecovery
     }
 
     private fun installCrashLogger(context: Context) {

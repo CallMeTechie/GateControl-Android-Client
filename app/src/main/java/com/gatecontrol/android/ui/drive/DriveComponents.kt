@@ -382,6 +382,7 @@ internal fun driveText(context: Context, code: String): String = driveScanText(c
     "quota" -> context.getString(R.string.drive_code_quota)
     "invalid" -> context.getString(R.string.drive_code_invalid)
     "not_found" -> context.getString(R.string.drive_code_not_found)
+    "not_configured" -> context.getString(R.string.drive_code_not_configured)
     "links_disabled" -> context.getString(R.string.drive_code_links_disabled)
     "no_unlimited" -> context.getString(R.string.drive_code_no_unlimited)
     "no_public_url" -> context.getString(R.string.drive_code_no_public_url)
