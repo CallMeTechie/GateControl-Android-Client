@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.160.0] - 2026-11-26
+
+### Features
+- Medien unterwegs mitladen (Stufe 1) und Übersicht-Cache auf dem TV (#310)
+
+---
+
 ## [1.159.0] - 2026-11-26
 
 ### Features
