@@ -1,7 +1,7 @@
 [versions]
-agp = "9.4.1"
+agp = "9.5.2"
 kotlin = "2.4.21"
-ksp = "2.3.12"
+ksp = "2.3.14"
 core-ktx = "1.19.1"
 activity-compose = "1.9.3"
 # Door tab: device unlock (biometrics or PIN) before unlocking/opening a door.
@@ -10,7 +10,7 @@ biometric = "1.1.0"
 fragment = "1.9.1"
 lifecycle = "2.8.7"
 navigation-compose = "2.10.2"
-compose-bom = "2026.09.00"
+compose-bom = "2026.11.01"
 # GateControl TV (:tv): Compose for TV (focus, scale and border of D-pad cards, TV typography).
 tv-material = "1.1.0"
 # Window size classes and fold postures (not covered by the Compose BOM).
@@ -37,27 +37,27 @@ okhttp = "5.5.1"
 wireguard-tunnel = "1.0.20260102"
 datastore = "1.3.0"
 security-crypto = "1.1.0"
-camerax = "1.6.0"
+camerax = "1.7.0"
 # Door: live picture and clips of the home-network cameras (HLS fMP4 / MP4). Same line as the
 # media3-muxer that CameraX (camera-video) pulls, so both stay on one Media3 version.
 media3 = "1.9.4"
 mlkit-barcode = "17.3.0"
 mlkit-document-scanner = "16.0.0"
-mlkit-text-recognition = "19.0.1"
+mlkit-text-recognition = "19.0.2"
 mlkit-image-labeling = "16.0.8"
 # Drive: faces on the phone (YuNet + SFace as ONNX). 1.23.x: no telemetry provider (1.27+ ship one).
 onnxruntime = "1.23.2"
 timber = "5.0.1"
 # SSH terminal: @Nullable/@RequiresApi of the Termux terminal-view sources (third_party/termux-terminal).
-annotation = "1.10.0"
+annotation = "1.11.0"
 coroutines = "1.11.0"
 junit5 = "6.1.3"
-mockk = "1.14.11"
+mockk = "1.14.12"
 turbine = "1.2.1"
-robolectric = "4.17"
+robolectric = "4.18.1"
 org-json = "20260814"
 # Vault: Argon2id, XChaCha20-Poly1305, X25519, BLAKE2b in pure Java (no native code, runs in unit tests).
-bouncycastle = "1.86"
+bouncycastle = "1.87"
 # Medien (GateControl TV): SMB2/3 shares of the NAS (pure Java, also on the 32-bit stick).
 smbj = "0.15.0"
 # Vault: the recovery key as a QR code.

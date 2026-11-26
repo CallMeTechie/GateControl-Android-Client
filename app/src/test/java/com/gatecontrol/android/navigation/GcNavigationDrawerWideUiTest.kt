@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.DrawerValue
@@ -76,9 +77,10 @@ class GcNavigationDrawerWideUiTest {
 
     /**
      * The window: the rail (when [GcWindowLayout] wants one at this width) and the page with the Drive menu. [raw]: Material's
-     * drawer as Drive had it up to v1.139; [centred]: the page in [GcContentWidth] (Mail, Notizen, Drive).
+     * drawer as Drive had it up to v1.139; [centred]: the page in [GcContentWidth] (Mail, Notizen, Drive); [overhang]:
+     * something of the page drawn left of its edge, over the rail, as Material's closed menu was ([Overhang]).
      */
-    private fun window(open: Boolean, raw: Boolean = false, centred: Boolean = false) {
+    private fun window(open: Boolean, raw: Boolean = false, centred: Boolean = false, overhang: Boolean = false) {
         rule.setContent {
             GateControlTheme(darkTheme = false) {
                 val cfg = LocalConfiguration.current
@@ -98,9 +100,14 @@ class GcNavigationDrawerWideUiTest {
                 }
                 val page: @Composable () -> Unit = {
                     if (raw) {
-                        ModalNavigationDrawer(drawerState = state, gesturesEnabled = state.isOpen, drawerContent = sheet) { Box(Modifier.fillMaxSize()) }
+                        Box(Modifier.fillMaxSize()) {
+                            ModalNavigationDrawer(drawerState = state, gesturesEnabled = state.isOpen, drawerContent = sheet) { Box(Modifier.fillMaxSize()) }
+                            if (overhang) Overhang()
+                        }
                     } else {
-                        GcNavigationDrawer(drawerState = state, drawerContent = sheet) { Box(Modifier.fillMaxSize()) }
+                        GcNavigationDrawer(drawerState = state, drawerContent = sheet) {
+                            Box(Modifier.fillMaxSize()) { if (overhang) Overhang() }
+                        }
                     }
                 }
                 Row(Modifier.fillMaxSize().testTag("window")) {
@@ -118,6 +125,12 @@ class GcNavigationDrawerWideUiTest {
             }
         }
         rule.waitForIdle()
+    }
+
+    /** A rail-wide strip right before the page's left edge, unclipped: where Material put its closed menu. */
+    @Composable
+    private fun Overhang() {
+        Box(Modifier.offset(x = -GcWindowLayout.RAIL_WIDTH_DP.dp).width(GcWindowLayout.RAIL_WIDTH_DP.dp).fillMaxHeight().background(Color.White))
     }
 
     private fun bounds(tag: String): Rect = rule.onNodeWithTag(tag).fetchSemanticsNode().boundsInRoot
@@ -234,12 +247,26 @@ class GcNavigationDrawerWideUiTest {
         assertOpen()
     }
 
-    /** The cause: Material's drawer as it was, closed, covers most of the rail. */
+    /**
+     * The cause: Material's closed menu sat right before the page's left edge, unclipped, over most of the rail. Material
+     * from the Compose BOM 2026.11 no longer draws it there by itself, so the fault is put there on purpose ([Overhang])
+     * next to Material's drawer: unclipped it covers the rail, which shows that [railShown] sees the fault.
+     */
     @Test
     @Config(qualifiers = "w841dp-h701dp")
     fun `Material's drawer unclipped covered the rail (the fault)`() {
-        window(open = false, raw = true)
+        window(open = false, raw = true, overhang = true)
+        assertTrue(useRail)
         assertTrue("rail shown ${railShown()}", railShown() < 0.5f)
+    }
+
+    /** The fix holds whatever Material does: [GcNavigationDrawer] clips anything drawn left of the page. */
+    @Test
+    @Config(qualifiers = "w841dp-h701dp")
+    fun `GcNavigationDrawer clips what is drawn left of the page`() {
+        window(open = false, overhang = true)
+        assertTrue(useRail)
+        assertClosed()
     }
 
     /** Every plugin menu goes through [GcNavigationDrawer]. */

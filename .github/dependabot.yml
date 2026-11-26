@@ -13,6 +13,14 @@ updates:
       # Robolectric emulates (:app on 34, :tv on 28), not "newer is better".
       # Bumping them would silently test against another Android version.
       - dependency-name: "org.robolectric:android-all-instrumented"
+      # Drive (faces): onnxruntime stays on the 1.23 line on purpose (no
+      # telemetry provider; 1.27+ ship one, see libs.versions.toml). Leaving
+      # that line is a deliberate change with its own review, not a group bump;
+      # 1.23.x patch releases still come through.
+      - dependency-name: "com.microsoft.onnxruntime:onnxruntime-android"
+        update-types:
+          - "version-update:semver-major"
+          - "version-update:semver-minor"
     groups:
       gradle:
         update-types:

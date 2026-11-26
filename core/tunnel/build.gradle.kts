@@ -6,7 +6,10 @@ plugins {
 
 android {
     namespace = "com.gatecontrol.android.core.tunnel"
-    compileSdk = 37
+    // 37.1: the Compose 1.13 AARs (BOM 2026.11) require compiling against API 37.1 or later.
+    compileSdk {
+        version = release(37) { minorApiLevel = 1 }
+    }
 
     defaultConfig {
         minSdk = 28
@@ -30,6 +33,15 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
 
+    // Since AGP 9.5 the unit-test Java resources go through the packaging excludes,
+    // and the default "**/.*" drops the vendored wg-config-fixtures/.fixtures-hash
+    // that WgConfigValidatorTest checks. This module ships no dotfiles of its own
+    // (src/main has no resources), so keeping dotfiles only affects that fixture.
+    packaging {
+        resources {
+            excludes.remove("**/.*")
+        }
+    }
 }
 
 dependencies {

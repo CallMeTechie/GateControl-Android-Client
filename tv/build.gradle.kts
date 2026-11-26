@@ -22,7 +22,10 @@ val phoneVersionCode: Int = phoneBuildFile.map {
 
 android {
     namespace = "com.gatecontrol.android.tv"
-    compileSdk = 37
+    // 37.1: the Compose 1.13 AARs (BOM 2026.11) require compiling against API 37.1 or later.
+    compileSdk {
+        version = release(37) { minorApiLevel = 1 }
+    }
 
     defaultConfig {
         // The phone app's applicationId + ".tv": both can sit on one account, the server tells them apart.
