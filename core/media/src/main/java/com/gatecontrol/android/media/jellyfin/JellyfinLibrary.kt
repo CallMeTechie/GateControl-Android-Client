@@ -152,7 +152,19 @@ class JellyfinLibrary(
     }
 
     override suspend fun play(play: MediaPlay): MediaResult<MediaPlan> {
-        val body = playbackBody(play, caps())
+        val device = caps()
+        val first = playbackInfo(play, device, direct = true)
+        val plan = (first as? MediaResult.Ok)?.value ?: return first
+        if (plan.method == PlayMethod.TRANSCODE || JellyfinProfile.soundPlays(plan, device)) return first
+        // the server would send the file's sound as it is (DTS, TrueHD) and this device does not decode it: silence.
+        // Asked again without direct play, the NAS converts the sound (the picture is copied where it can be).
+        Timber.d("Jellyfin: sound %s does not play here, converted", JellyfinProfile.soundOf(plan)?.codec)
+        val again = playbackInfo(play, device, direct = false)
+        return if (again is MediaResult.Ok) again else first
+    }
+
+    private suspend fun playbackInfo(play: MediaPlay, device: JellyfinDeviceCaps, direct: Boolean): MediaResult<MediaPlan> {
+        val body = playbackBody(play, device, direct)
         val r = client.post("Items/${play.itemId}/PlaybackInfo", mapOf("userId" to user), body)
         if (r !is MediaResult.Ok) return r.map { error("unreachable") }
         val o = r.value?.takeIf { it.isJsonObject }?.asJsonObject ?: return MediaResult.Failed(200)
@@ -166,18 +178,19 @@ class JellyfinLibrary(
     }
 
     /** The `PlaybackInfo` body: the device profile, the cap, the start and the chosen streams. */
-    internal fun playbackBody(play: MediaPlay, caps: JellyfinDeviceCaps): JsonObject = JsonObject().apply {
+    internal fun playbackBody(play: MediaPlay, caps: JellyfinDeviceCaps, direct: Boolean = true): JsonObject = JsonObject().apply {
         addProperty("UserId", user)
         addProperty("MaxStreamingBitrate", play.maxBitrate)
         addProperty("StartTimeTicks", JellyfinJson.msToTicks(play.startMs))
         play.audioIndex?.let { addProperty("AudioStreamIndex", it) }
         play.subtitleIndex?.let { addProperty("SubtitleStreamIndex", it) }
         play.versionId?.let { addProperty("MediaSourceId", it) }
-        addProperty("EnableDirectPlay", true)
-        addProperty("EnableDirectStream", true)
+        addProperty("EnableDirectPlay", direct)
+        addProperty("EnableDirectStream", direct)
         addProperty("EnableTranscoding", true)
         addProperty("AllowVideoStreamCopy", true)
-        addProperty("AllowAudioStreamCopy", true)
+        // [direct] false: the sound as it is would be silent here, so it is converted, never copied
+        addProperty("AllowAudioStreamCopy", direct)
         addProperty("AutoOpenLiveStream", true)
         add("DeviceProfile", JellyfinProfile.build(caps, play.maxBitrate))
     }

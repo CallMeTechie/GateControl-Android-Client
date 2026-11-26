@@ -95,6 +95,11 @@ data class OfflineItem(
     val playedAt: Long = 0,
     val dirty: Boolean = false,
     val key: ByteArray = ByteArray(0),
+    /**
+     * A converted download was cut off: the NAS converts as it goes and cannot go on at a place, so it starts over
+     * („beginnt von vorn“) when it is loaded next. Cleared once it loads again.
+     */
+    val restarted: Boolean = false,
 ) {
     val itemId: String get() = title.id
     val ready: Boolean get() = state == OfflineState.READY
@@ -109,7 +114,8 @@ data class OfflineItem(
     override fun equals(other: Any?): Boolean = other is OfflineItem && other.id == id && other.state == state && other.loaded == loaded &&
         other.title == title && other.quality == quality && other.failure == failure && other.size == size && other.expected == expected &&
         other.positionMs == positionMs && other.played == played && other.playedAt == playedAt && other.dirty == dirty &&
-        other.version == version && other.subtitles == subtitles && other.addedAt == addedAt && other.audioIndex == audioIndex && other.key.contentEquals(key)
+        other.version == version && other.subtitles == subtitles && other.addedAt == addedAt && other.audioIndex == audioIndex && other.key.contentEquals(key) &&
+        other.restarted == restarted
 
     override fun hashCode(): Int = id.hashCode() * 31 + state.hashCode()
 

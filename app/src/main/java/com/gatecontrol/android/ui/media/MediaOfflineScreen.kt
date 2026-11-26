@@ -189,15 +189,20 @@ private fun groupLine(g: OfflineGroup, wifi: Boolean): String {
     return when {
         g.ready -> stringResource(R.string.media_offline_ready, quality, MediaOfflineLogic.sizeText(g.size))
         g.loading != null -> stringResource(R.string.media_offline_loading, quality, MediaOfflineLogic.sizeText(g.items.sumOf { if (it.ready) it.size else it.expected }), (g.progress * 100).toInt())
-        else -> stringResource(if (wifi) R.string.media_offline_waiting else R.string.media_offline_waiting_wifi)
+        else -> restartNote(g.items.any { it.restarted }, stringResource(if (wifi) R.string.media_offline_waiting else R.string.media_offline_waiting_wifi))
     }
 }
+
+/** A converted download that was cut off starts over (the NAS converts as it goes): said after the waiting. */
+@Composable
+internal fun restartNote(restarted: Boolean, text: String): String =
+    if (restarted) text + " · " + stringResource(R.string.media_offline_restart) else text
 
 @Composable
 internal fun itemLine(item: OfflineItem, wifi: Boolean): String = when (item.state) {
     OfflineState.READY -> stringResource(R.string.media_offline_ready, qualityName(item.quality), MediaOfflineLogic.sizeText(item.size))
     OfflineState.LOADING -> stringResource(R.string.media_offline_loading_short, (item.progress * 100).toInt())
-    OfflineState.QUEUED -> stringResource(if (wifi) R.string.media_offline_waiting else R.string.media_offline_waiting_wifi)
+    OfflineState.QUEUED -> restartNote(item.restarted, stringResource(if (wifi) R.string.media_offline_waiting else R.string.media_offline_waiting_wifi))
     OfflineState.FAILED -> stringResource(R.string.media_offline_failed, failureText(item.failure))
 }
 

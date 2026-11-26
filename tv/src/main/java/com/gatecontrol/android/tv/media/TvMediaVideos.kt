@@ -6,6 +6,7 @@ import androidx.annotation.OptIn
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.DataSource
 import com.gatecontrol.android.media.MediaAudioFate
+import com.gatecontrol.android.media.MediaGate
 import com.gatecontrol.android.media.MediaHub
 import com.gatecontrol.android.media.MediaLibrary
 import com.gatecontrol.android.media.MediaPlan
@@ -15,6 +16,7 @@ import com.gatecontrol.android.media.MediaQuality
 import com.gatecontrol.android.media.MediaQualitySetting
 import com.gatecontrol.android.media.MediaQueue
 import com.gatecontrol.android.media.MediaResult
+import com.gatecontrol.android.media.MediaRoute
 import com.gatecontrol.android.media.MediaSource
 import com.gatecontrol.android.media.MediaStream
 import com.gatecontrol.android.media.MediaTitle
@@ -104,12 +106,14 @@ class TvMediaVideos(
         val title = items[i]
         val src = source!!
         media.check(src)
+        // away with the VPN off: the TV starts it itself, as on opening Medien
+        if (media.route(src) == MediaRoute.BLOCKED && (media.prepare(src) != MediaGate.OPEN || media.route(src) == MediaRoute.BLOCKED)) return TvOpen.Vpn
         val link = media.link.value
         // the file first: its bit rate decides the quality, its streams the series' sound and subtitle
         val detail = when (val d = lib.detail(title.id)) {
             is MediaResult.Ok -> d.value
             MediaResult.Unauthorized -> return TvOpen.SignedOut
-            MediaResult.Offline -> return TvOpen.Offline
+            MediaResult.Offline -> return if (media.route(src) == MediaRoute.BLOCKED) TvOpen.Vpn else TvOpen.Offline
             else -> return TvOpen.Failed
         }
         val version = detail.version
@@ -126,7 +130,7 @@ class TvMediaVideos(
         val plan = when (val p = lib.play(MediaPlay(title.id, version?.id, startMs = 0, audioIndex = a, subtitleIndex = s, maxBitrate = cap))) {
             is MediaResult.Ok -> p.value
             MediaResult.Unauthorized -> return TvOpen.SignedOut
-            MediaResult.Offline -> return TvOpen.Offline
+            MediaResult.Offline -> return if (media.route(src) == MediaRoute.BLOCKED) TvOpen.Vpn else TvOpen.Offline
             else -> return TvOpen.Failed
         }
         plans[i] = plan

@@ -46,6 +46,7 @@ object MediaOfflineIndex {
         addProperty("playedAt", i.playedAt)
         addProperty("dirty", i.dirty)
         addProperty("key", Base64.getEncoder().encodeToString(i.key))
+        if (i.restarted) addProperty("restarted", true)
     }
 
     private fun item(o: JsonObject): OfflineItem? {
@@ -73,6 +74,7 @@ object MediaOfflineIndex {
             played = o.b("played") == true,
             playedAt = o.l("playedAt") ?: 0,
             dirty = o.b("dirty") == true,
+            restarted = o.b("restarted") == true,
             key = key,
         )
     }

@@ -235,6 +235,7 @@
     <string name="tv_viewer_slideshow">Slide show</string>
     <!-- The player of Drive's videos -->
     <string name="tv_player_cannot_play">This video (%1$s) cannot be played on this TV.</string>
+    <string name="tv_player_no_sound">No sound: this TV does not play the sound of this video (%1$s). An AV receiver that takes it, or Jellyfin converting it, helps.</string>
     <string name="tv_player_network">The video stopped loading. Check the connection.</string>
     <string name="tv_player_resumed">Resumed at %1$s</string>
     <string name="tv_player_tracks_hint">▲ Audio &amp; subtitles: %1$s</string>

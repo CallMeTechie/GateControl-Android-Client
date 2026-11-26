@@ -52,4 +52,6 @@
     <string name="media_player_mobile_text_none">Im Mobilfunk spielt GateControl ohne Grenze ab. Im 5G-Netz kann ein Film schnell 10 GB brauchen. Eine Grenze lässt sich unter Medien › Quellen setzen.</string>
     <string name="media_player_mobile_ok">Verstanden</string>
     <string name="media_player_episode">Staffel %1$d · Folge %2$d</string>
+    <string name="media_player_no_sound">Kein Ton: Dieses Handy spielt den Ton dieses Videos (%1$s) nicht ab. Nochmal versuchen oder unter Ton &amp; Untertitel einen anderen Ton wählen.</string>
+    <string name="media_player_no_sound_file">Kein Ton: Dieses Handy spielt den Ton dieser Datei (%1$s) nicht ab. Über Jellyfin rechnet der Server ihn um.</string>
 </resources>

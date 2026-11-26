@@ -235,6 +235,7 @@
     <string name="tv_viewer_slideshow">Diashow</string>
     <!-- Der Player für Drive-Videos -->
     <string name="tv_player_cannot_play">Dieses Video (%1$s) kann dieser Fernseher nicht abspielen.</string>
+    <string name="tv_player_no_sound">Kein Ton: Dieser Fernseher spielt den Ton dieses Videos (%1$s) nicht ab. Ein AV-Receiver, der ihn annimmt, oder Jellyfin, das ihn umrechnet, hilft.</string>
     <string name="tv_player_network">Das Video lädt nicht weiter. Prüfe die Verbindung.</string>
     <string name="tv_player_resumed">Weiter ab %1$s</string>
     <string name="tv_player_tracks_hint">▲ Ton &amp; Untertitel: %1$s</string>

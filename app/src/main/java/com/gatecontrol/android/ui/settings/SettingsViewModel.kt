@@ -10,6 +10,7 @@ import com.gatecontrol.android.data.MachineFingerprint
 import com.gatecontrol.android.network.MachineBindingError
 import com.gatecontrol.android.ui.toUiText
 import com.gatecontrol.android.data.SetupRepository
+import com.gatecontrol.android.media.server.MediaServerSwitch
 import com.gatecontrol.android.data.SplitTunnelJson
 import com.gatecontrol.android.data.SettingsRepository
 import com.gatecontrol.android.network.ApiClientProvider
@@ -84,6 +85,8 @@ class SettingsViewModel @Inject constructor(
     private val supportBundleUploader: SupportBundleUploader,
     private val clientPolicyManager: ClientPolicyManager,
     private val machineFingerprint: MachineFingerprint,
+    /** Another server or token: this device leaves Jellyfin first (Medien), the old server's sources go. */
+    private val mediaSwitch: MediaServerSwitch = MediaServerSwitch.NONE,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(SettingsUiState())
@@ -264,7 +267,12 @@ class SettingsViewModel @Inject constructor(
                     client.ping()
                 }
 
+                // the old token still counts: this device is signed out of Jellyfin first (never blocks the change)
+                val oldUrl = setupRepository.getServerUrl()
+                val leaving = MediaServerSwitch.changes(oldUrl, setupRepository.getApiToken(), url, token)
+                val signedOut = leaving && runCatching { mediaSwitch.leaving() }.getOrDefault(false)
                 setupRepository.save(url, token, peerId.coerceAtLeast(0))
+                if (leaving) mediaSwitch.switched(ok = true, sameServer = MediaServerSwitch.sameServer(oldUrl, url), signedOut = signedOut)
                 // New server / token: the old server's policy must not stick.
                 clientPolicyManager.reset()
                 _uiState.update {
