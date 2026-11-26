@@ -2,6 +2,7 @@ package com.gatecontrol.android.media.jellyfin
 
 import com.gatecontrol.android.media.MediaClientInfo
 import com.gatecontrol.android.media.MediaDetail
+import com.gatecontrol.android.media.MediaFallback
 import com.gatecontrol.android.media.MediaLibrary
 import com.gatecontrol.android.media.MediaOrder
 import com.gatecontrol.android.media.MediaPage
@@ -250,7 +251,7 @@ class JellyfinLibrary(
     override suspend fun episodes(seriesId: String, seasonId: String?): MediaResult<List<MediaTitle>> =
         client.get(
             "Shows/$seriesId/Episodes",
-            mapOf("userId" to user, "seasonId" to seasonId, "fields" to "$FIELDS,Overview", "enableUserData" to true),
+            mapOf("userId" to user, "seasonId" to seasonId, "fields" to "$FIELDS,Overview", "enableUserData" to true, "enableImageTypes" to IMAGES),
         ).map { JellyfinJson.items(it, source.id) }
 
     override suspend fun detail(itemId: String): MediaResult<MediaDetail> {
@@ -263,23 +264,47 @@ class JellyfinLibrary(
 
     override suspend fun play(play: MediaPlay): MediaResult<MediaPlan> {
         val device = caps()
-        val first = playbackInfo(play, device, direct = true)
+        // the file did not start here (no picture, a fault): never the file itself, after a second try all converted
+        val convert = play.fallback == MediaFallback.CONVERT
+        val first = playbackInfo(play, device, direct = play.fallback == MediaFallback.NONE, audioCopy = !convert, videoCopy = !convert)
         val plan = (first as? MediaResult.Ok)?.value ?: return first
-        if (plan.method == PlayMethod.TRANSCODE || JellyfinProfile.soundPlays(plan, device)) return first
+        if (plan.method == PlayMethod.TRANSCODE || JellyfinProfile.soundPlays(plan, device)) return first.also { logPlan(plan, play, device) }
         // the server would send the file's sound as it is (DTS, TrueHD) and this device does not decode it: silence.
         // Asked again without direct play, the NAS converts the sound (the picture is copied where it can be).
-        Timber.d("Jellyfin: sound %s does not play here, converted", JellyfinProfile.soundOf(plan)?.codec)
-        val again = playbackInfo(play, device, direct = false)
-        return if (again is MediaResult.Ok) again else first
+        Timber.i("Jellyfin: sound %s does not play here, converted", JellyfinProfile.soundOf(plan)?.codec)
+        val again = playbackInfo(play, device, direct = false, audioCopy = false, videoCopy = !convert)
+        return if (again is MediaResult.Ok) again.also { logPlan(again.value, play, device) } else first
     }
 
-    private suspend fun playbackInfo(play: MediaPlay, device: JellyfinDeviceCaps, direct: Boolean): MediaResult<MediaPlan> {
-        val body = playbackBody(play, device, direct)
+    /**
+     * What was decided, for the app's log ("Einstellungen › Protokoll"): how it plays, the file's codecs and what the
+     * device decodes. No URL, server, token or title.
+     */
+    private fun logPlan(plan: MediaPlan, play: MediaPlay, device: JellyfinDeviceCaps) {
+        val v = plan.version
+        val video = v.video?.let { s -> listOfNotNull(s.codec, s.profile, s.level?.let { "L$it" }, s.bitDepth?.let { "${it}bit" }, s.height?.let { "${it}p" }, s.videoRangeType).joinToString("/") }
+        val sound = JellyfinProfile.soundOf(plan)?.let { s -> listOfNotNull(s.codec, s.channels?.let { "${it}ch" }).joinToString("/") }
+        val pictureSubtitle = v.subtitles.firstOrNull { it.index == plan.subtitleIndex }?.takeIf { it.picture }?.codec
+        Timber.i(
+            "Jellyfin: plays %s (fallback %s) container=%s video=%s audio=%s subtitle=%s reasons=%s | device %s",
+            plan.method.wire,
+            play.fallback.name.lowercase(java.util.Locale.ROOT),
+            v.container,
+            video,
+            sound,
+            pictureSubtitle ?: "-",
+            v.transcodeReasons.joinToString(",").ifEmpty { "-" },
+            JellyfinProfile.describe(device),
+        )
+    }
+
+    private suspend fun playbackInfo(play: MediaPlay, device: JellyfinDeviceCaps, direct: Boolean, audioCopy: Boolean = direct, videoCopy: Boolean = true): MediaResult<MediaPlan> {
+        val body = playbackBody(play, device, direct, audioCopy, videoCopy)
         val r = client.post("Items/${play.itemId}/PlaybackInfo", mapOf("userId" to user), body)
         if (r !is MediaResult.Ok) return r.map { error("unreachable") }
         val o = r.value?.takeIf { it.isJsonObject }?.asJsonObject ?: return MediaResult.Failed(200)
         if (o.str("ErrorCode") != null) {
-            Timber.d("Jellyfin: playback refused (%s)", o.str("ErrorCode"))
+            Timber.i("Jellyfin: playback refused (%s)", o.str("ErrorCode"))
             return MediaResult.Failed(200)
         }
         val versions = JellyfinJson.versions(o)
@@ -287,8 +312,11 @@ class JellyfinLibrary(
         return plan(play, version, o.str("PlaySessionId"))?.let { MediaResult.Ok(it) } ?: MediaResult.Failed(200)
     }
 
-    /** The `PlaybackInfo` body: the device profile, the cap, the start and the chosen streams. */
-    internal fun playbackBody(play: MediaPlay, caps: JellyfinDeviceCaps, direct: Boolean = true): JsonObject = JsonObject().apply {
+    /**
+     * The `PlaybackInfo` body: the device profile, the cap, the start and the chosen streams. [direct] false: never the
+     * file itself; [audioCopy] / [videoCopy] false: that stream is converted, never copied.
+     */
+    internal fun playbackBody(play: MediaPlay, caps: JellyfinDeviceCaps, direct: Boolean = true, audioCopy: Boolean = direct, videoCopy: Boolean = true): JsonObject = JsonObject().apply {
         addProperty("UserId", user)
         addProperty("MaxStreamingBitrate", play.maxBitrate)
         addProperty("StartTimeTicks", JellyfinJson.msToTicks(play.startMs))
@@ -298,9 +326,9 @@ class JellyfinLibrary(
         addProperty("EnableDirectPlay", direct)
         addProperty("EnableDirectStream", direct)
         addProperty("EnableTranscoding", true)
-        addProperty("AllowVideoStreamCopy", true)
-        // [direct] false: the sound as it is would be silent here, so it is converted, never copied
-        addProperty("AllowAudioStreamCopy", direct)
+        addProperty("AllowVideoStreamCopy", videoCopy)
+        // the sound as it is would be silent here (or did not start): converted, never copied
+        addProperty("AllowAudioStreamCopy", audioCopy)
         addProperty("AutoOpenLiveStream", true)
         add("DeviceProfile", JellyfinProfile.build(caps, play.maxBitrate))
     }

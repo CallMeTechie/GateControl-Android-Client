@@ -7,6 +7,7 @@ import androidx.annotation.OptIn
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
 import androidx.media3.common.ForwardingPlayer
+import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
@@ -14,6 +15,7 @@ import androidx.media3.common.TrackSelectionParameters
 import androidx.media3.common.Tracks
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.DataSource
+import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import com.gatecontrol.android.drive.DriveMediaLogic
@@ -36,16 +38,21 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import timber.log.Timber
 import javax.inject.Inject
 import javax.inject.Singleton
 
-/** Why the player shows no picture ([VPN]: away only through the VPN, it is off). */
-enum class MediaPlayerTrouble { NETWORK, VPN, SIGNED_OUT, FAILED, CANNOT_PLAY }
+/**
+ * Why the player shows no picture ([VPN]: away only through the VPN, it is off; [UNPLAYABLE]: the phone does not play
+ * the file itself and the Jellyfin server could not convert it either, [MediaPlayerUi.codecs] says what it is).
+ */
+enum class MediaPlayerTrouble { NETWORK, VPN, SIGNED_OUT, FAILED, CANNOT_PLAY, UNPLAYABLE }
 
 /** What the player's screen shows besides the picture. */
 data class MediaPlayerUi(
     val queue: MediaQueue,
     val at: Int,
+    /** The source's name: never shown in the player (no server names or addresses on the screen). */
     val sourceName: String? = null,
     val loading: Boolean = true,
     val trouble: MediaPlayerTrouble? = null,
@@ -57,6 +64,12 @@ data class MediaPlayerUi(
     val countdown: Int? = null,
     /** "Weiter ab 42:10" for a moment after opening. */
     val resumedAt: Long? = null,
+    /** „Direkt ging nicht – der NAS wandelt jetzt um“ for a moment: the file did not start, asked again converted. */
+    val fellBack: Boolean = false,
+    /** With [MediaPlayerTrouble.UNPLAYABLE]: the file's codecs ("HEVC Main 10 · DTS 5.1"). */
+    val codecs: String? = null,
+    /** With [MediaPlayerTrouble.UNPLAYABLE]: the picture the phone does not decode ("H.264 10-Bit (High 10)"). */
+    val problem: String? = null,
     /** The note on the data volume, once, before the first playback on mobile data (question 28). */
     val mobileHint: Boolean = false,
     /** The video has ended (and nothing follows). */
@@ -158,6 +171,8 @@ class MediaPlayerSession @Inject constructor(
             .setMediaSourceFactory(DefaultMediaSourceFactory(factory))
             .setAudioAttributes(attrs, true)
             .setHandleAudioBecomingNoisy(true)
+            // a decoder that fails to start gives way to the next one (software) instead of a fault
+            .setRenderersFactory(DefaultRenderersFactory(app).setEnableDecoderFallback(true))
             .setWakeMode(C.WAKE_MODE_NETWORK)
             .setSeekBackIncrementMs(MediaPlayerLogic.SEEK_STEP_MS)
             .setSeekForwardIncrementMs(MediaPlayerLogic.SEEK_STEP_MS)
@@ -165,7 +180,23 @@ class MediaPlayerSession @Inject constructor(
             .also { it.addListener(listener) }
     }
 
+    /** The current video showed its first picture (else, after [MediaPlayerLogic.firstPictureMs], it falls back). */
+    private var pictured = false
+    private var watchJob: Job? = null
+    private var noteJob: Job? = null
+
     private val listener = object : Player.Listener {
+        override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
+            // a video set (opened, asked again): watched until its first picture
+            pictured = false
+            watchJob?.cancel()
+            if (mediaItem != null) watchStart()
+        }
+
+        override fun onRenderedFirstFrame() {
+            pictured = true
+        }
+
         override fun onIsPlayingChanged(isPlaying: Boolean) {
             val p = _player.value ?: return
             reporter.playingChanged(p, at, isPlaying)
@@ -190,6 +221,9 @@ class MediaPlayerSession @Inject constructor(
                 DriveMediaLogic.Trouble.CANNOT_PLAY -> MediaPlayerTrouble.CANNOT_PLAY
                 DriveMediaLogic.Trouble.OTHER -> MediaPlayerTrouble.FAILED
             }
+            Timber.i("Medien: player fault %s", error.errorCodeName)
+            // the file, its codec or the server's answer: asked again packed anew or converted, at the same place
+            if (MediaPlayerLogic.fallsBackOn(trouble) && fallBack(error.errorCodeName)) return
             _ui.update { it?.copy(loading = false, trouble = trouble) }
         }
 
@@ -202,6 +236,63 @@ class MediaPlayerSession @Inject constructor(
             pending = null
             p.trackSelectionParameters = MediaPlayerTracks.apply(p.trackSelectionParameters, tracks, want)
         }
+    }
+
+    /**
+     * Watches the video just set ([MediaStallWatch]): no first picture in time (at home 8 s, away 15 s) or hanging
+     * three times longer than 10 s after the start, and it is asked again another way. Paused or waiting (the note on
+     * the data volume, loading ahead) does not count.
+     */
+    private fun watchStart() {
+        val p = _player.value ?: return
+        val watch = MediaStallWatch(last = videos?.fallback(at) == MediaFallback.CONVERT)
+        watchJob = main.launch {
+            while (isActive && _player.value === p) {
+                delay(MediaPlayerLogic.WATCH_STEP_MS)
+                val state = p.playbackState
+                val net = _ui.value?.line?.net
+                if (watch.step(MediaPlayerLogic.WATCH_STEP_MS, p.playWhenReady, state == Player.STATE_BUFFERING, state == Player.STATE_READY, pictured, net)) {
+                    fallBack(if (pictured) "hung ${watch.stalls} times" else "no first picture after ${watch.waitedMs / 1_000} s")
+                    return@launch
+                }
+            }
+        }
+    }
+
+    /**
+     * The current video did not start ([why], for the log): asked again the next way ([PhoneMediaVideos.fallBack]) at
+     * the same place ([from], else where the player is), a short note says so; with nothing left to try
+     * [unplayable]. False: a share or a download (its own fault stays).
+     */
+    private fun fallBack(why: String, from: Long? = null): Boolean {
+        val v = videos ?: return false
+        val p = _player.value ?: return false
+        val i = at
+        val step = v.fallBack(i) ?: return unplayable(v, i)
+        Timber.i("Medien: %s did not start (%s): asked again as %s", v.plan(i)?.method?.wire, why, step.name.lowercase(java.util.Locale.ROOT))
+        val pos = from ?: p.currentPosition.takeIf { it > 0 } ?: v.startAt(i) ?: 0L
+        open(i, from = pos, play = true)
+        _ui.update { it?.copy(fellBack = true) }
+        noteJob?.cancel()
+        noteJob = main.launch {
+            delay(MediaPlayerLogic.FELL_BACK_NOTE_MS)
+            _ui.update { it?.copy(fellBack = false) }
+        }
+        return true
+    }
+
+    /**
+     * Every way was tried (the file itself, packed anew, converted): „Dieses Video kann dein Gerät nicht direkt abspielen
+     * und der Jellyfin-Server kann es nicht umwandeln“ with its codecs, instead of loading forever. False for a share
+     * or a download (their own fault stays).
+     */
+    private fun unplayable(v: PhoneMediaVideos, i: Int): Boolean {
+        if (v.fallback(i) == MediaFallback.NONE) return false
+        Timber.i("Medien: no way plays here (%s; %s)", v.codecs(i), v.problem(i) ?: "-")
+        _player.value?.let { reporter.stop(it, at) }
+        _player.value?.stop()
+        _ui.update { it?.copy(loading = false, trouble = MediaPlayerTrouble.UNPLAYABLE, codecs = v.codecs(i), problem = v.problem(i), fellBack = false) }
+        return true
     }
 
     /** The end of a video: "Nächste Folge in 10 s" for an episode, else the next video of the queue, else the end. */
@@ -255,7 +346,7 @@ class MediaPlayerSession @Inject constructor(
                     val t = v.items[i]
                     val meta = MediaMetadata.Builder()
                         .setTitle(t.seriesName?.takeIf { t.kind == MediaTitle.Kind.EPISODE } ?: t.name)
-                        .setSubtitle(if (t.kind == MediaTitle.Kind.EPISODE) MediaPlayerLogic.name(t) else _ui.value?.sourceName)
+                        .setSubtitle(if (t.kind == MediaTitle.Kind.EPISODE) MediaPlayerLogic.name(t) else t.year?.toString())
                         .setDisplayTitle(MediaPlayerLogic.name(t))
                         .build()
                     val item = MediaPlayers.item(r.plan, v.key(i)).buildUpon().setMediaMetadata(meta).build()
@@ -281,7 +372,10 @@ class MediaPlayerSession @Inject constructor(
                 PhoneOpen.Offline -> _ui.update { it?.copy(loading = false, trouble = MediaPlayerTrouble.NETWORK) }
                 is PhoneOpen.Vpn -> _ui.update { it?.copy(loading = false, trouble = MediaPlayerTrouble.VPN, vpnConsent = r.consent) }
                 PhoneOpen.SignedOut -> _ui.update { it?.copy(loading = false, trouble = MediaPlayerTrouble.SIGNED_OUT) }
-                PhoneOpen.Failed -> _ui.update { it?.copy(loading = false, trouble = MediaPlayerTrouble.FAILED) }
+                // asked again another way and refused (the server cannot convert it): the next way, else said clearly
+                PhoneOpen.Failed -> if (v.fallback(i) == MediaFallback.NONE || !fallBack("the server refused ${v.fallback(i).name.lowercase(java.util.Locale.ROOT)}", from)) {
+                    _ui.update { it?.copy(loading = false, trouble = if (v.fallback(i) == MediaFallback.NONE) MediaPlayerTrouble.FAILED else MediaPlayerTrouble.UNPLAYABLE, codecs = v.codecs(i), problem = v.problem(i)) }
+                }
             }
         }
     }
@@ -305,6 +399,8 @@ class MediaPlayerSession @Inject constructor(
 
     fun retry() {
         val ui = _ui.value ?: return
+        // „Nochmal“ after every way failed: from the file itself again (the server may convert by now)
+        if (ui.trouble == MediaPlayerTrouble.UNPLAYABLE) videos?.resetFallback(ui.at)
         if (_player.value == null) {
             start(ui.queue.copy(at = ui.at))
             return

@@ -61,6 +61,70 @@ object MediaPlayerLogic {
     /** Back to the start first, then the video before (as other players). */
     const val PREVIOUS_RESTART_MS = 5_000L
 
+    /**
+     * No first picture after this long with play on (loading or "playing" without a picture): the file as it is does
+     * not start on this phone, it is asked again packed anew or converted ([nextFallback]). At home sooner, away the
+     * tunnel may take longer for the first seconds.
+     */
+    const val FIRST_PICTURE_HOME_MS = 8_000L
+    const val FIRST_PICTURE_AWAY_MS = 15_000L
+
+    /** After the start: loading this long counts as hanging; [STALLS] such times and it is asked another way. */
+    const val STALL_MS = 10_000L
+    const val STALLS = 3
+
+    /** How often the playback is looked at ([MediaStallWatch]). */
+    const val WATCH_STEP_MS = 1_000L
+
+    /**
+     * Converted on the NAS (the last way) a first picture may take this many times longer (the NAS starts ffmpeg);
+     * after it only „kann es nicht umwandeln“ is left.
+     */
+    const val LAST_WAY_FACTOR = 2
+
+    /** The wait for the first picture on [net] (away, on mobile data or not known: the longer one); [last]: converted. */
+    fun firstPictureMs(net: MediaNet?, last: Boolean = false): Long =
+        (if (net == MediaNet.HOME) FIRST_PICTURE_HOME_MS else FIRST_PICTURE_AWAY_MS) * (if (last) LAST_WAY_FACTOR else 1)
+
+    /** The note "Direkt ging nicht – der NAS wandelt jetzt um" stays this long. */
+    const val FELL_BACK_NOTE_MS = 6_000L
+
+    /**
+     * The next way to ask for a video that did not start ([now]: how it was asked): the file itself → packed anew
+     * (remux; the picture and sound copied where the profile allows) → all converted; null: nothing left to try.
+     * Already converted by the server (only the sound, say) → all converted.
+     */
+    fun nextFallback(plan: MediaPlan, now: MediaFallback): MediaFallback? = when (now) {
+        MediaFallback.NONE -> if (plan.method == PlayMethod.TRANSCODE) MediaFallback.CONVERT else MediaFallback.REMUX
+        MediaFallback.REMUX -> MediaFallback.CONVERT
+        MediaFallback.CONVERT -> null
+    }
+
+    /**
+     * The subtitle asked for [version] when it is asked another way ([fallback]): a picture subtitle (PGS, DVD) would
+     * be burnt in on the NAS (the hardest work for it), so none then; played directly Media3 shows it itself. [chosen]
+     * null: the server's default, which may be such a picture subtitle.
+     */
+    fun subtitleFor(version: MediaVersion?, chosen: Int?, fallback: MediaFallback): Int? {
+        if (fallback == MediaFallback.NONE || version == null) return chosen
+        val index = chosen ?: version.defaultSubtitle ?: return chosen
+        val picture = version.subtitles.firstOrNull { it.index == index }?.picture == true
+        return if (picture) MediaPlay.SUBTITLES_OFF else chosen
+    }
+
+    /** What the file is, for the note when nothing plays: "HEVC Main 10 10 Bit · DTS 5.1". */
+    fun codecs(version: MediaVersion, audioIndex: Int?): String? {
+        val v = version.video?.let { s ->
+            listOfNotNull(s.codec?.uppercase(java.util.Locale.ROOT), s.profile, s.bitDepth?.takeIf { it > 8 }?.let { "$it Bit" }).joinToString(" ").ifEmpty { null }
+        }
+        val sound = (version.audio.firstOrNull { it.index == audioIndex } ?: version.audio.firstOrNull { it.index == version.defaultAudio } ?: version.audio.firstOrNull())
+            ?.let { MediaTracks.audioLabel(it) }
+        return listOfNotNull(v, sound, version.container?.uppercase(java.util.Locale.ROOT)).joinToString(" · ").ifEmpty { null }
+    }
+
+    /** A player fault worth another way (the file, its codec or the server's answer); a lost connection is not. */
+    fun fallsBackOn(trouble: MediaPlayerTrouble): Boolean = trouble != MediaPlayerTrouble.NETWORK
+
     /** Where a seek by [deltaMs] from [positionMs] lands, inside the video (its [durationMs]; 0: unknown). */
     fun seekTarget(positionMs: Long, deltaMs: Long, durationMs: Long): Long {
         val to = (positionMs + deltaMs).coerceAtLeast(0)
@@ -176,4 +240,47 @@ object MediaPlayerLogic {
     /** The countdown to the next episode after the end of [at]; null: none (a film, the last episode). */
     fun countdownAfter(queue: MediaQueue, at: Int): Int? =
         NEXT_SECONDS.takeIf { at < queue.items.size - 1 && queue.items.any { it.kind == MediaTitle.Kind.EPISODE } }
+}
+
+/**
+ * Watches one video in the phone's player, a step at a time: with play on and no first picture for
+ * [MediaPlayerLogic.firstPictureMs], or after the start [MediaPlayerLogic.STALLS] times loading longer than
+ * [MediaPlayerLogic.STALL_MS], it is asked again another way. Paused or waiting (the note on the data volume, loading
+ * ahead) does not count. [last]: the last way (converted on the NAS): a longer wait for the first picture; after it
+ * only „schafft die Umwandlung nicht“ is left. Pure, unit-tested.
+ */
+class MediaStallWatch(private val last: Boolean = false) {
+    private var waited = 0L
+    private var stalled = 0L
+    private var counted = false
+
+    /** The times it hung after the start. */
+    var stalls = 0
+        private set
+
+    /** Waited for the first picture so far. */
+    val waitedMs: Long get() = waited
+
+    /**
+     * One step of [stepMs]: [playing] play is on, [loading] / [ready] the player's state, [pictured] the first picture
+     * came, [net] home or away. True: ask for it another way now.
+     */
+    fun step(stepMs: Long, playing: Boolean, loading: Boolean, ready: Boolean, pictured: Boolean, net: MediaNet?): Boolean {
+        if (!pictured) {
+            if (playing && (loading || ready)) waited += stepMs
+            return waited >= MediaPlayerLogic.firstPictureMs(net, last)
+        }
+        if (playing && loading) {
+            stalled += stepMs
+            if (stalled >= MediaPlayerLogic.STALL_MS && !counted) {
+                counted = true
+                stalls++
+                return stalls >= MediaPlayerLogic.STALLS
+            }
+        } else {
+            stalled = 0
+            counted = false
+        }
+        return false
+    }
 }

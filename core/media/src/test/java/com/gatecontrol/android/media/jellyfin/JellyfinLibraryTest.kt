@@ -1,6 +1,7 @@
 package com.gatecontrol.android.media.jellyfin
 
 import com.gatecontrol.android.media.MediaClientInfo
+import com.gatecontrol.android.media.MediaFallback
 import com.gatecontrol.android.media.MediaPlan
 import com.gatecontrol.android.media.MediaPlay
 import com.gatecontrol.android.media.MediaProgress
@@ -125,6 +126,8 @@ class JellyfinLibraryTest {
         val r = server.takeRequest().requestUrl!!
         assertEquals("/Shows/s9/Episodes", r.encodedPath)
         assertEquals("se2", r.queryParameter("seasonId"))
+        // "Nächste Folgen" in the player shows each episode's picture
+        assertEquals(JellyfinLibrary.IMAGES, r.queryParameter("enableImageTypes"))
     }
 
     private val version = """
@@ -227,6 +230,43 @@ class JellyfinLibraryTest {
         assertFalse(again.get("EnableDirectStream").asBoolean)
         assertFalse(again.get("AllowAudioStreamCopy").asBoolean)
         assertTrue(again.get("AllowVideoStreamCopy").asBoolean)
+    }
+
+    @Test
+    fun `a file that did not start - asked again packed anew, then all converted`() = runTest {
+        val converting = version.replace("\"SupportsDirectPlay\":true", "\"SupportsDirectPlay\":false")
+            .replace(
+                "\"DefaultAudioStreamIndex\":1,",
+                "\"DefaultAudioStreamIndex\":1,\"TranscodingSubProtocol\":\"hls\"," +
+                    "\"TranscodingUrl\":\"/videos/m1/master.m3u8?MediaSourceId=v1&TranscodeReasons=DirectPlayError\",",
+            )
+        server.enqueue(json("""{"MediaSources":[$converting],"PlaySessionId":"ps3"}"""))
+        val remux = (library.play(MediaPlay("m1", fallback = MediaFallback.REMUX)) as MediaResult.Ok).value
+        assertTrue(remux.hls)
+        val body = JsonParser.parseString(server.takeRequest().body.readUtf8()).asJsonObject
+        assertFalse(body.get("EnableDirectPlay").asBoolean)
+        assertFalse(body.get("EnableDirectStream").asBoolean)
+        assertTrue(body.get("AllowVideoStreamCopy").asBoolean)
+        assertTrue(body.get("AllowAudioStreamCopy").asBoolean)
+
+        server.enqueue(json("""{"MediaSources":[$converting],"PlaySessionId":"ps4"}"""))
+        library.play(MediaPlay("m1", fallback = MediaFallback.CONVERT))
+        val all = JsonParser.parseString(server.takeRequest().body.readUtf8()).asJsonObject
+        assertFalse(all.get("EnableDirectPlay").asBoolean)
+        assertFalse(all.get("AllowVideoStreamCopy").asBoolean)
+        assertFalse(all.get("AllowAudioStreamCopy").asBoolean)
+    }
+
+    @Test
+    fun `the video's profile, level and bits are read`() {
+        val o = JsonParser.parseString("""{"Index":0,"Type":"Video","Codec":"h264","Profile":"High 10","Level":51,"BitDepth":10}""").asJsonObject
+        val s = JellyfinJson.stream(o)!!
+        assertEquals("High 10", s.profile)
+        assertEquals(51, s.level)
+        assertEquals(10, s.bitDepth)
+        val none = JellyfinJson.stream(JsonParser.parseString("""{"Index":1,"Type":"Audio","Codec":"aac","Level":0}""").asJsonObject)!!
+        assertNull(none.level)
+        assertNull(none.bitDepth)
     }
 
     @Test

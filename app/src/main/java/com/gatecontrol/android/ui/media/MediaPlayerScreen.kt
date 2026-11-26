@@ -46,6 +46,7 @@ import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -82,6 +83,7 @@ import androidx.media3.ui.PlayerView
 import com.gatecontrol.android.R
 import com.gatecontrol.android.media.MediaNet
 import com.gatecontrol.android.media.MediaPhoneLogic
+import com.gatecontrol.android.media.MediaPictures
 import com.gatecontrol.android.media.MediaPlay
 import com.gatecontrol.android.media.MediaPlayLine
 import com.gatecontrol.android.media.MediaPlayerChoices
@@ -163,6 +165,8 @@ fun MediaPlayerScreen(
     pip: Boolean,
     mobileCap: Long?,
     actions: MediaPlayerActions,
+    /** The pictures of "Nächste Folgen" (the player's window is not under the media pages that give them). */
+    pictures: MediaPictures? = null,
 ) {
     var sheet by rememberSaveable { mutableStateOf(false) }
     var tracks by remember { mutableStateOf(player?.currentTracks ?: Tracks.EMPTY) }
@@ -191,7 +195,9 @@ fun MediaPlayerScreen(
             Box(Modifier.fillMaxWidth().background(Color.Black).statusBarsPadding().aspectRatio(16f / 9f)) {
                 VideoArea(ui, player, landscape = false, onSheet = { sheet = true }, actions = actions)
             }
-            Infos(ui, onPlayAt = actions.onPlayAt, onSheet = { sheet = true })
+            CompositionLocalProvider(LocalMediaPictures provides (pictures ?: LocalMediaPictures.current)) {
+                Infos(ui, onPlayAt = actions.onPlayAt, onSheet = { sheet = true })
+            }
         }
     }
     if (sheet) {
@@ -369,8 +375,16 @@ private fun BoxScope.VideoArea(ui: MediaPlayerUi, player: Player?, landscape: Bo
             actions = actions,
         )
     }
-    ui.trouble?.let { Trouble(it, actions, consent = ui.vpnConsent) }
+    ui.trouble?.let { Trouble(it, actions, consent = ui.vpnConsent, codecs = ui.codecs, problem = ui.problem) }
     ui.countdown?.let { Countdown(ui, it, actions) }
+    if (ui.fellBack && ui.trouble == null) {
+        Text(
+            stringResource(R.string.media_player_fell_back),
+            color = Color.White,
+            style = MaterialTheme.typography.labelMedium,
+            modifier = Modifier.align(Alignment.TopCenter).padding(12.dp).clip(RoundedCornerShape(8.dp)).background(Color.Black.copy(alpha = 0.6f)).padding(horizontal = 10.dp, vertical = 6.dp).testTag(FELL_BACK_TAG),
+        )
+    }
     ui.resumedAt?.let { at ->
         if (!controls && !locked) {
             Text(
@@ -476,7 +490,10 @@ private fun Pill(text: String, icon: androidx.compose.ui.graphics.vector.ImageVe
     }
 }
 
-/** "Staffel 2 · Folge 4 · Jellyfin · DS918+" / "2025 · 1 Std. 48 Min. · DS918+". */
+/**
+ * "Staffel 2 · Folge 4" / "2025 · 1 Std. 48 Min.": never the source's name or the server's address (no hosts or
+ * domains on the screen; the chips say whether it plays at home or away).
+ */
 @Composable
 private fun subline(ui: MediaPlayerUi): String? {
     val t = ui.title
@@ -488,8 +505,6 @@ private fun subline(ui: MediaPlayerUi): String? {
             t.year?.let { add(it.toString()) }
             t.runtimeMs?.takeIf { it > 0 }?.let { add(runtimeText(it)) }
         }
-        val src = if (ui.share) ui.sourceName else ui.sourceName?.let { "Jellyfin · $it" }
-        src?.let { add(it) }
     }
     return parts.joinToString(" · ").ifEmpty { null }
 }
@@ -586,18 +601,20 @@ private fun BoxScope.Countdown(ui: MediaPlayerUi, seconds: Int, actions: MediaPl
 }
 
 @Composable
-private fun BoxScope.Trouble(trouble: MediaPlayerTrouble, actions: MediaPlayerActions, consent: Boolean = false) {
+private fun BoxScope.Trouble(trouble: MediaPlayerTrouble, actions: MediaPlayerActions, consent: Boolean = false, codecs: String? = null, problem: String? = null) {
     if (trouble == MediaPlayerTrouble.VPN) {
         VpnTrouble(actions, consent)
         return
     }
-    val text = stringResource(
+    // the phone does not decode the picture and the NAS did not convert it in time: what it is and what helps
+    val text = if (trouble == MediaPlayerTrouble.UNPLAYABLE && problem != null) stringResource(R.string.media_player_unplayable_video, problem) else stringResource(
         when (trouble) {
             MediaPlayerTrouble.NETWORK -> R.string.media_player_network
             MediaPlayerTrouble.VPN -> R.string.media_vpn_blocked_text
             MediaPlayerTrouble.SIGNED_OUT -> R.string.media_player_signed_out
             MediaPlayerTrouble.FAILED -> R.string.media_player_failed
             MediaPlayerTrouble.CANNOT_PLAY -> R.string.media_player_cannot_play
+            MediaPlayerTrouble.UNPLAYABLE -> R.string.media_player_unplayable
         },
     )
     Column(
@@ -606,6 +623,12 @@ private fun BoxScope.Trouble(trouble: MediaPlayerTrouble, actions: MediaPlayerAc
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         Text(text, color = Color.White, textAlign = TextAlign.Center, style = MaterialTheme.typography.bodyMedium)
+        if (trouble == MediaPlayerTrouble.UNPLAYABLE && problem != null) {
+            Text(stringResource(R.string.media_player_unplayable_tip), color = Color.White.copy(alpha = 0.8f), textAlign = TextAlign.Center, style = MaterialTheme.typography.bodySmall)
+        }
+        if (trouble == MediaPlayerTrouble.UNPLAYABLE && codecs != null) {
+            Text(codecs, color = Color.White.copy(alpha = 0.7f), textAlign = TextAlign.Center, style = MaterialTheme.typography.bodySmall, modifier = Modifier.testTag(UNPLAYABLE_TAG))
+        }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             if (trouble != MediaPlayerTrouble.SIGNED_OUT) TextButton(onClick = actions.onRetry) { Text(stringResource(R.string.media_player_retry), color = Color.White) }
             TextButton(onClick = actions.onClose) { Text(stringResource(R.string.media_player_close), color = Color.White.copy(alpha = 0.8f)) }
@@ -818,6 +841,8 @@ internal const val PLAYER_CAST_TAG = "media-player-cast"
 internal const val SHEET_TAG = "media-player-sheet"
 internal const val QUALITY_TAG = "media-player-quality"
 internal const val COUNTDOWN_TAG = "media-player-countdown"
+internal const val FELL_BACK_TAG = "media-player-fell-back"
+internal const val UNPLAYABLE_TAG = "media-player-unplayable"
 internal const val MOBILE_HINT_TAG = "media-player-mobile-hint"
 internal const val VPN_TROUBLE_TAG = "media-player-vpn"
 internal const val VPN_ON_PLAYER_TAG = "media-player-vpn-on"

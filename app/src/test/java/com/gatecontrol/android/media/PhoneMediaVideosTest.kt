@@ -67,7 +67,7 @@ class PhoneMediaVideosTest {
         every { this@mockk.link } returns this@PhoneMediaVideosTest.link
         every { library(jellyfin) } returns jfLib
         every { library(share) } returns nasLib
-        every { caps() } returns MediaDeviceCaps.fromDecoders(listOf("audio/mp4a-latm"), hdrScreen = false, name = "GateControl")
+        every { caps() } returns MediaDeviceCaps.fromDecoders(listOf("video/hevc", "audio/mp4a-latm"), hdrScreen = false, name = "GateControl")
         coEvery { check(any(), any()) } returns Unit
         every { later(any()) } answers { runBlocking { firstArg<suspend () -> Unit>().invoke() } }
         every { route(any()) } answers { this@PhoneMediaVideosTest.route }
@@ -268,5 +268,51 @@ class PhoneMediaVideosTest {
         v.report(1, PlaybackEvent.STOP, 1_200_000, true, 2_640_000)
         verify { offline.record(item.id, 1_200_000, 2_640_000, stopped = true) }
         assertEquals(reportsBefore, jfLib.reports.size)
+    }
+
+    @Test
+    fun `a file that did not start - asked again packed anew, then converted, kept for a new sound`() = runTest {
+        cellular = false
+        link.value = MediaLink(atHome = true)
+        val v = videos(series)
+        v.open(0)
+        assertEquals(MediaFallback.NONE, jfLib.plays.last().fallback)
+        assertEquals(MediaFallback.REMUX, v.fallBack(0))
+        v.open(0, from = 60_000)
+        assertEquals(MediaFallback.REMUX, jfLib.plays.last().fallback)
+        assertEquals(MediaFallback.CONVERT, v.fallBack(0))
+        // a new sound keeps the way that plays
+        assertTrue(v.chooseAudio(0, 2))
+        v.open(0, from = 60_000)
+        assertEquals(MediaFallback.CONVERT, jfLib.plays.last().fallback)
+        assertNull(v.fallBack(0), "nothing left to try")
+        // the next episode starts again with the file itself
+        v.open(1)
+        assertEquals(MediaFallback.NONE, jfLib.plays.last().fallback)
+    }
+
+    @Test
+    fun `a share's file has no other way`() = runTest {
+        val v = videos(MediaQueue("nas", listOf(MediaTitle("f1", "nas", MediaTitle.Kind.VIDEO, "Kupferstadt", fromShare = true)), 0))
+        v.open(0)
+        assertNull(v.fallBack(0))
+    }
+
+    @Test
+    fun `H dot 264 High 10 the phone does not decode - converted at once, never copied, the picture subtitle off`() = runTest {
+        cellular = false
+        link.value = MediaLink(atHome = true)
+        val high10 = MediaStream(0, MediaStream.Type.VIDEO, codec = "h264", profile = "High 10", level = 41, bitDepth = 10, width = 1920, height = 1080)
+        val pgs = MediaStream(4, MediaStream.Type.SUBTITLE, codec = "pgssub", language = "ger", textual = false)
+        val file = MediaVersion("v1", container = "mkv", bitrate = 3_200_000, streams = listOf(high10, enAac, pgs), defaultAudio = 2, defaultSubtitle = 4)
+        jfLib.details = mapOf("e4" to MediaDetail(episode(4), listOf(file)))
+        val v = videos(MediaQueue("jf", listOf(episode(4)), 0))
+        v.open(0)
+        val asked = jfLib.plays.last()
+        assertEquals(MediaFallback.CONVERT, asked.fallback)
+        assertEquals(MediaPlay.SUBTITLES_OFF, asked.subtitleIndex)
+        assertEquals("H.264 10-Bit (High 10)", v.problem(0))
+        // nothing left to try after that: the player says so instead of loading forever
+        assertNull(v.fallBack(0))
     }
 }

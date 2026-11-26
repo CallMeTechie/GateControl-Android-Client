@@ -41,6 +41,10 @@
     <string name="media_player_line_audio">Sound converted · %1$s</string>
     <string name="media_player_line_share">Original · %1$s</string>
     <string name="media_player_resumed">Resumed from %1$s</string>
+    <string name="media_player_fell_back">Did not play directly – the NAS converts it now</string>
+    <string name="media_player_unplayable">Your device cannot play this video directly and the Jellyfin server cannot convert it.</string>
+    <string name="media_player_unplayable_video">This video is %1$s. Your device cannot play it and the server cannot convert it fast enough.</string>
+    <string name="media_player_unplayable_tip">Tip: convert the file once (e.g. to H.264 with 8 bits), then it plays directly everywhere.</string>
     <string name="media_player_network">The NAS cannot be reached. At home check the Wi-Fi, away the tunnel.</string>
     <string name="media_player_signed_out">Signed out of Jellyfin. Sign in again under Media › Sources.</string>
     <string name="media_player_failed">This video cannot be played.</string>

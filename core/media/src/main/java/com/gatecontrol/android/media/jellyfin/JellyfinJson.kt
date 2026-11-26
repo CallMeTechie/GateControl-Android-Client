@@ -243,7 +243,18 @@ object JellyfinJson {
             bitrate = o.long("BitRate"),
             deliveryMethod = o.str("DeliveryMethod"),
             deliveryUrl = o.str("DeliveryUrl"),
+            profile = o.str("Profile")?.take(40),
+            level = o.get("Level")?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isNumber }?.let { runCatching { it.asDouble.toInt() }.getOrNull() }?.takeIf { it > 0 },
+            bitDepth = o.int("BitDepth")?.takeIf { it > 0 } ?: bitsOf(o.str("PixelFormat")),
+            pixelFormat = o.str("PixelFormat")?.take(32),
         )
+    }
+
+    /** The bits per colour of a pixel format: "yuv420p10le" → 10, "yuv420p" → 8; null: not a known one. */
+    fun bitsOf(pixelFormat: String?): Int? {
+        val f = pixelFormat?.lowercase(java.util.Locale.ROOT) ?: return null
+        if (!f.startsWith("yuv") && !f.startsWith("gray") && !f.startsWith("nv") && !f.startsWith("p0")) return null
+        return Regex("p(\\d{2})(le|be)$").find(f)?.groupValues?.get(1)?.toIntOrNull() ?: Regex("^p0(\\d{2})").find(f)?.groupValues?.get(1)?.toIntOrNull() ?: 8
     }
 
     fun version(o: JsonObject): MediaVersion? {
