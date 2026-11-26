@@ -98,4 +98,26 @@ class SetupRepositoryTest {
 
         verify { storage.clear(keep = setOf(MachineFingerprint.FALLBACK_KEY)) }
     }
+
+    @Test
+    fun `restoreServerUrl only fills a missing address`() {
+        every { storage.contains("server_url") } returns true
+        assertFalse(repository.restoreServerUrl("https://gate.example.com"))
+        verify(exactly = 0) { storage.commitBatch(any()) }
+
+        every { storage.contains("server_url") } returns false
+        val before = repository.revision.value
+        assertTrue(repository.restoreServerUrl("https://gate.example.com"))
+        verify { storage.commitBatch("server_url" to "https://gate.example.com") }
+        assertEquals(before + 1, repository.revision.value)
+        assertFalse(repository.restoreServerUrl(" "))
+    }
+
+    @Test
+    fun `stored checks ask the storage, not the decrypted value`() {
+        every { storage.contains("server_url") } returns true
+        every { storage.contains("api_token") } returns false
+        assertTrue(repository.hasStoredServerUrl())
+        assertFalse(repository.hasStoredApiToken())
+    }
 }

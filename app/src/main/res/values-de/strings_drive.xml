@@ -34,6 +34,7 @@
     <string name="drive_code_quota">Es ist nicht mehr genug Platz frei.</string>
     <string name="drive_code_invalid">Das geht nicht (Name oder Ziel nicht erlaubt).</string>
     <string name="drive_code_not_found">Das gibt es nicht mehr.</string>
+    <string name="drive_code_not_configured">Die Server-Adresse fehlt – bitte unter Einstellungen › Server neu verbinden.</string>
     <string name="drive_code_links_disabled">Links sind abgeschaltet. Ein Administrator kann sie unter Plugins › Drive › Berechtigungen erlauben.</string>
     <string name="drive_code_no_unlimited">Links ohne Ende sind hier nicht erlaubt.</string>
     <string name="drive_code_no_public_url">Der Server hat keine öffentliche https-Adresse für Links.</string>

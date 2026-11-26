@@ -199,6 +199,9 @@ class PushPrefsStore @Inject constructor(private val dataStore: DataStore<Prefer
         dataStore.edit { it[TOPICS] = gson.toJson(topics) }
     }
 
+    /** The server the push stream was last bound to (see [bindServer]); null when never. */
+    suspend fun boundServer(): String? = dataStore.data.first()[SERVER]?.takeIf { it.isNotBlank() }
+
     /**
      * Ties the stream state to [serverUrl]. Sequence numbers, pending acks
      * and topics belong to one server: when the setup points to another
