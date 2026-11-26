@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.158.3] - 2026-11-26
+
+### Fixes
+- Medien-Übersicht unterwegs schneller, ohne Neuladen bei jedem Aufruf (#308)
+
+---
+
 ## [1.158.2] - 2026-11-26
 
 ### Fixes
