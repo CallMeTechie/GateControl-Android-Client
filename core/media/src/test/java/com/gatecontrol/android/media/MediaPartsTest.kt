@@ -44,8 +44,12 @@ class MediaPartsTest {
         val subs = p.getAsJsonArray("SubtitleProfiles").map { it.asJsonObject.get("Format").asString + ":" + it.asJsonObject.get("Method").asString }
         assertTrue("subrip:External" in subs)
         assertTrue("pgssub:Encode" in subs)
-        assertEquals(0, JellyfinProfile.build(JellyfinDeviceCaps(), 1).getAsJsonArray("CodecProfiles").size())
-        assertEquals(1, JellyfinProfile.build(JellyfinDeviceCaps(hdr = false), 1).getAsJsonArray("CodecProfiles").size())
+        // HDR only tone-mapped for an SDR screen
+        fun ranges(c: JellyfinDeviceCaps) = JellyfinProfile.build(c, 1).getAsJsonArray("CodecProfiles").count { cp ->
+            cp.asJsonObject.getAsJsonArray("Conditions").any { it.asJsonObject.get("Property").asString == "VideoRangeType" }
+        }
+        assertEquals(0, ranges(JellyfinDeviceCaps()))
+        assertEquals(1, ranges(JellyfinDeviceCaps(hdr = false)))
     }
 
     private val version = MediaVersion(

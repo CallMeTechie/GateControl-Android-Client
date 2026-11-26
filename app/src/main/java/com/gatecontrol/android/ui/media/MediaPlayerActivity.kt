@@ -50,6 +50,7 @@ class MediaPlayerActivity : ComponentActivity() {
     @Inject lateinit var phoneCast: com.gatecontrol.android.media.PhoneCast
     @Inject lateinit var session: MediaPlayerSession
     @Inject lateinit var settingsRepository: SettingsRepository
+    @Inject lateinit var pictures: com.gatecontrol.android.media.MediaPictures
 
     private val pip = mutableStateOf(false)
 
@@ -130,6 +131,7 @@ class MediaPlayerActivity : ComponentActivity() {
                 MediaPlayerScreen(
                     ui = current,
                     player = player,
+                    pictures = pictures,
                     landscape = landscape,
                     pip = pip.value,
                     mobileCap = session.mobileCap,

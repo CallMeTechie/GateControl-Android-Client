@@ -191,6 +191,14 @@ data class MediaStream(
     /** A subtitle the player loads beside the video: how (`External`, `Embed`, `Encode`, `Hls`) and from where. */
     val deliveryMethod: String? = null,
     val deliveryUrl: String? = null,
+    /** The codec's profile ("High", "Main 10", "High 10") as Jellyfin reads it from the file. */
+    val profile: String? = null,
+    /** The codec's level as Jellyfin counts it (H.264: 41 = 4.1; HEVC: 153 = 5.1). */
+    val level: Int? = null,
+    /** Bits per colour (8, 10): Jellyfin's `BitDepth`, else read from its `PixelFormat` ("yuv420p10le" → 10). */
+    val bitDepth: Int? = null,
+    /** "yuv420p", "yuv420p10le". */
+    val pixelFormat: String? = null,
 ) {
     enum class Type { VIDEO, AUDIO, SUBTITLE, OTHER }
 
@@ -237,10 +245,23 @@ data class MediaPlay(
     val subtitleIndex: Int? = null,
     /** At most this many bit/s; [MediaQuality.ORIGINAL_BPS]: the original whenever the TV can play it. */
     val maxBitrate: Long = MediaQuality.ORIGINAL_BPS,
+    /** The file played as it is did not start here: asked again packed anew or converted on the NAS. */
+    val fallback: MediaFallback = MediaFallback.NONE,
 ) {
     companion object {
         const val SUBTITLES_OFF = -1
     }
+}
+
+/**
+ * How far from the file as it is a video is asked after it did not start on the device ([MediaPlay.fallback]):
+ * [NONE] as the server decides (direct when the profile allows it), [REMUX] never the file itself (packed anew, the
+ * picture and sound copied where the profile allows), [CONVERT] everything converted on the NAS.
+ */
+enum class MediaFallback {
+    NONE,
+    REMUX,
+    CONVERT,
 }
 
 /** How the server sends it: the file as it is, remuxed, or converted on the NAS. */

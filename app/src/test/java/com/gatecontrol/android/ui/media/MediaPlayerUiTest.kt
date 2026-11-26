@@ -68,7 +68,6 @@ class MediaPlayerUiTest {
     private val ui = MediaPlayerUi(
         queue = MediaQueue("jf", listOf(episode(4), episode(5), episode(6)), 0),
         at = 0,
-        sourceName = "DS918+",
         loading = false,
         line = MediaPlayLine(MediaNet.HOME, video = "1080p", audioTo = "AAC 5.1"),
         choices = choices,
@@ -87,7 +86,9 @@ class MediaPlayerUiTest {
         rule.onNodeWithText(context.getString(R.string.media_player_line_direct_video, "1080p")).assertIsDisplayed()
         rule.onNodeWithText(context.getString(R.string.media_player_line_audio, "AAC 5.1")).assertIsDisplayed()
         rule.onNodeWithText(context.getString(R.string.media_player_net_home)).assertIsDisplayed()
-        rule.onNodeWithText(context.getString(R.string.media_player_episode, 2, 4) + " · Jellyfin · DS918+").assertIsDisplayed()
+        // only season and episode below the title: never the source's name or the server's address
+        rule.onNodeWithText(context.getString(R.string.media_player_episode, 2, 4)).assertIsDisplayed()
+        rule.onNode(hasText("Jellyfin", substring = true)).assertDoesNotExist()
         rule.onNodeWithText(context.getString(R.string.media_player_up_next)).performScrollTo().assertIsDisplayed()
         rule.onNodeWithText("6. Folge 6").performScrollTo().performClick()
         assertEquals(listOf(2), played)
@@ -103,6 +104,32 @@ class MediaPlayerUiTest {
         rule.onNodeWithTag(TRACKS_TAG).performClick()
         rule.onNode(hasText("PGS", substring = true)).performClick()
         assertEquals(listOf(3), subtitle)
+    }
+
+    @Test
+    fun `a file that did not start - a short note that the NAS converts now`() {
+        rule.setContent {
+            GateControlTheme(darkTheme = true) {
+                MediaPlayerScreen(ui.copy(fellBack = true), player = null, landscape = false, pip = false, mobileCap = null, actions = MediaPlayerActions())
+            }
+        }
+        rule.onNodeWithTag(FELL_BACK_TAG).assertIsDisplayed()
+        rule.onNodeWithText(context.getString(R.string.media_player_fell_back)).assertIsDisplayed()
+    }
+
+    @Test
+    fun `the phone cannot play it and the server cannot convert it - said clearly with what it is`() {
+        rule.setContent {
+            GateControlTheme(darkTheme = true) {
+                MediaPlayerScreen(
+                    ui.copy(trouble = com.gatecontrol.android.media.MediaPlayerTrouble.UNPLAYABLE, problem = "H.264 10-Bit (High 10)", codecs = "H264 High 10 10 Bit · AAC Stereo · MKV"),
+                    player = null, landscape = false, pip = false, mobileCap = null, actions = MediaPlayerActions(),
+                )
+            }
+        }
+        rule.onNodeWithText(context.getString(R.string.media_player_unplayable_video, "H.264 10-Bit (High 10)")).assertIsDisplayed()
+        rule.onNodeWithText(context.getString(R.string.media_player_unplayable_tip)).assertIsDisplayed()
+        rule.onNodeWithTag(UNPLAYABLE_TAG).assertIsDisplayed()
     }
 
     @Test

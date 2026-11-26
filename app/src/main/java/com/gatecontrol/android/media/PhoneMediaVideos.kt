@@ -139,6 +139,15 @@ class PhoneMediaVideos(
             else -> return PhoneOpen.Failed
         }
         val version = detail.version
+        // the picture is one the phone's decoders do not take (H.264 10-Bit, say): converted at once, never copied
+        // (packing it anew would hang the same); the waiting in the player stays as the net for what is not seen here
+        if (!fallbacks.containsKey(i) && src.kind.canConvert) {
+            com.gatecontrol.android.media.jellyfin.JellyfinProfile.videoProblem(version?.video, hub.caps())?.let { why ->
+                fallbacks[i] = MediaFallback.CONVERT
+                problems[i] = why
+                timber.log.Timber.i("Medien: the phone does not play %s itself: converted at once", why)
+            }
+        }
         val tracks = title.seriesId?.let { hub.store.trackChoice(it) }
         val a = if (audio.containsKey(i)) audio[i] else version?.let { MediaTracks.pickAudio(it, tracks) }
         val s = if (text.containsKey(i)) text[i] else version?.let { MediaTracks.pickSubtitle(it, tracks) }
@@ -149,7 +158,8 @@ class PhoneMediaVideos(
         }
         val limit = MediaPlayerLogic.limit(src, cell, link.atHome, mobileCap())
         val start = from ?: startAt(i)
-        val choice = awayChoice(i, setting, link, version?.bitrate, (detail.title.runtimeMs ?: title.runtimeMs)?.minus(start ?: 0), src, limit, ask)
+        // the original does not play here anyway (converted at once or after it hung): nothing to ask
+        val choice = if (fallback(i) != MediaFallback.NONE) null else awayChoice(i, setting, link, version?.bitrate, (detail.title.runtimeMs ?: title.runtimeMs)?.minus(start ?: 0), src, limit, ask)
         if (askedAndCancelled) {
             askedAndCancelled = false
             return PhoneOpen.Cancelled
@@ -161,7 +171,7 @@ class PhoneMediaVideos(
         }
         val base = MediaQuality.cap(setting, link.atHome == true, link.bps, version?.bitrate, src.alwaysOriginal, src.kind.canConvert)
         val cap = MediaPlayerLogic.capped(base, limit)
-        val plan = when (val p = lib.play(MediaPlay(title.id, version?.id, startMs = 0, audioIndex = a, subtitleIndex = s, maxBitrate = cap))) {
+        val plan = when (val p = lib.play(MediaPlay(title.id, version?.id, startMs = 0, audioIndex = a, subtitleIndex = MediaPlayerLogic.subtitleFor(version, s, fallback(i)), maxBitrate = cap, fallback = fallback(i)))) {
             is MediaResult.Ok -> p.value
             MediaResult.Unauthorized -> return PhoneOpen.SignedOut
             MediaResult.Offline -> return offline(src)
@@ -255,6 +265,37 @@ class PhoneMediaVideos(
             offline = true,
         )
     }
+
+    /** How video [i] is asked after it did not start (per index: a new sound or quality keeps it). */
+    private val fallbacks = HashMap<Int, MediaFallback>()
+
+    fun fallback(i: Int): MediaFallback = fallbacks[i] ?: MediaFallback.NONE
+
+    /** Why video [i]'s picture does not play on the phone ("H.264 10-Bit (High 10)"); null: not known. */
+    private val problems = HashMap<Int, String>()
+
+    fun problem(i: Int): String? = problems[i] ?: plans[i]?.let { com.gatecontrol.android.media.jellyfin.JellyfinProfile.videoProblem(it.version.video, hub.caps()) }
+
+    /**
+     * Video [i] did not start (no picture, a fault): the next way to ask for it ([MediaPlayerLogic.nextFallback]),
+     * kept for it; null when there is none (a share or a download plays only the file, everything is converted already).
+     */
+    fun fallBack(i: Int): MediaFallback? {
+        if (share || local.containsKey(i) || source?.kind?.canConvert != true) return null
+        val plan = plans[i] ?: return null
+        val next = MediaPlayerLogic.nextFallback(plan, fallback(i)) ?: return null
+        fallbacks[i] = next
+        return next
+    }
+
+    /** „Nochmal“: video [i] from the file itself again. */
+    fun resetFallback(i: Int) {
+        fallbacks.remove(i)
+        problems.remove(i)
+    }
+
+    /** The codecs of video [i] as last asked ("HEVC Main 10 · DTS 5.1"); null: not known. */
+    fun codecs(i: Int): String? = plans[i]?.let { MediaPlayerLogic.codecs(it.version, it.audioIndex) }
 
     /** Whether video [i] plays from a download. */
     fun isLocal(i: Int): Boolean = local.containsKey(i)
