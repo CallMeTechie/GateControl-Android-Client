@@ -35,9 +35,12 @@ internal class FakeLibrary(
     /** How often "Weiterschauen" was asked for (each load of the overview). */
     var resumeCalls = 0
 
+    /** Set: "Weiterschauen" answers this (not reached, signed out) instead of [resume]. */
+    var resumeAnswer: MediaResult<List<MediaTitle>>? = null
+
     override suspend fun resume(limit: Int): MediaResult<List<MediaTitle>> {
         resumeCalls++
-        return MediaResult.Ok(resume.take(limit))
+        return resumeAnswer ?: MediaResult.Ok(resume.take(limit))
     }
     override suspend fun latest(limit: Int) = MediaResult.Ok(latest.take(limit))
     override suspend fun movies(start: Int, limit: Int) = MediaResult.Ok(MediaPage(movies.drop(start).take(limit), movies.size, start))
