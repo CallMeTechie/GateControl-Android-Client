@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.157.3] - 2026-11-26
+
+### Fixes
+- Medien unterwegs über VPN über die Route des Servers (#302)
+
+---
+
 ## [1.157.2] - 2026-11-25
 
 ### Fixes
