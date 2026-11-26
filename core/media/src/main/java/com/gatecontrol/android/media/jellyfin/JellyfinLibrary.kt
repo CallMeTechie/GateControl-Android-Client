@@ -53,6 +53,116 @@ class JellyfinLibrary(
             mapOf("userId" to user, "limit" to limit, "includeItemTypes" to "Movie,Series", "fields" to FIELDS, "enableUserData" to true, "enableImageTypes" to IMAGES),
         ).map { JellyfinJson.items(it, source.id) }
 
+    /** "Neue Filme": only films (before, films and series came mixed in one row). */
+    override suspend fun latestMovies(limit: Int): MediaResult<List<MediaTitle>> =
+        client.get(
+            "Items/Latest",
+            mapOf("userId" to user, "limit" to limit, "includeItemTypes" to "Movie", "fields" to FIELDS, "enableUserData" to true, "enableImageTypes" to IMAGES),
+        ).map { JellyfinJson.items(it, source.id) }
+
+    /** "Neue Folgen": new episodes grouped per series (`groupItems`: "3 neu" on the series). */
+    override suspend fun latestEpisodes(limit: Int): MediaResult<List<MediaTitle>> =
+        client.get(
+            "Items/Latest",
+            mapOf(
+                "userId" to user,
+                "limit" to limit,
+                "includeItemTypes" to "Episode",
+                "groupItems" to true,
+                "fields" to "$FIELDS,ChildCount",
+                "enableUserData" to true,
+                "enableImageTypes" to IMAGES,
+            ),
+        ).map { JellyfinJson.latestEpisodes(it, source.id) }
+
+    /**
+     * "Als Nächstes" (`Shows/NextUp`): the next unseen episode of each series begun; half-watched ones stay in
+     * "Weiterschauen" (`enableResumable=false`), series seen through are not started again (`enableRewatching=false`).
+     */
+    override suspend fun nextUp(limit: Int): MediaResult<MediaPage> =
+        client.get(
+            "Shows/NextUp",
+            mapOf(
+                "userId" to user,
+                "limit" to limit,
+                "fields" to "$FIELDS,Overview",
+                "enableUserData" to true,
+                "enableImageTypes" to IMAGES,
+                "enableTotalRecordCount" to true,
+                "enableResumable" to false,
+                "enableRewatching" to false,
+            ),
+        ).map { e ->
+            val items = JellyfinJson.items(e, source.id)
+            MediaPage(items, JellyfinJson.total(e) ?: items.size, 0)
+        }
+
+    /** The person's favourites (`filters=IsFavorite`): films, series and episodes, A–Z. */
+    override suspend fun favorites(limit: Int): MediaResult<MediaPage> =
+        client.get(
+            "Items",
+            mapOf(
+                "userId" to user,
+                "filters" to "IsFavorite",
+                "includeItemTypes" to "Movie,Series,Episode",
+                "recursive" to true,
+                "sortBy" to "SortName",
+                "sortOrder" to "Ascending",
+                "limit" to limit,
+                "fields" to "$FIELDS,ChildCount",
+                "enableUserData" to true,
+                "enableTotalRecordCount" to true,
+                "enableImageTypes" to IMAGES,
+            ),
+        ).map { e ->
+            val items = JellyfinJson.items(e, source.id, seriesPoster = true)
+            MediaPage(items, JellyfinJson.total(e) ?: items.size, 0)
+        }
+
+    /** "Sammlungen": the box sets (film series), A–Z, with how many titles each holds. */
+    override suspend fun collections(limit: Int): MediaResult<MediaPage> =
+        client.get(
+            "Items",
+            mapOf(
+                "userId" to user,
+                "includeItemTypes" to "BoxSet",
+                "recursive" to true,
+                "sortBy" to "SortName",
+                "sortOrder" to "Ascending",
+                "limit" to limit,
+                "fields" to "$FIELDS,ChildCount",
+                "enableUserData" to true,
+                "enableTotalRecordCount" to true,
+                "enableImageTypes" to IMAGES,
+            ),
+        ).map { e ->
+            val items = JellyfinJson.items(e, source.id).filter { it.kind == MediaTitle.Kind.COLLECTION }
+            MediaPage(items, JellyfinJson.total(e) ?: items.size, 0)
+        }
+
+    /** A collection's titles, oldest first (a film series in its order). */
+    override suspend fun collection(id: String): MediaResult<List<MediaTitle>> =
+        client.get(
+            "Items",
+            mapOf(
+                "userId" to user,
+                "parentId" to id,
+                "sortBy" to "ProductionYear,SortName",
+                "sortOrder" to "Ascending",
+                "limit" to FOLDER_LIMIT,
+                "fields" to "$FIELDS,ChildCount",
+                "enableUserData" to true,
+                "enableImageTypes" to IMAGES,
+            ),
+        ).map { e -> JellyfinJson.items(e, source.id).filter { it.kind != MediaTitle.Kind.COLLECTION } }
+
+    /** The heart: kept in Jellyfin for this person (the same on all devices). */
+    override suspend fun setFavorite(itemId: String, favorite: Boolean): MediaResult<Unit> {
+        val path = "UserFavoriteItems/$itemId"
+        val q = mapOf("userId" to user)
+        return (if (favorite) client.post(path, q) else client.delete(path, q)).map { }
+    }
+
     override suspend fun movies(start: Int, limit: Int): MediaResult<MediaPage> = page("Movie", start, limit)
 
     override suspend fun series(start: Int, limit: Int): MediaResult<MediaPage> = page("Series", start, limit)
@@ -64,9 +174,9 @@ class JellyfinLibrary(
                 "userId" to user,
                 "includeItemTypes" to type,
                 "recursive" to true,
-                "sortBy" to sortBy(order.sort),
+                "sortBy" to sortBy(order.sort, movies = type == "Movie"),
                 "sortOrder" to sortOrder(order.sort),
-                "filters" to (if (order.unplayed) "IsUnplayed" else null),
+                "filters" to filters(order),
                 "genres" to order.genre,
                 "startIndex" to start,
                 "limit" to limit,
@@ -356,11 +466,16 @@ class JellyfinLibrary(
     override fun headers(): Map<String, String> = mapOf("Authorization" to client.authorization())
 
     companion object {
-        fun sortBy(sort: MediaOrder.Sort): String = when (sort) {
+        /** [movies] false: a series counts as added when its last episode came ("Neue Folgen ›"). */
+        fun sortBy(sort: MediaOrder.Sort, movies: Boolean = true): String = when (sort) {
             MediaOrder.Sort.NAME -> "SortName"
-            MediaOrder.Sort.ADDED -> "DateCreated,SortName"
+            MediaOrder.Sort.ADDED -> if (movies) "DateCreated,SortName" else "DateLastContentAdded,SortName"
             MediaOrder.Sort.YEAR -> "ProductionYear,SortName"
         }
+
+        /** `IsUnplayed`, `IsFavorite` or both; null: none. */
+        fun filters(order: MediaOrder): String? =
+            listOfNotNull("IsUnplayed".takeIf { order.unplayed }, "IsFavorite".takeIf { order.favorite }).joinToString(",").ifEmpty { null }
 
         fun sortOrder(sort: MediaOrder.Sort): String = if (sort == MediaOrder.Sort.NAME) "Ascending" else "Descending,Ascending"
 

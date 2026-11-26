@@ -58,6 +58,23 @@ class MediaLogicTest {
         assertEquals(listOf("m2"), MediaLogic.latestWithout(listOf(film, series, other), listOf(film, episode("e4", 4))).map { it.id })
     }
 
+    @Test
+    fun `next up without the episode begun, new episodes counted, genres of all sources once`() {
+        val begun = episode("e4", 4)
+        assertEquals(listOf("e5"), MediaLogic.nextUpWithout(listOf(begun, episode("e5", 5)), listOf(begun)).map { it.id })
+        val graufeld = MediaTitle("s3", "s1", MediaTitle.Kind.SERIES, "Graufeld", newCount = 3)
+        assertEquals(4, MediaLogic.newEpisodes(listOf(graufeld, episode("e7", 7))))
+        assertEquals(listOf("Doku", "Krimi", "Science-Fiction"), MediaLogic.mergeGenres(listOf("Krimi", "Science-Fiction"), listOf(" krimi", "Doku", "")))
+    }
+
+    @Test
+    fun `only favourites - a share has none`() {
+        val fav = MediaTitle("m1", "s1", MediaTitle.Kind.MOVIE, "Sternwarte 9", favorite = true)
+        val other = MediaTitle("m2", "s1", MediaTitle.Kind.MOVIE, "Moorlicht")
+        assertEquals(listOf("m1"), MediaLogic.filtered(listOf(fav, other), MediaOrder(favorite = true)).map { it.id })
+        assertFalse(MediaOrder(favorite = true).plain)
+    }
+
     private val smb = MediaSource("smb1", MediaSourceKind.SMB, "nas", "smb://nas/filme", userName = "kino", password = "pw", pairWith = "dav1")
     private val dav = MediaSource("dav1", MediaSourceKind.WEBDAV, "dav", "https://192.168.1.20:5006/filme", userName = "kino", password = "pw", pairWith = "smb1")
     private val alone = MediaSource("dav2", MediaSourceKind.WEBDAV, "dav", "https://192.168.1.20:5006/serien")

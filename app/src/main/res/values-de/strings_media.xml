@@ -18,8 +18,22 @@
     <string name="media_mobile_limit_chip">Mobilfunk · höchstens %1$s</string>
     <string name="media_share_unreachable">%1$s nicht erreichbar</string>
     <string name="media_row_resume">Weiterschauen</string>
-    <string name="media_row_latest">Zuletzt hinzugefügt</string>
     <string name="media_row_series">Serien</string>
+    <string name="media_row_next_up">Als Nächstes</string>
+    <string name="media_row_latest_movies">Neue Filme</string>
+    <string name="media_row_latest_episodes">Neue Folgen</string>
+    <string name="media_row_favorites">Favoriten</string>
+    <string name="media_row_movies">Filme</string>
+    <string name="media_row_collections">Sammlungen</string>
+    <string name="media_row_genres">Genres</string>
+    <string name="media_show_all">Alle anzeigen</string>
+    <string name="media_filter_favorites">Favoriten</string>
+    <string name="media_favorite_add">Zu den Favoriten</string>
+    <string name="media_favorite_remove">Aus den Favoriten entfernen</string>
+    <plurals name="media_new_episodes">
+        <item quantity="one">%d neu</item>
+        <item quantity="other">%d neu</item>
+    </plurals>
     <string name="media_all">Alle</string>
     <string name="media_library_empty">In dieser Bibliothek ist noch nichts.</string>
     <string name="media_grid_empty">Keine Titel mit dieser Auswahl.</string>

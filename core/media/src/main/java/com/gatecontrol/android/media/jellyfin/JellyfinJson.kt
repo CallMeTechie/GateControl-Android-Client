@@ -83,16 +83,30 @@ object JellyfinJson {
         return JellyfinQuickConnect(code, secret)
     }
 
-    /** The items of `{ "Items": [ … ] }` or of a bare array (`/Items/Latest`). */
-    fun items(e: JsonElement?, sourceId: String): List<MediaTitle> {
+    /** The items of `{ "Items": [ … ] }` or of a bare array (`/Items/Latest`); [seriesPoster] as in [title]. */
+    fun items(e: JsonElement?, sourceId: String, seriesPoster: Boolean = false): List<MediaTitle> {
         val list = when {
             e == null -> emptyList()
             e.isJsonArray -> e.asJsonArray.mapNotNull { it.takeIf { x -> x.isJsonObject }?.asJsonObject }
             e.isJsonObject -> e.asJsonObject.objects("Items")
             else -> emptyList()
         }
-        return list.mapNotNull { title(it, sourceId) }
+        return list.mapNotNull { title(it, sourceId, seriesPoster) }
     }
+
+    /**
+     * `GET /Items/Latest?includeItemTypes=Episode&groupItems=true`: several new episodes of one series come as that
+     * series with their number in `ChildCount` ("3 neu"), a single one as the episode (with its series' poster).
+     */
+    fun latestEpisodes(e: JsonElement?, sourceId: String): List<MediaTitle> =
+        objectsOf(e).mapNotNull { o ->
+            val t = title(o, sourceId, seriesPoster = true) ?: return@mapNotNull null
+            when (t.kind) {
+                MediaTitle.Kind.SERIES -> t.copy(newCount = t.childCount?.takeIf { it > 0 }, childCount = null)
+                MediaTitle.Kind.SEASON, MediaTitle.Kind.EPISODE -> t
+                else -> null
+            }
+        }
 
     /** The libraries without video (music, books, photos, live TV): not on the page "Ordner". */
     private val NO_VIDEO_COLLECTIONS = setOf("music", "books", "photos", "livetv", "audiobooks")
@@ -128,8 +142,9 @@ object JellyfinJson {
         for (o in objectsOf(e)) {
             val t = title(o, sourceId)
             when {
-                t != null -> titles += t
-                o.bool("IsFolder") == true && o.str("Type") !in NO_VIDEO_FOLDERS &&
+                // a collection (box set) is looked into like a folder
+                t != null && t.kind != MediaTitle.Kind.COLLECTION -> titles += t
+                (o.bool("IsFolder") == true || t != null) && o.str("Type") !in NO_VIDEO_FOLDERS &&
                     (o.str("CollectionType")?.lowercase(java.util.Locale.ROOT)) !in NO_VIDEO_COLLECTIONS -> folder(o)?.let { folders += it }
             }
         }
@@ -144,18 +159,24 @@ object JellyfinJson {
         "Season" -> MediaTitle.Kind.SEASON
         "Episode" -> MediaTitle.Kind.EPISODE
         "Video", "MusicVideo" -> MediaTitle.Kind.VIDEO
+        "BoxSet" -> MediaTitle.Kind.COLLECTION
         else -> null
     }
 
-    /** One item → [MediaTitle]; null for kinds the TV does not show (music, books, folders). */
-    fun title(o: JsonObject, sourceId: String): MediaTitle? {
+    /**
+     * One item → [MediaTitle]; null for kinds the TV does not show (music, books, folders). [seriesPoster]: an episode
+     * shows its series' poster even when it has a picture of its own (a still, 16:9, in a row of posters).
+     */
+    fun title(o: JsonObject, sourceId: String, seriesPoster: Boolean = false): MediaTitle? {
         val id = o.str("Id") ?: return null
         val kind = kind(o.str("Type")) ?: return null
         val user = o.obj("UserData")
         val tags = o.obj("ImageTags")
         val ownPrimary = tags?.str("Primary")
+        val seriesTag = o.str("SeriesPrimaryImageTag")?.takeIf { o.str("SeriesId") != null }
         // an episode without its own picture shows its series' poster
         val (posterId, posterTag) = when {
+            seriesPoster && kind == MediaTitle.Kind.EPISODE && seriesTag != null -> o.str("SeriesId") to seriesTag
             ownPrimary != null -> id to ownPrimary
             o.str("SeriesPrimaryImageTag") != null -> o.str("SeriesId") to o.str("SeriesPrimaryImageTag")
             else -> null to null
@@ -191,6 +212,7 @@ object JellyfinJson {
             backdropTag = backdropTag,
             addedAt = o.str("DateCreated")?.let { runCatching { OffsetDateTime.parse(it).toInstant().toEpochMilli() }.getOrNull() },
             playedAt = user?.str("LastPlayedDate")?.let { runCatching { OffsetDateTime.parse(it).toInstant().toEpochMilli() }.getOrNull() },
+            favorite = user?.bool("IsFavorite") == true,
         )
     }
 

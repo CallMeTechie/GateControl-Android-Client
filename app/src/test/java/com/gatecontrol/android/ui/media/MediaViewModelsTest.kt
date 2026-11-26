@@ -114,8 +114,8 @@ class MediaViewModelsTest {
         advanceUntilIdle()
         val ui = vm.ui.value
         assertEquals(listOf("m1"), ui.resume.map { it.id })
-        // "Zuletzt hinzugefügt" without what is in "Weiterschauen"
-        assertEquals(listOf("m2"), ui.latest.map { it.id })
+        // "Neue Filme" without what is in "Weiterschauen"
+        assertEquals(listOf("m2"), ui.rows.latestMovies.map { it.id })
         assertEquals(listOf(jellyfin), ui.servers)
         assertFalse(ui.loading)
         // opening Medien: the server's list, home or away (the VPN started away when needed)
@@ -169,7 +169,7 @@ class MediaViewModelsTest {
             every { offlineQuality } returns MutableStateFlow(com.gatecontrol.android.media.offline.OfflineQuality.P1080)
         }
         val network = mockk<MediaNetwork> { every { cellular() } returns false }
-        val vm = MediaDetailViewModel(SavedStateHandle(mapOf("source" to "jf", "id" to "m1", "name" to "Kobaltnacht")), hub, requests, settings, network, pictures, offline)
+        val vm = MediaDetailViewModel(SavedStateHandle(mapOf("source" to "jf", "id" to "m1", "name" to "Kobaltnacht")), hub, requests, settings, network, pictures, offline, com.gatecontrol.android.media.MediaRowsCache(null))
             .also { models += it }
         advanceUntilIdle()
         val ui = vm.ui.value
@@ -361,7 +361,7 @@ class MediaViewModelsTest {
         vm.open()
         advanceUntilIdle()
         assertEquals(listOf("m1"), vm.ui.value.resume.map { it.id }, "the rows kept, at once")
-        assertEquals(listOf("m2"), vm.ui.value.latest.map { it.id })
+        assertEquals(listOf("m2"), vm.ui.value.rows.latestMovies.map { it.id })
         assertFalse(vm.ui.value.loading)
 
         way.complete(MediaGate.OPEN)
@@ -385,5 +385,133 @@ class MediaViewModelsTest {
         advanceUntilIdle()
         assertEquals(MediaProblem.SIGNED_OUT, vm.ui.value.problem)
         assertTrue(vm.ui.value.resume.isEmpty())
+    }
+
+    // --- the overview „Ergänzt“ (decisions 70 A, 72–76) ---
+
+    private val ankerplatz = MediaTitle("e16", "jf", MediaTitle.Kind.EPISODE, "Die Flaute", seriesId = "s12", seriesName = "Ankerplatz 12", season = 1, episode = 6)
+    private val graufeld = MediaTitle("s3", "jf", MediaTitle.Kind.SERIES, "Graufeld", newCount = 3)
+    private val boxSet = MediaTitle("b1", "jf", MediaTitle.Kind.COLLECTION, "Sternwarte-Reihe", childCount = 2)
+
+    private fun detail(source: String, id: String, name: String) = MediaDetailViewModel(
+        SavedStateHandle(mapOf("source" to source, "id" to id, "name" to name)),
+        hub,
+        requests,
+        mockk {
+            every { mobileCap } returns MutableStateFlow(3_000_000L)
+            every { offlineQuality } returns MutableStateFlow(com.gatecontrol.android.media.offline.OfflineQuality.P1080)
+        },
+        mockk { every { cellular() } returns false },
+        pictures,
+        offline,
+        rowsCache,
+    ).also { models += it }
+
+    private fun fullLibrary() {
+        jfLib.nextUp = listOf(ankerplatz, kobalt)
+        jfLib.latestEpisodes = listOf(graufeld)
+        jfLib.favorites = listOf(sternwarte.copy(favorite = true))
+        jfLib.collections = listOf(boxSet)
+        jfLib.collectionItems = mapOf("b1" to listOf(sternwarte, kobalt))
+        jfLib.genres = listOf("Krimi", "Science-Fiction")
+        jfLib.series = listOf(MediaTitle("s12", "jf", MediaTitle.Kind.SERIES, "Ankerplatz 12"))
+        nasLib.movies = listOf(kupfer.copy(genres = listOf("Doku")))
+    }
+
+    @Test
+    fun `all rows at once, an empty one not shown, cached for the next opening`() = runTest(dispatcher) {
+        fullLibrary()
+        val vm = MediaHomeViewModel(hub, requests, pictures, offline, servers, rowsCache).also { models += it }
+        vm.open()
+        advanceUntilIdle()
+        val r = vm.ui.value.rows
+        assertEquals(listOf("m1"), r.resume.map { it.id })
+        // the film begun is in "Weiterschauen", not again in "Als Nächstes"
+        assertEquals(listOf("e16"), r.nextUp.map { it.id })
+        assertEquals(listOf("m2"), r.latestMovies.map { it.id })
+        assertEquals(listOf("s3"), r.latestEpisodes.map { it.id })
+        assertEquals(listOf("m2"), r.favorites.map { it.id })
+        assertEquals(listOf("m1", "n1", "m2"), r.movies.map { it.id }, "the row Filme: Jellyfin's and the share's A–Z")
+        assertEquals(listOf("b1"), r.collections.map { it.id })
+        assertEquals(listOf("Doku", "Krimi", "Science-Fiction"), r.genres, "the genres of all sources")
+        assertFalse(vm.ui.value.empty)
+        assertTrue(jfLib.asked.containsAll(listOf("nextUp", "latestEpisodes", "favorites", "collections")))
+
+        // the rows kept: a new page shows them all before the server answers
+        clock += 5 * 60_000
+        val way = CompletableDeferred<MediaGate>()
+        coEvery { hub.prepare(any(), any()) } coAnswers { way.await() }
+        val again = MediaHomeViewModel(hub, requests, pictures, offline, servers, rowsCache).also { models += it }
+        again.open()
+        advanceUntilIdle()
+        assertEquals(listOf("e16"), again.ui.value.rows.nextUp.map { it.id })
+        assertEquals(listOf("b1"), again.ui.value.rows.collections.map { it.id })
+        assertEquals(listOf("Krimi", "Science-Fiction"), again.ui.value.rows.genres.filter { it != "Doku" })
+        way.complete(MediaGate.OPEN)
+        advanceUntilIdle()
+    }
+
+    @Test
+    fun `nothing begun and no downloads - the other rows still fill the page`() = runTest(dispatcher) {
+        fullLibrary()
+        jfLib.resume = emptyList()
+        val vm = MediaHomeViewModel(hub, requests, pictures, offline, servers, rowsCache).also { models += it }
+        vm.open()
+        advanceUntilIdle()
+        val r = vm.ui.value.rows
+        assertTrue(r.resume.isEmpty())
+        assertEquals(listOf("e16", "m1"), r.nextUp.map { it.id })
+        assertEquals(listOf("m2", "m1"), r.latestMovies.map { it.id })
+    }
+
+    @Test
+    fun `Alle anzeigen - a row opens its list in the fitting order`() = runTest(dispatcher) {
+        val vm = MediaHomeViewModel(hub, requests, pictures, offline, servers, rowsCache).also { models += it }
+        vm.showList(movies = true, order = MediaOrder(sort = MediaOrder.Sort.ADDED))
+        advanceUntilIdle()
+        assertEquals(MediaOrder(sort = MediaOrder.Sort.ADDED), vm.movies.value.order)
+        assertTrue(MediaOrder(sort = MediaOrder.Sort.ADDED) in jfLib.orders, "the library sorts newest first")
+        vm.showList(movies = true, order = MediaOrder(genre = "Krimi"))
+        advanceUntilIdle()
+        assertEquals("Krimi", vm.movies.value.order.genre)
+        vm.showList(movies = false, order = null)
+        advanceUntilIdle()
+        assertTrue(vm.series.value.loaded)
+        assertEquals(MediaOrder(), vm.series.value.order)
+    }
+
+    @Test
+    fun `the heart on a detail page - kept in Jellyfin, the overview asked again at the next opening`() = runTest(dispatcher) {
+        val home = MediaHomeViewModel(hub, requests, pictures, offline, servers, rowsCache).also { models += it }
+        home.open()
+        advanceUntilIdle()
+        assertTrue(rowsCache.fresh(jellyfin))
+        jfLib.details = mapOf("m2" to MediaDetail(sternwarte, listOf(MediaVersion("v1"))))
+        val vm = detail("jf", "m2", "Sternwarte 9")
+        advanceUntilIdle()
+        assertTrue(vm.ui.value.canFavorite)
+        vm.toggleFavorite()
+        assertTrue(vm.ui.value.title.favorite, "shown at once")
+        advanceUntilIdle()
+        assertEquals(listOf("m2" to true), jfLib.hearts)
+        assertFalse(rowsCache.fresh(jellyfin), "the row Favoriten is asked again")
+        val calls = jfLib.resumeCalls
+        home.open()
+        advanceUntilIdle()
+        assertEquals(calls + 1, jfLib.resumeCalls)
+    }
+
+    @Test
+    fun `a share's title has no heart, a collection lists its films`() = runTest(dispatcher) {
+        nasLib.details = mapOf("n1" to MediaDetail(kupfer, emptyList()))
+        val onShare = detail("nas", "n1", "Kupferstadt")
+        advanceUntilIdle()
+        assertFalse(onShare.ui.value.canFavorite)
+
+        fullLibrary()
+        jfLib.details = mapOf("b1" to MediaDetail(boxSet, emptyList()))
+        val set = detail("jf", "b1", "Sternwarte-Reihe")
+        advanceUntilIdle()
+        assertEquals(listOf("m2", "m1"), set.ui.value.items.map { it.id })
     }
 }

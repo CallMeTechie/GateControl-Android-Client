@@ -1,0 +1,9 @@
+{
+  "Items": [
+    {"Id": "g1", "Name": "Doku", "Type": "Genre"},
+    {"Id": "g2", "Name": "Krimi", "Type": "Genre"},
+    {"Id": "g3", "Name": "Science-Fiction", "Type": "Genre"},
+    {"Id": "g4", "Name": "krimi", "Type": "Genre"}
+  ],
+  "TotalRecordCount": 4
+}

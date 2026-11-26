@@ -1,0 +1,13 @@
+{
+  "Items": [
+    {"Id": "s12", "Name": "Ankerplatz 12", "Type": "Series", "ChildCount": 1, "ProductionYear": 2024,
+     "UserData": {"IsFavorite": true, "UnplayedItemCount": 4}, "ImageTags": {"Primary": "ps12"}},
+    {"Id": "m9", "Name": "Sternwarte 9", "Type": "Movie", "ProductionYear": 2026,
+     "UserData": {"IsFavorite": true}, "ImageTags": {"Primary": "pm9"}},
+    {"Id": "e57", "Name": "Treibeis", "Type": "Episode", "SeriesId": "s9", "SeriesName": "Station Eisvogel",
+     "ParentIndexNumber": 2, "IndexNumber": 5, "UserData": {"IsFavorite": true},
+     "ImageTags": {"Primary": "still57"}, "SeriesPrimaryImageTag": "sp9"}
+  ],
+  "TotalRecordCount": 7,
+  "StartIndex": 0
+}

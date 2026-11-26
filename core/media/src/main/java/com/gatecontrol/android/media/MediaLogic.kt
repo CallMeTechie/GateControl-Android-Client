@@ -126,9 +126,10 @@ object MediaLogic {
         return out
     }
 
-    /** The titles [order] lets through (only unwatched ones, one genre). */
+    /** The titles [order] lets through (only unwatched ones, one genre, only favourites). */
     fun filtered(items: List<MediaTitle>, order: MediaOrder): List<MediaTitle> = items.filter { t ->
-        (!order.unplayed || unwatched(t)) && (order.genre == null || t.genres.any { it.equals(order.genre, ignoreCase = true) })
+        (!order.unplayed || unwatched(t)) && (order.genre == null || t.genres.any { it.equals(order.genre, ignoreCase = true) }) &&
+            (!order.favorite || t.favorite)
     }
 
     /** Not watched yet: a film or episode not played, a series with episodes left. */
@@ -181,6 +182,10 @@ object MediaLogic {
             .sortedWith(compareBy<MediaTitle> { if (ShareNames.key(it.name).startsWith(q)) 0 else 1 }.thenBy { ShareNames.sortKey(it.name) })
     }
 
+    /** Genres of several sources once each (without case), A–Z. */
+    fun mergeGenres(vararg lists: List<String>): List<String> =
+        lists.flatMap { it }.map { it.trim() }.filter { it.isNotEmpty() }.distinctBy { it.lowercase(Locale.ROOT) }.sortedBy { it.lowercase(Locale.ROOT) }
+
     /** The genres of [items] once each, A–Z. */
     fun genres(items: List<MediaTitle>): List<String> =
         items.flatMap { it.genres }.map { it.trim() }.filter { it.isNotEmpty() }.distinctBy { it.lowercase(Locale.ROOT) }.sortedBy { it.lowercase(Locale.ROOT) }
@@ -196,6 +201,15 @@ object MediaLogic {
         val shown = resume.map { it.id }.toSet() + resume.mapNotNull { it.seriesId }.toSet()
         return latest.filterNot { it.id in shown }
     }
+
+    /** "Als Nächstes" without what is already in "Weiterschauen" (the episode begun, by id). */
+    fun nextUpWithout(nextUp: List<MediaTitle>, resume: List<MediaTitle>): List<MediaTitle> {
+        val shown = resume.map { it.id }.toSet()
+        return nextUp.filterNot { it.id in shown }
+    }
+
+    /** "Neue Folgen" as episodes: a series' entry counts its new ones ("3 neu"), an episode one. */
+    fun newEpisodes(items: List<MediaTitle>): Int = items.sumOf { it.newCount ?: 1 }
 
     const val PAGE = 40
     const val PAGE_AHEAD = 6

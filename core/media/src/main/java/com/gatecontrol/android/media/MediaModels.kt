@@ -124,8 +124,13 @@ data class MediaTitle(
     val playedAt: Long? = null,
     /** From an SMB or WebDAV share (the "NAS" mark): only its file name and the picture beside it. */
     val fromShare: Boolean = false,
+    /** A favourite of the person (Jellyfin's `UserData.IsFavorite`, the same on all devices; a share has none). */
+    val favorite: Boolean = false,
+    /** "Neue Folgen": how many episodes of this series came newly ("3 neu"); null: not such an entry. */
+    val newCount: Int? = null,
 ) {
-    enum class Kind { MOVIE, SERIES, SEASON, EPISODE, VIDEO }
+    /** [COLLECTION]: a Jellyfin collection (box set, "Sammlungen"), its titles in [childCount]. */
+    enum class Kind { MOVIE, SERIES, SEASON, EPISODE, VIDEO, COLLECTION }
 
     val playable: Boolean get() = kind == Kind.MOVIE || kind == Kind.EPISODE || kind == Kind.VIDEO
 
@@ -149,11 +154,17 @@ data class MediaPage(val items: List<MediaTitle>, val total: Int, val start: Int
  * How "Filme" or "Serien" are listed (the phone's chips): A–Z, recently added or by year, only the unwatched ones,
  * one genre.
  */
-data class MediaOrder(val sort: Sort = Sort.NAME, val unplayed: Boolean = false, val genre: String? = null) {
+data class MediaOrder(
+    val sort: Sort = Sort.NAME,
+    val unplayed: Boolean = false,
+    val genre: String? = null,
+    /** Only the person's favourites (Jellyfin; a share has none). */
+    val favorite: Boolean = false,
+) {
     enum class Sort { NAME, ADDED, YEAR }
 
     /** A–Z of everything: the library's own pages ([MediaLibrary.movies], [MediaLibrary.series]). */
-    val plain: Boolean get() = sort == Sort.NAME && !unplayed && genre == null
+    val plain: Boolean get() = sort == Sort.NAME && !unplayed && genre == null && !favorite
 }
 
 /** A stream in a media file (ffprobe's view, as Jellyfin lists it). */
@@ -321,6 +332,32 @@ interface MediaLibrary {
 
     suspend fun resume(limit: Int = 12): MediaResult<List<MediaTitle>>
     suspend fun latest(limit: Int = 16): MediaResult<List<MediaTitle>>
+
+    /** "Neue Filme": the films added last, newest first. Here: those of [latest]. */
+    suspend fun latestMovies(limit: Int = 16): MediaResult<List<MediaTitle>> =
+        latest(limit * 2).map { list -> list.filter { it.kind == MediaTitle.Kind.MOVIE || it.kind == MediaTitle.Kind.VIDEO }.take(limit) }
+
+    /**
+     * "Neue Folgen": the episodes added last, several of one series as that series with [MediaTitle.newCount]. Here:
+     * the series and episodes of [latest].
+     */
+    suspend fun latestEpisodes(limit: Int = 16): MediaResult<List<MediaTitle>> =
+        latest(limit * 2).map { list -> list.filter { it.kind == MediaTitle.Kind.EPISODE || it.kind == MediaTitle.Kind.SERIES }.take(limit) }
+
+    /** "Als Nächstes": the next unseen episode of each series begun (not those half-watched); none here. */
+    suspend fun nextUp(limit: Int = 16): MediaResult<MediaPage> = MediaResult.Ok(MediaPage(emptyList(), 0, 0))
+
+    /** The person's favourites (films, series, episodes), A–Z; none here. */
+    suspend fun favorites(limit: Int = 20): MediaResult<MediaPage> = MediaResult.Ok(MediaPage(emptyList(), 0, 0))
+
+    /** "Sammlungen" (Jellyfin's box sets), A–Z; none here. */
+    suspend fun collections(limit: Int = 20): MediaResult<MediaPage> = MediaResult.Ok(MediaPage(emptyList(), 0, 0))
+
+    /** The titles of collection [id]; none here. */
+    suspend fun collection(id: String): MediaResult<List<MediaTitle>> = MediaResult.Ok(emptyList())
+
+    /** Marks [itemId] as a favourite (or not); a share cannot. */
+    suspend fun setFavorite(itemId: String, favorite: Boolean): MediaResult<Unit> = MediaResult.Failed(0)
     suspend fun movies(start: Int, limit: Int): MediaResult<MediaPage>
     suspend fun series(start: Int, limit: Int): MediaResult<MediaPage>
     suspend fun seasons(seriesId: String): MediaResult<List<MediaTitle>>

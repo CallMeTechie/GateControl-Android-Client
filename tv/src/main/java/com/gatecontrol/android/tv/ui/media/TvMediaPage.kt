@@ -100,6 +100,8 @@ class TvMediaActions(
     val onSubtitle: (Int?) -> Unit = {},
     val onOriginal: (Boolean) -> Unit = {},
     val onPlayed: () -> Unit = {},
+    /** The heart of the detail page (Jellyfin). */
+    val onFavorite: () -> Unit = {},
     val onSelect: (MediaSource) -> Unit = {},
     val onAlwaysOriginal: (MediaSource, Boolean) -> Unit = { _, _ -> },
     /** „Neu laden“ of Medien › Quellen. */
@@ -197,7 +199,7 @@ private fun Rows(screen: TvMediaScreen, actions: TvMediaActions, onSources: () -
     Column(modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Header(screen, onSources)
         val problem = ui.problem
-        val anyTitles = ui.resume.isNotEmpty() || ui.latest.isNotEmpty() || ui.movies.isNotEmpty() || ui.series.isNotEmpty()
+        val anyTitles = ui.anyTitles
         when {
             !ui.any -> Column(verticalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.padding(top = 10.dp)) {
                 Text(stringResource(R.string.tv_media_none_server), style = MaterialTheme.typography.bodyLarge, color = colors.muted)
@@ -259,36 +261,47 @@ private fun Rows(screen: TvMediaScreen, actions: TvMediaActions, onSources: () -
                         if (problem == MediaProblem.VPN) TvButton(stringResource(R.string.tv_media_vpn_on), onClick = actions.onVpn)
                     }
                 }
+                // decision 70 A „Ergänzt“: the rows of the phone; the first one shown takes the focus
+                val firstRow = listOf(ui.resume, ui.nextUp, ui.latestMovies, ui.latestEpisodes, ui.favorites, ui.movies, ui.series, ui.collections)
+                    .indexOfFirst { it.isNotEmpty() }
+                fun focusOf(row: Int) = if (row == firstRow) first else null
                 if (ui.resume.isNotEmpty()) {
                     RowTitle(stringResource(R.string.tv_media_row_resume), pluralStringResource(R.plurals.tv_media_titles, ui.resume.size, ui.resume.size))
-                    LazyRow(contentPadding = RowPadding, horizontalArrangement = Arrangement.spacedBy(11.dp)) {
-                        itemsIndexed(ui.resume, key = { _, t -> t.id }) { i, t ->
-                            ResumeCard(
-                                t,
-                                screen.pictures,
-                                actions,
-                                modifier = if (i == 0) Modifier.focusRequester(first) else Modifier,
-                            )
-                        }
-                    }
+                    WideRow(ui.resume, screen.pictures, actions, focusOf(0))
                 }
-                if (ui.latest.isNotEmpty()) {
-                    RowTitle(stringResource(R.string.tv_media_row_latest), null)
-                    PosterRow(ui.latest, screen.pictures, actions, focus = if (ui.resume.isEmpty()) first else null)
+                if (ui.nextUp.isNotEmpty()) {
+                    RowTitle(stringResource(R.string.tv_media_row_next_up), ui.nextUpTotal.coerceAtLeast(ui.nextUp.size).toString())
+                    WideRow(ui.nextUp, screen.pictures, actions, focusOf(1))
+                }
+                if (ui.latestMovies.isNotEmpty()) {
+                    RowTitle(stringResource(R.string.tv_media_row_latest_movies), ui.latestMovies.size.toString())
+                    PosterRow(ui.latestMovies, screen.pictures, actions, focus = focusOf(2))
+                }
+                if (ui.latestEpisodes.isNotEmpty()) {
+                    RowTitle(stringResource(R.string.tv_media_row_latest_episodes), MediaLogic.newEpisodes(ui.latestEpisodes).toString())
+                    PosterRow(ui.latestEpisodes, screen.pictures, actions, focus = focusOf(3), episodes = true)
+                }
+                if (ui.favorites.isNotEmpty()) {
+                    RowTitle(stringResource(R.string.tv_media_row_favorites), ui.favoritesTotal.coerceAtLeast(ui.favorites.size).toString())
+                    PosterRow(ui.favorites, screen.pictures, actions, focus = focusOf(4), episodes = true)
                 }
                 if (ui.movies.isNotEmpty()) {
                     RowTitle(stringResource(R.string.tv_media_row_movies), stringResource(R.string.tv_media_movies_count, ui.moviesTotal))
-                    PosterRow(ui.movies, screen.pictures, actions, focus = if (ui.resume.isEmpty() && ui.latest.isEmpty()) first else null, more = ui.moviesNext) { actions.onMore(true) }
+                    PosterRow(ui.movies, screen.pictures, actions, focus = focusOf(5), more = ui.moviesNext) { actions.onMore(true) }
                 }
                 if (ui.series.isNotEmpty()) {
                     RowTitle(stringResource(R.string.tv_media_row_series), ui.seriesTotal.toString())
-                    PosterRow(ui.series, screen.pictures, actions, focus = null, more = ui.seriesNext) { actions.onMore(false) }
+                    PosterRow(ui.series, screen.pictures, actions, focus = focusOf(6), more = ui.seriesNext) { actions.onMore(false) }
                 }
-                if (!ui.loading && ui.resume.isEmpty() && ui.latest.isEmpty() && ui.movies.isEmpty() && ui.series.isEmpty()) {
+                if (ui.collections.isNotEmpty()) {
+                    RowTitle(stringResource(R.string.tv_media_row_collections), ui.collectionsTotal.coerceAtLeast(ui.collections.size).toString())
+                    PosterRow(ui.collections, screen.pictures, actions, focus = focusOf(7))
+                }
+                if (!ui.loading && !ui.anyTitles) {
                     Text(stringResource(R.string.tv_media_empty), style = MaterialTheme.typography.bodyLarge, color = colors.muted)
                 }
                 Text(stringResource(R.string.tv_media_keys), style = MaterialTheme.typography.labelMedium, color = colors.faint, modifier = Modifier.padding(top = 4.dp, bottom = 20.dp))
-                LaunchedEffect(ui.resume.isNotEmpty(), ui.latest.isNotEmpty(), ui.movies.isNotEmpty()) { first.requestSoon() }
+                LaunchedEffect(firstRow) { if (firstRow >= 0) first.requestSoon() }
             }
         }
     }
@@ -305,13 +318,25 @@ private fun RowTitle(title: String, extra: String?) {
     }
 }
 
+/** A row of wide cards ("Weiterschauen", "Als Nächstes"): OK plays, ☰ opens the details. */
 @Composable
-private fun PosterRow(
+private fun WideRow(items: List<MediaTitle>, pictures: Map<String, Bitmap>, actions: TvMediaActions, focus: FocusRequester?) {
+    LazyRow(contentPadding = RowPadding, horizontalArrangement = Arrangement.spacedBy(11.dp)) {
+        itemsIndexed(items, key = { _, t -> t.id }) { i, t ->
+            ResumeCard(t, pictures, actions, modifier = if (i == 0 && focus != null) Modifier.focusRequester(focus) else Modifier)
+        }
+    }
+}
+
+/** A row of posters; [episodes]: an episode under its series' name, a series with new ones "3 neu". */
+@Composable
+internal fun PosterRow(
     items: List<MediaTitle>,
     pictures: Map<String, Bitmap>,
     actions: TvMediaActions,
     focus: FocusRequester?,
     more: Int? = null,
+    episodes: Boolean = false,
     onMore: () -> Unit = {},
 ) {
     LazyRow(contentPadding = RowPadding, horizontalArrangement = Arrangement.spacedBy(11.dp)) {
@@ -322,6 +347,7 @@ private fun PosterRow(
                 actions,
                 modifier = (if (i == 0 && focus != null) Modifier.focusRequester(focus) else Modifier)
                     .onFocusChanged { if (it.isFocused && MediaLogic.wantsMore(i, items.size, more)) onMore() },
+                episodes = episodes,
             )
         }
     }
@@ -386,29 +412,37 @@ internal fun resumeLine(t: MediaTitle): String =
 /** "2025 · 1:48" for a film, "Serie · 3 Staffeln" for a series. */
 @Composable
 internal fun posterLine(t: MediaTitle): String? = when (t.kind) {
+    MediaTitle.Kind.EPISODE -> if (t.season != null && t.episode != null) stringResource(R.string.tv_media_season_episode, t.season!!, t.episode!!) else null
+    MediaTitle.Kind.COLLECTION -> t.childCount?.let { pluralStringResource(R.plurals.tv_media_collection_titles, it, it) }
     MediaTitle.Kind.SERIES -> t.childCount?.let { pluralStringResource(R.plurals.tv_media_series_seasons, it, it) } ?: stringResource(R.string.tv_media_series)
     else -> listOfNotNull(t.year?.toString(), t.runtimeMs?.let { MediaLogic.hoursMinutes(it) ?: stringResource(R.string.tv_media_minutes, MediaLogic.minutes(it)) })
         .joinToString(" · ").ifEmpty { null }
 }
 
-/** A poster (2:3) with its name and year; "NEU" when it came this week. */
+/** A poster (2:3) with its name and year; "NEU" when it came this week, "3 neu" on a series of "Neue Folgen". */
 @Composable
-private fun PosterCard(t: MediaTitle, pictures: Map<String, Bitmap>, actions: TvMediaActions, modifier: Modifier = Modifier) {
+private fun PosterCard(t: MediaTitle, pictures: Map<String, Bitmap>, actions: TvMediaActions, modifier: Modifier = Modifier, episodes: Boolean = false) {
     val colors = GateControlTvTheme.colors
+    val name = if (episodes && t.kind == MediaTitle.Kind.EPISODE) t.seriesName ?: t.name else t.name
+    val newCount = t.newCount?.takeIf { episodes }
     LaunchedEffect(t.id) { actions.onPicture(t, false) }
     val picture = pictures[actions.pictureKey(t, false)]
     Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
-        TvCard(92.dp, 138.dp, onClick = { actions.onOpen(t) }, description = t.name, modifier = modifier.menuOpens { actions.onOpen(t) }) {
+        TvCard(92.dp, 138.dp, onClick = { actions.onOpen(t) }, description = name, modifier = modifier.menuOpens { actions.onOpen(t) }) {
             Box(Modifier.fillMaxSize().background(PictureBg)) {
                 if (picture != null) {
                     Image(picture.asImageBitmap(), contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
                 } else {
                     Icon(TvIcons.Media, contentDescription = null, tint = colors.faint, modifier = Modifier.align(Alignment.Center).size(26.dp))
                 }
-                if (t.fromShare || TvMediaUiLogic.isNew(t)) {
+                if (t.fromShare || TvMediaUiLogic.isNew(t) || newCount != null) {
                     Row(Modifier.align(Alignment.TopStart).padding(5.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                         if (t.fromShare) NasBadge()
-                        if (TvMediaUiLogic.isNew(t)) TvPill(stringResource(R.string.tv_drop_badge_new), TvPillTone.Accent, dot = false)
+                        if (newCount != null) {
+                            TvPill(pluralStringResource(R.plurals.tv_media_new_episodes, newCount, newCount), TvPillTone.Accent, dot = false)
+                        } else if (TvMediaUiLogic.isNew(t)) {
+                            TvPill(stringResource(R.string.tv_drop_badge_new), TvPillTone.Accent, dot = false)
+                        }
                     }
                 }
                 if (t.played) {
@@ -419,7 +453,7 @@ private fun PosterCard(t: MediaTitle, pictures: Map<String, Bitmap>, actions: Tv
             }
         }
         Column(Modifier.size(width = 92.dp, height = 34.dp)) {
-            Text(t.name, style = MaterialTheme.typography.labelMedium, color = colors.text, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(name, style = MaterialTheme.typography.labelMedium, color = colors.text, maxLines = 1, overflow = TextOverflow.Ellipsis)
             posterLine(t)?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = colors.muted, maxLines = 1) }
         }
     }

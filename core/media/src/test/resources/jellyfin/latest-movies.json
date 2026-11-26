@@ -1,0 +1,10 @@
+[
+  {"Id": "m9", "Name": "Sternwarte 9", "Type": "Movie", "ProductionYear": 2026, "RunTimeTicks": 67200000000,
+   "UserData": {"PlaybackPositionTicks": 0, "Played": false, "IsFavorite": true},
+   "ImageTags": {"Primary": "pm9"}, "BackdropImageTags": ["bm9"], "Genres": ["Science-Fiction"], "DateCreated": "2026-11-24T20:00:00.0000000Z"},
+  {"Id": "m4", "Name": "Kupferstadt", "Type": "Movie", "ProductionYear": 2025, "RunTimeTicks": 74400000000,
+   "UserData": {"PlaybackPositionTicks": 0, "Played": false},
+   "ImageTags": {"Primary": "pm4"}, "Genres": ["Krimi"], "DateCreated": "2026-11-22T20:00:00.0000000Z"},
+  {"Id": "m2", "Name": "Moorlicht", "Type": "Movie", "ProductionYear": 2017, "RunTimeTicks": 58800000000,
+   "UserData": {"Played": true}, "ImageTags": {"Primary": "pm2"}, "DateCreated": "2026-10-02T20:00:00.0000000Z"}
+]

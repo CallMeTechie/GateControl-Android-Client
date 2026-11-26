@@ -15,6 +15,7 @@ import com.gatecontrol.android.media.MediaOrder
 import com.gatecontrol.android.media.MediaPictures
 import com.gatecontrol.android.media.MediaPlayRequests
 import com.gatecontrol.android.media.MediaProblem
+import com.gatecontrol.android.media.MediaRows
 import com.gatecontrol.android.media.MediaRowsCache
 import com.gatecontrol.android.media.MediaSource
 import com.gatecontrol.android.media.MediaTitle
@@ -46,16 +47,22 @@ data class MediaHomeUi(
     val shareProblems: Set<String> = emptySet(),
     val loading: Boolean = false,
     val problem: MediaProblem? = null,
-    val resume: List<MediaTitle> = emptyList(),
-    val latest: List<MediaTitle> = emptyList(),
-    val series: List<MediaTitle> = emptyList(),
-    val seriesTotal: Int = 0,
+    /** The rows of the overview (decision 70 A „Ergänzt“), all sources in one; an empty row is not shown. */
+    val rows: MediaRows = MediaRows(),
     /** „Neu anmelden“: running, or why it did not work. */
     val signIn: MediaSignInState = MediaSignInState(),
     /** A source set up by hand to show on Medien › Quellen (once; [MediaHomeViewModel.sourceOpened]). */
     val openSource: String? = null,
 ) {
     val any: Boolean get() = sources.isNotEmpty()
+    val resume: List<MediaTitle> get() = rows.resume
+    val series: List<MediaTitle> get() = rows.series
+    val seriesTotal: Int get() = rows.seriesTotal
+
+    /** Nothing in any row (the hint „In dieser Bibliothek ist noch nichts.“). */
+    val empty: Boolean
+        get() = rows.resume.isEmpty() && rows.nextUp.isEmpty() && rows.latestMovies.isEmpty() && rows.latestEpisodes.isEmpty() &&
+            rows.favorites.isEmpty() && rows.movies.isEmpty() && rows.series.isEmpty() && rows.collections.isEmpty()
 }
 
 /** "Filme" or "Serien" as a grid: the chips' order, what is loaded, the genres for the chip. */
@@ -190,7 +197,7 @@ class MediaHomeViewModel @Inject constructor(
 
     private fun publish() {
         val rows = browse.rows()
-        _ui.update { it.copy(resume = rows.resume, latest = rows.latest, series = rows.series, seriesTotal = rows.seriesTotal) }
+        _ui.update { it.copy(rows = rows) }
     }
 
     /**
@@ -240,7 +247,8 @@ class MediaHomeViewModel @Inject constructor(
             coroutineScope {
                 if (source != null) {
                     launch {
-                        val p = browse.loadJellyfin(source, movies = false)
+                        // all rows at once side by side (the row "Filme" too: its first page)
+                        val p = browse.loadJellyfin(source)
                         problem = p
                         // the card at once (the shares may take longer)
                         _ui.update { it.copy(problem = p) }
@@ -266,6 +274,14 @@ class MediaHomeViewModel @Inject constructor(
     private fun state(movies: Boolean) = if (movies) _movies else _series
 
     private fun gridOf(movies: Boolean) = if (movies) movieGrid else seriesGrid
+
+    /**
+     * „Alle anzeigen“ of a row ("›"): "Filme" ([movies]) or "Serien" with [order] (null: as it was), e.g. "Neue Filme"
+     * newest first, "Als Nächstes" the unwatched series, a genre tile its genre.
+     */
+    fun showList(movies: Boolean, order: MediaOrder?) {
+        if (order != null) setOrder(movies, order) else openGrid(movies)
+    }
 
     /** "Filme" or "Serien" opened: its first page (once; again with [order] from the chips). */
     fun openGrid(movies: Boolean) {
@@ -316,7 +332,7 @@ class MediaHomeViewModel @Inject constructor(
         refresh()
     }
 
-    /** A card of "Weiterschauen" tapped: on from where it was left. */
+    /** A card of "Weiterschauen" or "Als Nächstes" tapped: on from where it was left. */
     fun play(title: MediaTitle) {
         viewModelScope.launch { requests.play(title) }
     }

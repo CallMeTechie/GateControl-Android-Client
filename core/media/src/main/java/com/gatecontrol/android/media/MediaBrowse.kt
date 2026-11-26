@@ -38,17 +38,31 @@ internal fun mediaProblemOf(hub: MediaHub, r: MediaResult<*>, source: MediaSourc
 
 /**
  * Rows of Medien: one source's as loaded (Jellyfin page by page, a share whole), or all sources' in one
- * ([MediaBrowse.rows]).
+ * ([MediaBrowse.rows]). The overview (decision 70 A „Ergänzt“): Weiterschauen, Als Nächstes, Neue Filme, Neue Folgen,
+ * Favoriten, Filme, Serien, Sammlungen, Genres; an empty row is not shown.
  */
 data class MediaRows(
     val resume: List<MediaTitle> = emptyList(),
-    val latest: List<MediaTitle> = emptyList(),
+    /** "Als Nächstes" (Jellyfin `Shows/NextUp`) and how many the server has. */
+    val nextUp: List<MediaTitle> = emptyList(),
+    val nextUpTotal: Int = 0,
+    /** "Neue Filme" and "Neue Folgen" (decision 72: apart, the episodes grouped per series). */
+    val latestMovies: List<MediaTitle> = emptyList(),
+    val latestEpisodes: List<MediaTitle> = emptyList(),
     val movies: List<MediaTitle> = emptyList(),
     val moviesTotal: Int = 0,
     val moviesNext: Int? = null,
     val series: List<MediaTitle> = emptyList(),
     val seriesTotal: Int = 0,
     val seriesNext: Int? = null,
+    /** The person's favourites (Jellyfin only, decision 74). */
+    val favorites: List<MediaTitle> = emptyList(),
+    val favoritesTotal: Int = 0,
+    /** "Sammlungen" (Jellyfin's box sets; only when there are any, decision 75). */
+    val collections: List<MediaTitle> = emptyList(),
+    val collectionsTotal: Int = 0,
+    /** The genres of the films, A–Z (the tiles open "Filme" with the genre). */
+    val genres: List<String> = emptyList(),
 )
 
 /** A title's details as a detail page shows them first: the sound and subtitle picked, the quality offered. */
@@ -83,21 +97,33 @@ class MediaBrowse(
     fun rows(): MediaRows {
         val j = jellyfin
         val shares = hub.shares().mapNotNull { shareRows[it.id] }
-        val known = j.resume + j.latest + j.movies + j.series
+        val known = j.resume + j.latestMovies + j.latestEpisodes + j.movies + j.series
         fun fromShares(f: (MediaRows) -> List<MediaTitle>) = MediaLogic.withoutDuplicates(shares.flatMap(f), known)
         val resume = MediaLogic.byLastPlayed(listOf(j.resume, fromShares { it.resume }), RESUME)
-        val latest = MediaLogic.byAdded(listOf(j.latest, fromShares { it.latest }), LATEST)
+        val latestMovies = MediaLogic.byAdded(listOf(j.latestMovies, fromShares { it.latestMovies }), LATEST)
+        val latestEpisodes = MediaLogic.byAdded(listOf(j.latestEpisodes, fromShares { it.latestEpisodes }), LATEST)
         val shareMovies = fromShares { it.movies }
         val shareSeries = fromShares { it.series }
+        val resumeIds = resume.map { it.id }.toSet()
+        val nextUp = MediaLogic.nextUpWithout(j.nextUp, resume)
         return MediaRows(
             resume = resume,
-            latest = MediaLogic.latestWithout(latest, resume),
+            nextUp = nextUp,
+            nextUpTotal = (j.nextUpTotal - (j.nextUp.size - nextUp.size)).coerceAtLeast(nextUp.size),
+            // a film begun is in "Weiterschauen" already
+            latestMovies = latestMovies.filterNot { it.id in resumeIds },
+            latestEpisodes = latestEpisodes.filterNot { it.id in resumeIds },
             movies = MediaLogic.alphabetical(j.movies, j.moviesNext == null, shareMovies),
             moviesTotal = j.moviesTotal + shareMovies.size,
             moviesNext = j.moviesNext,
             series = MediaLogic.alphabetical(j.series, j.seriesNext == null, shareSeries),
             seriesTotal = j.seriesTotal + shareSeries.size,
             seriesNext = j.seriesNext,
+            favorites = j.favorites,
+            favoritesTotal = j.favoritesTotal,
+            collections = j.collections,
+            collectionsTotal = j.collectionsTotal,
+            genres = MediaLogic.mergeGenres(j.genres, shares.flatMap { it.genres }),
         )
     }
 
@@ -135,10 +161,9 @@ class MediaBrowse(
     /**
      * The rows of the Jellyfin server [source] ([onChange] after each); the problem, if any. The requests go out at
      * once side by side (away each one costs the way through the tunnel; one after the other they added up), shown in
-     * the page's order. [movies] false: no first page of "Filme" (the phone's overview does not show it, its grid
-     * loads its own).
+     * the page's order. [movies] false: no first page of "Filme"; [genres] false: no genres (the TV shows no tiles).
      */
-    suspend fun loadJellyfin(source: MediaSource, movies: Boolean = true): MediaProblem? {
+    suspend fun loadJellyfin(source: MediaSource, movies: Boolean = true, genres: Boolean = true): MediaProblem? {
         if (source.token == null) {
             // signed out by the server earlier: sign in again
             jellyfin = MediaRows()
@@ -148,9 +173,14 @@ class MediaBrowse(
         val lib = hub.library(source)
         return coroutineScope {
             val resumeAsk = async { lib.resume(RESUME) }
-            val latestAsk = async { lib.latest(LATEST) }
-            val seriesAsk = async { lib.series(0, MediaLogic.PAGE) }
+            val nextUpAsk = async { lib.nextUp(NEXT_UP) }
+            val latestMoviesAsk = async { lib.latestMovies(LATEST) }
+            val latestEpisodesAsk = async { lib.latestEpisodes(LATEST) }
+            val favoritesAsk = async { lib.favorites(ROW) }
             val moviesAsk = if (movies) async { lib.movies(0, MediaLogic.PAGE) } else null
+            val seriesAsk = async { lib.series(0, MediaLogic.PAGE) }
+            val collectionsAsk = async { lib.collections(ROW) }
+            val genresAsk = if (genres) async { lib.genres(true) } else null
             val resume = resumeAsk.await()
             val problem = problemOf(resume, source)
             if (problem != null) {
@@ -162,7 +192,15 @@ class MediaBrowse(
             }
             jellyfin = jellyfin.copy(resume = resume.valueOrNull().orEmpty())
             onChange()
-            jellyfin = jellyfin.copy(latest = latestAsk.await().valueOrNull().orEmpty())
+            val next = nextUpAsk.await().valueOrNull()
+            jellyfin = jellyfin.copy(nextUp = next?.items.orEmpty(), nextUpTotal = next?.total ?: 0)
+            onChange()
+            jellyfin = jellyfin.copy(latestMovies = latestMoviesAsk.await().valueOrNull().orEmpty())
+            onChange()
+            jellyfin = jellyfin.copy(latestEpisodes = latestEpisodesAsk.await().valueOrNull().orEmpty())
+            onChange()
+            val fav = favoritesAsk.await().valueOrNull()
+            jellyfin = jellyfin.copy(favorites = fav?.items.orEmpty(), favoritesTotal = fav?.total ?: 0)
             onChange()
             val m = moviesAsk?.await()?.valueOrNull()
             val series = seriesAsk.await().valueOrNull()
@@ -173,6 +211,13 @@ class MediaBrowse(
                 series = series?.items.orEmpty(),
                 seriesTotal = series?.total ?: 0,
                 seriesNext = series?.next,
+            )
+            onChange()
+            val sets = collectionsAsk.await().valueOrNull()
+            jellyfin = jellyfin.copy(
+                collections = sets?.items.orEmpty(),
+                collectionsTotal = sets?.total ?: 0,
+                genres = genresAsk?.await()?.valueOrNull().orEmpty(),
             )
             onChange()
             null
@@ -197,9 +242,11 @@ class MediaBrowse(
         shareRows = shareRows + (
             source.id to MediaRows(
                 resume = resume.value,
-                latest = lib.latest(LATEST).valueOrNull().orEmpty(),
+                latestMovies = lib.latestMovies(LATEST).valueOrNull().orEmpty(),
+                latestEpisodes = lib.latestEpisodes(LATEST).valueOrNull().orEmpty(),
                 movies = movies?.items.orEmpty(),
                 series = series?.items.orEmpty(),
+                genres = MediaLogic.genres(movies?.items.orEmpty()),
             )
             )
         onShareProblem(false)
@@ -301,6 +348,18 @@ class MediaBrowse(
     fun rememberTracks(seriesId: String, version: MediaVersion, audio: Int?, subtitle: Int?) =
         hub.store.setTrackChoice(seriesId, MediaTracks.choiceOf(version, audio, subtitle))
 
+    /** The titles of collection [title] (a box set's films). */
+    suspend fun collection(title: MediaTitle): List<MediaTitle> {
+        val source = hub.store.source(title.sourceId) ?: return emptyList()
+        return hub.library(source).collection(title.id).valueOrNull().orEmpty()
+    }
+
+    /** The heart (Jellyfin only); true when the server took it. */
+    suspend fun setFavorite(title: MediaTitle, favorite: Boolean): Boolean {
+        val source = hub.store.source(title.sourceId)?.takeIf { it.kind == MediaSourceKind.JELLYFIN } ?: return false
+        return hub.library(source).setFavorite(title.id, favorite) is MediaResult.Ok
+    }
+
     /** "Als gesehen markieren" (and back); true when the server took it. */
     suspend fun setPlayed(title: MediaTitle, played: Boolean): Boolean {
         val source = hub.store.source(title.sourceId) ?: return false
@@ -326,6 +385,10 @@ class MediaBrowse(
     companion object {
         const val RESUME = 12
         const val LATEST = 16
+        const val NEXT_UP = 16
+
+        /** Favoriten, Sammlungen: the first ones in the row ("›" leads to all). */
+        const val ROW = 20
         const val SEARCH = 40
 
         /** A share's rows are loaded whole (its index is on the device already). */

@@ -59,7 +59,8 @@ class TvMediaPageTest {
         sources = listOf(source),
         source = source,
         resume = listOf(kobalt, eisvogel),
-        latest = listOf(sternwarte, graufeld),
+        latestMovies = listOf(sternwarte),
+        latestEpisodes = listOf(graufeld.copy(newCount = 3)),
         movies = listOf(
             MediaTitle("m2", "s1", MediaTitle.Kind.MOVIE, "Achterwasser", year = 2019),
             MediaTitle("m3", "s1", MediaTitle.Kind.MOVIE, "Der Pegelwart", year = 2018),
@@ -93,6 +94,9 @@ class TvMediaPageTest {
         rule.onNodeWithText("Season 2 · Episode 4").assertExists()
         rule.onNodeWithText("412 · A–Z").assertExists()
         rule.onNodeWithText("Series · 3 seasons").assertExists()
+        rule.onNodeWithText("New films").assertExists()
+        rule.onNodeWithText("New episodes").assertExists()
+        rule.onNodeWithText("3 new").assertExists()
         // the remote starts on the first card of "Weiterschauen"
         rule.onNodeWithContentDescription("Kobaltnacht").assertIsFocused()
         rule.onRoot().performKeyInput { pressKey(Key.DirectionCenter) }
@@ -100,7 +104,7 @@ class TvMediaPageTest {
         // ☰ on the card: the details
         rule.onRoot().performKeyInput { pressKey(Key.Menu) }
         assertEquals(listOf("m1"), opened)
-        // ▼ to "Zuletzt hinzugefügt": OK opens the poster's details
+        // ▼ to "Neue Filme": OK opens the poster's details
         rule.onRoot().performKeyInput { pressKey(Key.DirectionDown) }
         rule.waitForIdle()
         rule.onNodeWithContentDescription("Sternwarte 9").assertIsFocused()
@@ -292,5 +296,62 @@ class TvMediaPageTest {
         rule.onNodeWithText("In Jellyfin this TV is called “GateControl · Wohnzimmer-TV”.").assertExists()
         rule.onNodeWithText("Reload").performSemanticsAction(SemanticsActions.OnClick)
         assertEquals(1, reloaded)
+    }
+
+    @Test
+    fun `the rows of Ergaenzt - next up plays, favourites and collections open, the first row shown takes the focus`() {
+        val next = MediaTitle("e16", "s1", MediaTitle.Kind.EPISODE, "Die Flaute", runtimeMs = 2_640_000, seriesId = "s12", seriesName = "Ankerplatz 12", season = 1, episode = 6)
+        val set = MediaTitle("b1", "s1", MediaTitle.Kind.COLLECTION, "Sternwarte-Reihe", childCount = 3)
+        val ui = TvMediaUi(
+            sources = listOf(source),
+            source = source,
+            nextUp = listOf(next),
+            nextUpTotal = 4,
+            favorites = listOf(sternwarte.copy(favorite = true)),
+            favoritesTotal = 7,
+            collections = listOf(set),
+            collectionsTotal = 1,
+        )
+        val played = mutableListOf<Pair<String, Boolean>>()
+        val opened = mutableListOf<String>()
+        rule.setContent {
+            GateControlTvTheme { TvMediaPage(TvMediaScreen(ui), TvMediaActions(onPlay = { t, start -> played += t.id to start }, onOpen = { opened += it.id })) }
+        }
+        // without "Weiterschauen" the row is not there, "Als Nächstes" comes first
+        assertEquals(0, rule.onAllNodesWithText("Continue watching").fetchSemanticsNodes().size)
+        rule.onNodeWithText("Next up").assertExists()
+        rule.onNodeWithText("4").assertExists()
+        rule.onNodeWithText("Favourites").assertExists()
+        rule.onNodeWithText("7").assertExists()
+        rule.onNodeWithText("Collections").assertExists()
+        rule.onNodeWithText("3 films").assertExists()
+        rule.onNodeWithContentDescription("Ankerplatz 12").assertIsFocused()
+        rule.onRoot().performKeyInput { pressKey(Key.DirectionCenter) }
+        assertEquals(listOf("e16" to false), played)
+        rule.onRoot().performKeyInput { pressKey(Key.DirectionDown) }
+        rule.waitForIdle()
+        rule.onNodeWithContentDescription("Sternwarte 9").assertIsFocused()
+        rule.onRoot().performKeyInput { pressKey(Key.DirectionDown) }
+        rule.waitForIdle()
+        rule.onNodeWithContentDescription("Sternwarte-Reihe").assertIsFocused()
+        rule.onRoot().performKeyInput { pressKey(Key.DirectionCenter) }
+        assertEquals(listOf("b1"), opened)
+    }
+
+    @Test
+    fun `a collection's page lists its films, the heart toggles`() {
+        val set = MediaTitle("b1", "s1", MediaTitle.Kind.COLLECTION, "Sternwarte-Reihe", childCount = 2)
+        val detail = TvDetailUi(set, MediaDetail(set, emptyList()), loading = false, items = listOf(sternwarte, kobalt))
+        var hearts = 0
+        val opened = mutableListOf<String>()
+        rule.setContent {
+            GateControlTvTheme { TvMediaPage(TvMediaScreen(rows, detail = detail), TvMediaActions(onFavorite = { hearts++ }, onOpen = { opened += it.id })) }
+        }
+        rule.onNodeWithText("♡ Favourite").performSemanticsAction(SemanticsActions.OnClick)
+        assertEquals(1, hearts)
+        rule.waitForIdle()
+        rule.onNodeWithContentDescription("Sternwarte 9").assertIsFocused()
+        rule.onRoot().performKeyInput { pressKey(Key.DirectionCenter) }
+        assertEquals(listOf("m9"), opened)
     }
 }
