@@ -40,6 +40,21 @@ class SetupRepository @Inject constructor(private val storage: EncryptedStorage)
 
     fun getApiToken(): String = storage.getString(KEY_API_TOKEN, "")
 
+    /** A server URL is stored (possibly unreadable for a moment); false when it is really missing. */
+    fun hasStoredServerUrl(): Boolean = storage.contains(KEY_SERVER_URL)
+
+    /**
+     * Puts back a server URL that was lost while the token stayed (older
+     * versions dropped it on a passing Keystore error). Only when none is
+     * stored, so a real setup is never overwritten. Returns true when restored.
+     */
+    fun restoreServerUrl(serverUrl: String): Boolean {
+        if (serverUrl.isBlank() || hasStoredServerUrl()) return false
+        storage.commitBatch(KEY_SERVER_URL to serverUrl)
+        _revision.value += 1
+        return true
+    }
+
     fun getPeerId(): Int = storage.getInt(KEY_PEER_ID, -1)
 
     fun saveConfigHash(hash: String) {

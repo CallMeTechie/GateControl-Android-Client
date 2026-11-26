@@ -34,6 +34,7 @@
     <string name="drive_code_quota">There is not enough space left.</string>
     <string name="drive_code_invalid">That is not possible (name or target not allowed).</string>
     <string name="drive_code_not_found">That is gone already.</string>
+    <string name="drive_code_not_configured">The server address is missing – please reconnect under Settings › Server.</string>
     <string name="drive_code_links_disabled">Links are switched off. An administrator can allow them under Plugins › Drive › Permissions.</string>
     <string name="drive_code_no_unlimited">Links without an end are not allowed here.</string>
     <string name="drive_code_no_public_url">The server has no public https address for links.</string>
