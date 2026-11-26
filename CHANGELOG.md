@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.158.0] - 2026-11-26
+
+### Features
+- Medien-Cast – eigene Geräte-ID vom Plugin, Lautstärke am TV per Handy (#304)
+
+---
+
 ## [1.157.4] - 2026-11-26
 
 ### Fixes
