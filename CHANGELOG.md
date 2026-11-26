@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.157.4] - 2026-11-26
+
+### Fixes
+- Medien – Abmelden meldet auch in Jellyfin ab, Player ohne VPN, DTS-Ton, SRT-Umlaute, Downloads (#303)
+
+---
+
 ## [1.157.3] - 2026-11-26
 
 ### Fixes
