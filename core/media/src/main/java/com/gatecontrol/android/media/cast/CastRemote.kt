@@ -42,6 +42,11 @@ data class CastRemoteState(
     val lastSeq: Long = -1,
     /** Our own next [CastMessage.seq]. */
     val nextSeq: Long = 1,
+    /** The receiver's volume 0–100 as it told (or as set here a moment ago); null: it does not tell (no volume control). */
+    val volume: Int? = null,
+    val muted: Boolean = false,
+    /** When the volume was changed here last: the receiver's states keep their old volume a moment longer. */
+    val volumeSetMs: Long = 0,
 )
 
 /** The controller's state machine (pure, unit-tested). */
@@ -57,6 +62,8 @@ object CastRemote {
     fun onState(s: CastRemoteState, m: CastMessage.State, fromDevice: String, now: Long): CastRemoteState {
         if (m.session != s.session || fromDevice != s.deviceId || m.seq <= s.lastSeq) return s
         if (s.phase.final) return s
+        // a change here a moment ago wins over a state that was on its way already
+        val held = s.volumeSetMs > 0 && now - s.volumeSetMs < VOLUME_HOLD_MS
         return s.copy(
             phase = phaseOf(m.phase),
             positionMs = m.positionMs,
@@ -68,7 +75,39 @@ object CastRemote {
             lastSeq = m.seq,
             deviceName = m.device ?: s.deviceName,
             title = m.title ?: s.title,
+            volume = if (held) s.volume else m.volume ?: s.volume,
+            muted = if (held) s.muted else m.muted ?: s.muted,
         )
+    }
+
+    /** A change of the volume here wins over the receiver's states for this long (they may have left before it arrived). */
+    const val VOLUME_HOLD_MS = 3_000L
+
+    /** The step of the phone's volume keys. */
+    const val VOLUME_STEP = 5
+
+    /** The volume can be changed: the session runs and the receiver tells its volume (an older one does not). */
+    fun hasVolume(s: CastRemoteState): Boolean = s.volume != null && !s.phase.final && s.phase != CastRemotePhase.CONNECTING
+
+    /**
+     * The volume shown at once for a key ([delta] steps up or down, louder also ends muting) or the slider / mute
+     * button ([volume], [muted]); null when there is no volume control now. The command follows ([command] with
+     * [CastCmd.VOLUME]).
+     */
+    fun setVolume(s: CastRemoteState, now: Long, delta: Int? = null, volume: Int? = null, muted: Boolean? = null): CastRemoteState? {
+        if (!hasVolume(s)) return null
+        val current = s.volume ?: return null
+        val nextVolume = when {
+            delta != null -> (current + delta).coerceIn(0, 100)
+            volume != null -> volume.coerceIn(0, 100)
+            else -> current
+        }
+        val nextMuted = when {
+            muted != null -> muted
+            delta != null && delta > 0 -> false
+            else -> s.muted
+        }
+        return s.copy(volume = nextVolume, muted = nextMuted, volumeSetMs = now)
     }
 
     private fun phaseOf(p: CastPhase) = when (p) {
@@ -100,10 +139,24 @@ object CastRemote {
      * The command for a key of the remote and the state shown until the receiver answers (pause shows paused at
      * once, a jump the new place); null when it makes no sense now (over, or not started yet).
      */
-    fun command(s: CastRemoteState, cmd: CastCmd, now: Long, positionMs: Long? = null, deltaMs: Long? = null, track: String? = null): Pair<CastMessage.Command, CastRemoteState>? {
+    fun command(
+        s: CastRemoteState,
+        cmd: CastCmd,
+        now: Long,
+        positionMs: Long? = null,
+        deltaMs: Long? = null,
+        track: String? = null,
+        volume: Int? = null,
+        muted: Boolean? = null,
+    ): Pair<CastMessage.Command, CastRemoteState>? {
         if (s.phase.final) return null
         if (s.phase == CastRemotePhase.CONNECTING && cmd != CastCmd.STOP && cmd != CastCmd.STATUS) return null
-        val c = CastMessage.Command(s.session, s.nextSeq, now, cmd, positionMs, deltaMs, track)
+        if (cmd == CastCmd.VOLUME && volume == null && muted == null) return null
+        val c = if (cmd == CastCmd.VOLUME) {
+            CastMessage.Command(s.session, s.nextSeq, now, cmd, volume = volume?.coerceIn(0, 100), muted = muted)
+        } else {
+            CastMessage.Command(s.session, s.nextSeq, now, cmd, positionMs, deltaMs, track)
+        }
         val here = position(s, now)
         val shown = when (cmd) {
             CastCmd.PAUSE -> s.copy(phase = CastRemotePhase.PAUSED, positionMs = here, sinceMs = now)
@@ -112,6 +165,7 @@ object CastRemote {
             CastCmd.SEEK_BY -> s.copy(positionMs = clamp(here + (deltaMs ?: 0), s.durationMs), sinceMs = now)
             CastCmd.AUDIO -> s.copy(audio = s.audio.map { it.copy(selected = it.id == track) })
             CastCmd.SUBTITLE -> s.copy(subtitles = s.subtitles.map { it.copy(selected = it.id == track) })
+            CastCmd.VOLUME -> s.copy(volume = c.volume ?: s.volume, muted = c.muted ?: s.muted, volumeSetMs = now)
             CastCmd.STOP -> s.copy(phase = CastRemotePhase.STOPPED, positionMs = here, sinceMs = now)
             CastCmd.STATUS -> s
         }

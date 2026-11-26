@@ -46,6 +46,32 @@ class MainActivity : FragmentActivity() {
     @Inject lateinit var mediaServer: com.gatecontrol.android.media.server.MediaServerSources
     @Inject lateinit var profileRepository: com.gatecontrol.android.profile.ProfileRepository
     @Inject lateinit var chatRepository: com.gatecontrol.android.chat.ChatRepository
+    @Inject lateinit var phoneCast: com.gatecontrol.android.media.PhoneCast
+
+    private var volumeToast: android.widget.Toast? = null
+
+    /**
+     * „Auf TV/PC abspielen“: during a session the volume keys change the volume on the other device (while it tells
+     * it); a short note says the new value, as the remote is not open here.
+     */
+    override fun onKeyDown(keyCode: Int, event: android.view.KeyEvent): Boolean {
+        if (!com.gatecontrol.android.media.CastVolumeKeys.handle(event, phoneCast)) return super.onKeyDown(keyCode, event)
+        window.decorView.postDelayed(::showCastVolume, 120L)
+        return true
+    }
+
+    override fun onKeyUp(keyCode: Int, event: android.view.KeyEvent): Boolean =
+        com.gatecontrol.android.media.CastVolumeKeys.handle(event, phoneCast) || super.onKeyUp(keyCode, event)
+
+    /** A moment after the key: the change is applied in order then. */
+    private fun showCastVolume() {
+        val s = phoneCast.state.value ?: return
+        val volume = s.volume ?: return
+        val value = if (s.muted) getString(R.string.media_cast_muted) else getString(R.string.media_cast_volume_value, volume)
+        volumeToast?.cancel()
+        volumeToast = android.widget.Toast.makeText(this, getString(R.string.media_cast_volume_on, s.deviceName, value), android.widget.Toast.LENGTH_SHORT)
+            .also { it.show() }
+    }
 
     /** gatecontrol://enroll link from outside the app, shown on the setup screen for confirmation. */
     private var pendingSetupLink by mutableStateOf<String?>(null)

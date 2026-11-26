@@ -78,6 +78,8 @@ data class MediaServerList(
     val rev: String,
     val at: Long?,
     val unchanged: Boolean = false,
+    /** This device's own GateControl id (`deviceId`, plugin 1.4.0); null: not told (an older plugin, `unchanged`, no device). */
+    val deviceId: String? = null,
     val media: Boolean = true,
     val maxOfflineDays: Int = DEFAULT_MAX_OFFLINE_DAYS,
     val offlineHintDays: Int = DEFAULT_OFFLINE_HINT_DAYS,
@@ -142,6 +144,7 @@ object MediaServerJson {
         return MediaServerList(
             rev = rev,
             at = at,
+            deviceId = com.gatecontrol.android.media.cast.CastEnvelopes.self(o),
             media = media,
             maxOfflineDays = o.int("maxOfflineDays")?.takeIf { it in 1..3650 } ?: MediaServerList.DEFAULT_MAX_OFFLINE_DAYS,
             offlineHintDays = o.int("offlineHintDays")?.takeIf { it in 1..3650 } ?: MediaServerList.DEFAULT_OFFLINE_HINT_DAYS,

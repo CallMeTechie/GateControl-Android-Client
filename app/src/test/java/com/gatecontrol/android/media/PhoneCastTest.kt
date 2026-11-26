@@ -37,7 +37,10 @@ class PhoneCastTest {
         val sent = ArrayList<Pair<String, CastMessage>>()
         var targets: MediaServerResult<List<CastTarget>> = MediaServerResult.Ok(emptyList())
         var answer: MediaServerResult<Unit> = MediaServerResult.Ok(Unit)
-        override suspend fun castTargets() = targets
+        override suspend fun castTargets() = when (val t = targets) {
+            is MediaServerResult.Ok -> MediaServerResult.Ok(com.gatecontrol.android.media.cast.CastTargetList(null, t.value))
+            is MediaServerResult.Refused -> t
+        }
         override suspend fun castMessage(to: String, message: CastMessage): MediaServerResult<Unit> {
             sent += to to message
             return answer
@@ -129,6 +132,57 @@ class PhoneCastTest {
         assertEquals(CastStartProblem.FAILED, w.cast.start(tv, film.copy(sourceId = "l1"), 0, null, null))
         scope.cancel()
     }
+
+    @Test
+    fun `volume keys - only with a receiver that tells its volume, shown at once, the newest goes out once`() = runTest(UnconfinedTestDispatcher()) {
+        val scope = TestScope(UnconfinedTestDispatcher(testScheduler))
+        val w = World(scope)
+        assertFalse(w.cast.volumeKey(1), "no session: the phone's own volume")
+        assertNull(w.cast.start(tv, film, 0, null, null))
+        val session = w.cast.state.value!!.session
+        // an older receiver: no volume in its state, the keys stay the phone's
+        w.channel.receive(stateData(CastMessage.State(session, 1, 5, CastPhase.PLAYING, 0, 6_480_000)), push = false)
+        assertFalse(w.cast.hasVolume)
+        assertFalse(w.cast.volumeKey(1))
+        w.channel.receive(stateData(CastMessage.State(session, 2, 5, CastPhase.PLAYING, 0, 6_480_000, volume = 40, muted = true)), push = false)
+        assertTrue(w.cast.hasVolume)
+        val before = w.api.sent.size
+        assertTrue(w.cast.volumeKey(1))
+        assertTrue(w.cast.volumeKey(1))
+        assertEquals(50, w.cast.state.value!!.volume)
+        assertFalse(w.cast.state.value!!.muted, "louder ends muting")
+        assertEquals(before, w.api.sent.size, "not yet: a held key is one message")
+        testScheduler.advanceTimeBy(PhoneCastVolumeGap + 1)
+        testScheduler.runCurrent()
+        val volume = w.api.sent.drop(before).map { it.second }.filterIsInstance<CastMessage.Command>().single { it.cmd == CastCmd.VOLUME }
+        assertEquals(50, volume.volume)
+        assertEquals(false, volume.muted)
+        assertEquals("42", w.api.sent.last().first)
+        // nothing new: nothing more goes out; muting goes out on its own
+        testScheduler.advanceTimeBy(PhoneCastVolumeGap * 3)
+        testScheduler.runCurrent()
+        assertEquals(1, w.api.sent.drop(before).count { (it.second as? CastMessage.Command)?.cmd == CastCmd.VOLUME })
+        assertTrue(w.cast.toggleMute())
+        testScheduler.advanceTimeBy(PhoneCastVolumeGap + 1)
+        testScheduler.runCurrent()
+        val mute = w.api.sent.last().second as CastMessage.Command
+        assertEquals(CastCmd.VOLUME, mute.cmd)
+        assertEquals(true, mute.muted)
+        assertTrue(w.cast.setVolume(20))
+        assertEquals(20, w.cast.state.value!!.volume)
+        assertTrue(w.cast.state.value!!.muted, "quieter keeps muting")
+        scope.cancel()
+    }
+
+    @Test
+    fun `volume keys - the key codes`() {
+        assertEquals(1, CastVolumeKeys.steps(android.view.KeyEvent.KEYCODE_VOLUME_UP))
+        assertEquals(-1, CastVolumeKeys.steps(android.view.KeyEvent.KEYCODE_VOLUME_DOWN))
+        assertEquals(CastVolumeKeys.MUTE, CastVolumeKeys.steps(android.view.KeyEvent.KEYCODE_VOLUME_MUTE))
+        assertNull(CastVolumeKeys.steps(android.view.KeyEvent.KEYCODE_ENTER))
+    }
+
+    private val PhoneCastVolumeGap = 400L
 
     private fun TestScope.cancel() = coroutineContext[kotlinx.coroutines.Job]?.cancel()
 }

@@ -59,7 +59,7 @@ class MediaCastChannel(
     /** The messages for this device, each once. */
     val incoming: SharedFlow<CastEnvelope> = _incoming.asSharedFlow()
 
-    /** This device's GateControl id, once a delivery told it; null before. */
+    /** This device's GateControl id, once the plugin (its lists, plugin 1.4.0) or a delivery told it; null before. */
     val self: String? get() = inbox.self
 
     /** [session] is this device's (an event for it counts as ours while [self] is not known yet). */
@@ -80,8 +80,19 @@ class MediaCastChannel(
         return true
     }
 
-    /** The own TVs and PCs (`GET v1/cast/targets`), or the refusal. */
-    suspend fun targets(): MediaServerResult<List<CastTarget>> = api.castTargets()
+    /** The plugin told this device its own id (`deviceId` of `GET v1/sources` / `GET v1/cast/targets`); null: not told. */
+    fun learnSelf(id: String?) {
+        inbox.learn(id, saveSelf)
+    }
+
+    /** The own TVs and PCs (`GET v1/cast/targets`), or the refusal; its `deviceId` is this device's own id. */
+    suspend fun targets(): MediaServerResult<List<CastTarget>> = when (val r = api.castTargets()) {
+        is MediaServerResult.Ok -> {
+            learnSelf(r.value.self)
+            MediaServerResult.Ok(r.value.devices)
+        }
+        is MediaServerResult.Refused -> r
+    }
 
     /** [message] to the device [to]; made smaller first when it is too big for the plugin. */
     suspend fun send(to: String, message: CastMessage): CastSendResult {

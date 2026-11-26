@@ -81,6 +81,7 @@ import com.gatecontrol.android.tv.ui.components.TvPillTone
 import com.gatecontrol.android.tv.ui.home.TvIcons
 import com.gatecontrol.android.tv.ui.theme.GateControlTvTheme
 import kotlinx.coroutines.delay
+import kotlin.math.roundToInt
 
 /**
  * The player of Drive's videos (mockup 4 and 9) and of Medien's films and episodes: streams with Range from the own
@@ -294,6 +295,9 @@ fun TvVideoPlayer(
     val nowTrouble by rememberUpdatedState(trouble)
     val nowCountdown by rememberUpdatedState(countdown)
     var remoteClosed by remember { mutableStateOf(false) }
+    // the phone's volume (plugin 1.4.1): the player's own, on top of the TV's volume
+    var castVolume by remember(player) { mutableIntStateOf(((player?.volume ?: 1f) * 100).roundToInt().coerceIn(0, 100)) }
+    var castMuted by remember(player) { mutableStateOf(false) }
 
     fun tellRemote(force: Boolean = false) {
         val r = remote ?: return
@@ -310,7 +314,7 @@ fun TvVideoPlayer(
         )
         val audio = TvCastTracks.audio(nowChoices, nowMenu) { t, n -> PlayerTracks.name(t, n, trackFallback) }
         val text = TvCastTracks.subtitles(nowChoices, nowMenu, subtitlesOff) { t, n -> PlayerTracks.name(t, n, subtitleFallback) }
-        r.state(phase, p.currentPosition.coerceAtLeast(0), dur, source.name(nowAt), audio, text, force)
+        r.state(phase, p.currentPosition.coerceAtLeast(0), dur, source.name(nowAt), audio, text, force, volume = castVolume, muted = castMuted)
     }
 
     fun closeRemote(byRemote: Boolean) {
@@ -357,6 +361,12 @@ fun TvVideoPlayer(
                         is TvCastPick.Track -> p.trackSelectionParameters = PlayerTracks.choose(p.trackSelectionParameters, p.currentTracks, pick.track)
                         TvCastPick.SubtitlesOff -> p.trackSelectionParameters = PlayerTracks.subtitlesOff(p.trackSelectionParameters)
                         null -> Unit
+                    }
+                    CastCmd.VOLUME -> {
+                        val (volume, muted) = CastReceiverRules.volume(c, castVolume, castMuted)
+                        castVolume = volume
+                        castMuted = muted
+                        p.volume = CastReceiverRules.playerVolume(volume, muted)
                     }
                     CastCmd.STOP -> {
                         close(byRemote = true)

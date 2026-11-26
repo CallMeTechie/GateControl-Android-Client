@@ -56,7 +56,7 @@ interface MediaServerApi {
  */
 interface MediaCastApi {
     /** `GET v1/cast/targets`. */
-    suspend fun castTargets(): MediaServerResult<List<com.gatecontrol.android.media.cast.CastTarget>>
+    suspend fun castTargets(): MediaServerResult<com.gatecontrol.android.media.cast.CastTargetList>
 
     /** `POST v1/cast/{session}/message { to, body }`. */
     suspend fun castMessage(to: String, message: com.gatecontrol.android.media.cast.CastMessage): MediaServerResult<Unit>
@@ -146,7 +146,7 @@ class MediaServerHttpApi @Inject constructor(
     }
 
     override suspend fun castTargets() =
-        call({ pluginGet(MEDIA_PLUGIN, "v1/cast/targets") }, com.gatecontrol.android.media.cast.CastEnvelopes::targets)
+        call({ pluginGet(MEDIA_PLUGIN, "v1/cast/targets") }, com.gatecontrol.android.media.cast.CastEnvelopes::targetList)
 
     override suspend fun castMessage(to: String, message: com.gatecontrol.android.media.cast.CastMessage): MediaServerResult<Unit> {
         if (!com.gatecontrol.android.media.cast.CastProtocol.validSession(message.session) || !com.gatecontrol.android.media.cast.CastEnvelopes.validDevice(to)) {

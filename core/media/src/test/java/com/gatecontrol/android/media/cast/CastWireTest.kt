@@ -139,4 +139,30 @@ class CastWireTest {
         assertTrue(CastPhase.STOPPED.final)
         assertFalse(CastPhase.PAUSED.final)
     }
+
+    @Test
+    fun `volume - the command with volume and or muted, the state reports them`() {
+        val c = CastMessage.Command(session, 3, 1_000, CastCmd.VOLUME, volume = 40, muted = false)
+        val json = CastWire.encode(c)
+        assertTrue(json.contains("\"cmd\":\"volume\""))
+        assertTrue(json.contains("\"volume\":40"))
+        assertTrue(json.contains("\"muted\":false"))
+        assertEquals(c, CastWire.parse(json))
+        val muteOnly = CastMessage.Command(session, 4, 1_000, CastCmd.VOLUME, muted = true)
+        assertEquals(muteOnly, CastWire.parse(CastWire.encode(muteOnly)))
+        fun cmd(extra: String) = CastWire.parse("""{"v":1,"session":"$session","seq":5,"at":1,"type":"cast.cmd","cmd":"volume"$extra}""")
+        assertNull(cmd(""), "neither volume nor muted")
+        assertNull(cmd(""","volume":101"""), "out of range and nothing else")
+        assertNull(cmd(""","volume":"40""""))
+        assertEquals(CastMessage.Command(session, 5, 1, CastCmd.VOLUME, volume = 0, muted = true), cmd(""","volume":0,"muted":true"""))
+        // the fields only belong to the volume command
+        assertNull((CastWire.parse("""{"v":1,"session":"$session","seq":6,"at":1,"type":"cast.cmd","cmd":"pause","volume":5}""") as CastMessage.Command).volume)
+
+        val s = CastMessage.State(session, 2, 1, CastPhase.PLAYING, 10, 20, volume = 75, muted = true)
+        assertEquals(s, CastWire.parse(CastWire.encode(s)))
+        val old = CastWire.parse("""{"v":1,"session":"$session","seq":2,"at":1,"type":"cast.state","state":"playing"}""") as CastMessage.State
+        assertNull(old.volume)
+        assertNull(old.muted)
+        assertNull((CastWire.parse("""{"v":1,"session":"$session","seq":2,"at":1,"type":"cast.state","state":"playing","volume":-1}""") as CastMessage.State).volume)
+    }
 }

@@ -61,6 +61,8 @@ enum class CastCmd(val wire: String) {
     AUDIO("audio"),
     /** The subtitle [CastMessage.Command.track], [CastProtocol.TRACK_OFF]: none. */
     SUBTITLE("subtitle"),
+    /** The receiver's volume [CastMessage.Command.volume] (0–100) and/or [CastMessage.Command.muted] (plugin 1.4.1). */
+    VOLUME("volume"),
     STOP("stop"),
     /** Only an answer: the receiver sends its state now. */
     STATUS("status"),
@@ -125,6 +127,10 @@ sealed interface CastMessage {
         val positionMs: Long? = null,
         val deltaMs: Long? = null,
         val track: String? = null,
+        /** [CastCmd.VOLUME]: 0–100; null: unchanged. */
+        val volume: Int? = null,
+        /** [CastCmd.VOLUME]: muted or not; null: unchanged. */
+        val muted: Boolean? = null,
     ) : CastMessage
 
     /** What the receiver plays now (receiver → controller). */
@@ -142,6 +148,10 @@ sealed interface CastMessage {
         val error: String? = null,
         /** The receiver's name ("Wohnzimmer-TV"). */
         val device: String? = null,
+        /** The receiver's volume 0–100; null: it does not tell (an older receiver: no volume on the remote). */
+        val volume: Int? = null,
+        /** Muted on the receiver; null: it does not tell. */
+        val muted: Boolean? = null,
     ) : CastMessage
 }
 
@@ -299,6 +309,8 @@ object CastWire {
                 m.positionMs?.let { o.addProperty("positionMs", it) }
                 m.deltaMs?.let { o.addProperty("deltaMs", it) }
                 m.track?.let { o.addProperty("track", it) }
+                m.volume?.let { o.addProperty("volume", it) }
+                m.muted?.let { o.addProperty("muted", it) }
             }
             is CastMessage.State -> {
                 o.addProperty("type", CastProtocol.TYPE_STATE)
@@ -310,6 +322,8 @@ object CastWire {
                 o.add("subtitles", tracks(m.subtitles))
                 m.error?.let { o.addProperty("error", it) }
                 m.device?.let { o.addProperty("device", it) }
+                m.volume?.let { o.addProperty("volume", it) }
+                m.muted?.let { o.addProperty("muted", it) }
             }
         }
         return o
@@ -381,13 +395,16 @@ object CastWire {
         val position = o.long("positionMs")?.coerceIn(0, MAX_POSITION)
         val delta = o.long("deltaMs")?.coerceIn(-MAX_POSITION, MAX_POSITION)
         val track = o.str("track")?.takeIf(CastProtocol::validTrack)
+        val volume = o.long("volume")?.takeIf { it in 0..100 }?.toInt()
+        val muted = o.bool("muted")
         when (cmd) {
             CastCmd.SEEK -> if (position == null) return null
             CastCmd.SEEK_BY -> if (delta == null) return null
             CastCmd.AUDIO, CastCmd.SUBTITLE -> if (track == null) return null
+            CastCmd.VOLUME -> if (volume == null && muted == null) return null
             else -> Unit
         }
-        return CastMessage.Command(session, seq, at, cmd, position, delta, track)
+        return CastMessage.Command(session, seq, at, cmd, position, delta, track, volume.takeIf { cmd == CastCmd.VOLUME }, muted.takeIf { cmd == CastCmd.VOLUME })
     }
 
     private fun state(o: JsonObject, session: String, seq: Long, at: Long): CastMessage.State? {
@@ -401,6 +418,8 @@ object CastWire {
             subtitles = readTracks(o.get("subtitles")),
             error = o.str("error")?.takeIf(CastProtocol::validError),
             device = o.str("device")?.let { line(it, 80) },
+            volume = o.long("volume")?.takeIf { it in 0..100 }?.toInt(),
+            muted = o.bool("muted"),
         )
     }
 
