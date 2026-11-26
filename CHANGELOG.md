@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.158.2] - 2026-11-26
+
+### Fixes
+- Gradle- und Android-Abhängigkeiten aktualisieren (ersetzt #280) (#305)
+
+---
+
 ## [1.158.1] - 2026-11-26
 
 ### Fixes
