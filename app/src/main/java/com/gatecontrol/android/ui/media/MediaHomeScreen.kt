@@ -130,7 +130,17 @@ fun MediaHomeScreen(nav: MediaHomeNav, viewModel: MediaHomeViewModel = hiltViewM
             )
             val signIn = viewModel::repair
             when (tab) {
-                MediaTab.OVERVIEW -> MediaOverview(ui, viewModel, nav, onSeries = { tab = MediaTab.SERIES }, onSignIn = signIn)
+                MediaTab.OVERVIEW -> MediaOverview(
+                    ui,
+                    viewModel,
+                    nav,
+                    onList = { movies, order ->
+                        viewModel.showList(movies, order)
+                        tab = if (movies) MediaTab.MOVIES else MediaTab.SERIES
+                    },
+                    onFolders = { tab = MediaTab.FOLDERS },
+                    onSignIn = signIn,
+                )
                 MediaTab.MOVIES -> MediaGridPage(movies = true, viewModel = viewModel, nav = nav, onSignIn = signIn)
                 MediaTab.SERIES -> MediaGridPage(movies = false, viewModel = viewModel, nav = nav, onSignIn = signIn)
                 MediaTab.FOLDERS -> MediaFolderPage(onDetail = nav.detail)
@@ -214,58 +224,161 @@ internal fun SourceLine(ui: MediaHomeUi, link: MediaLink, onSelect: (MediaSource
     }
 }
 
-/** "Übersicht": Weiterschauen, Zuletzt hinzugefügt, Serien (mockup 2). */
+/**
+ * "Übersicht" (decision 70 A „Ergänzt“): Weiterschauen, Als Nächstes, Neue Filme, Neue Folgen, Favoriten, Filme,
+ * Serien, Sammlungen, Genres, then Offline verfügbar (without a connection on top). A row without titles is not shown;
+ * each with its count, "›" opens the fitting list (decision 76).
+ */
 @Composable
-private fun MediaOverview(ui: MediaHomeUi, viewModel: MediaHomeViewModel, nav: MediaHomeNav, onSeries: () -> Unit, onSignIn: () -> Unit) {
+private fun MediaOverview(
+    ui: MediaHomeUi,
+    viewModel: MediaHomeViewModel,
+    nav: MediaHomeNav,
+    onList: (movies: Boolean, order: MediaOrder?) -> Unit,
+    onFolders: () -> Unit,
+    onSignIn: () -> Unit,
+) {
     val offline by viewModel.offlineReady.collectAsStateWithLifecycle()
+    val r = ui.rows
     LazyColumn(Modifier.fillMaxSize().testTag(OVERVIEW_TAG), contentPadding = PaddingValues(bottom = 24.dp)) {
         ui.problem?.let { p -> item(key = "problem") { MediaProblemCard(p, onRetry = viewModel::refresh, onSignIn = onSignIn, signIn = ui.signIn) } }
-        // the downloads first without a connection, else after "Weiterschauen"
+        // the downloads first without a connection, else at the end
         val offlineFirst = ui.problem == com.gatecontrol.android.media.MediaProblem.OFFLINE || ui.problem == com.gatecontrol.android.media.MediaProblem.NO_ROUTE
         if (offlineFirst && offline.isNotEmpty()) offlineRow(offline, nav)
-        if (ui.resume.isNotEmpty()) {
+        if (r.resume.isNotEmpty()) {
             item(key = "resume-head") {
-                MediaRowHead(stringResource(R.string.media_row_resume), end = pluralStringResource(R.plurals.media_titles, ui.resume.size, ui.resume.size))
+                MediaRowHead(stringResource(R.string.media_row_resume), end = pluralStringResource(R.plurals.media_titles, r.resume.size, r.resume.size))
             }
             item(key = "resume") {
-                LazyRow(contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    items(ui.resume, key = { "${it.sourceId}:${it.id}" }) { t ->
+                LazyRow(Modifier.testTag(ROW_RESUME_TAG), contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    items(r.resume, key = { "${it.sourceId}:${it.id}" }) { t ->
                         MediaResumeCard(t, onPlay = { viewModel.play(t) }, onDetail = { nav.detail(t) })
                     }
                 }
             }
         }
+        if (r.nextUp.isNotEmpty()) {
+            item(key = "next-head") {
+                MediaRowHead(stringResource(R.string.media_row_next_up), end = r.nextUpTotal.toString(), onEnd = { onList(false, MediaOrder(unplayed = true)) })
+            }
+            item(key = "next") {
+                LazyRow(Modifier.testTag(ROW_NEXT_TAG), contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    items(r.nextUp, key = { "${it.sourceId}:${it.id}" }) { t ->
+                        MediaNextCard(t, onPlay = { viewModel.play(t) }, onDetail = { nav.detail(t) })
+                    }
+                }
+            }
+        }
+        val week = System.currentTimeMillis() - NEW_MS
+        posterRow(
+            key = "latest-movies",
+            title = { stringResource(R.string.media_row_latest_movies) },
+            titles = r.latestMovies,
+            count = r.latestMovies.size,
+            onAll = { onList(true, MediaOrder(sort = MediaOrder.Sort.ADDED)) },
+            nav = nav,
+            tag = ROW_LATEST_MOVIES_TAG,
+            new = { (it.addedAt ?: 0) > week },
+        )
+        posterRow(
+            key = "latest-episodes",
+            title = { stringResource(R.string.media_row_latest_episodes) },
+            titles = r.latestEpisodes,
+            count = com.gatecontrol.android.media.MediaLogic.newEpisodes(r.latestEpisodes),
+            onAll = { onList(false, MediaOrder(sort = MediaOrder.Sort.ADDED)) },
+            nav = nav,
+            tag = ROW_LATEST_EPISODES_TAG,
+            episodes = true,
+        )
+        posterRow(
+            key = "favorites",
+            title = { stringResource(R.string.media_row_favorites) },
+            titles = r.favorites,
+            count = r.favoritesTotal,
+            onAll = { onList(r.favorites.any { it.kind == MediaTitle.Kind.MOVIE }, MediaOrder(favorite = true)) },
+            nav = nav,
+            tag = ROW_FAVORITES_TAG,
+            episodes = true,
+        )
+        posterRow(
+            key = "movies",
+            title = { stringResource(R.string.media_row_movies) },
+            titles = r.movies.take(SERIES_ROW),
+            count = r.moviesTotal,
+            onAll = { onList(true, null) },
+            nav = nav,
+            tag = ROW_MOVIES_TAG,
+        )
+        posterRow(
+            key = "series",
+            title = { stringResource(R.string.media_row_series) },
+            titles = r.series.take(SERIES_ROW),
+            count = r.seriesTotal,
+            onAll = { onList(false, null) },
+            nav = nav,
+            tag = ROW_SERIES_TAG,
+        )
+        posterRow(
+            key = "collections",
+            title = { stringResource(R.string.media_row_collections) },
+            titles = r.collections,
+            count = r.collectionsTotal,
+            onAll = onFolders,
+            nav = nav,
+            tag = ROW_COLLECTIONS_TAG,
+        )
+        if (r.genres.isNotEmpty()) {
+            item(key = "genres-head") {
+                MediaRowHead(stringResource(R.string.media_row_genres), end = r.genres.size.toString(), onEnd = { onList(true, null) })
+            }
+            item(key = "genres") {
+                LazyRow(Modifier.testTag(ROW_GENRES_TAG), contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    items(r.genres, key = { "genre:$it" }) { g -> MediaGenreTile(g, onClick = { onList(true, MediaOrder(genre = g)) }) }
+                }
+            }
+        }
         if (!offlineFirst && offline.isNotEmpty()) offlineRow(offline, nav)
-        if (ui.latest.isNotEmpty()) {
-            item(key = "latest-head") { MediaRowHead(stringResource(R.string.media_row_latest)) }
-            item(key = "latest") {
-                val week = System.currentTimeMillis() - NEW_MS
-                LazyRow(contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    items(ui.latest, key = { "${it.sourceId}:${it.id}" }) { t ->
-                        MediaPoster(t, onClick = { nav.detail(t) }, width = 112.dp, new = (t.addedAt ?: 0) > week)
-                    }
-                }
-            }
-        }
-        if (ui.series.isNotEmpty()) {
-            item(key = "series-head") {
-                MediaRowHead(stringResource(R.string.media_row_series), end = ui.seriesTotal.takeIf { it > 0 }?.toString(), onEnd = onSeries)
-            }
-            item(key = "series") {
-                LazyRow(contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    items(ui.series.take(SERIES_ROW), key = { "${it.sourceId}:${it.id}" }) { t ->
-                        MediaPoster(t, onClick = { nav.detail(t) }, width = 112.dp)
-                    }
-                }
-            }
-        }
-        if (!ui.loading && ui.problem == null && ui.resume.isEmpty() && ui.latest.isEmpty() && ui.series.isEmpty() && offline.isEmpty()) {
+        if (!ui.loading && ui.problem == null && ui.empty && offline.isEmpty()) {
             item(key = "nothing") {
                 Text(
                     stringResource(R.string.media_library_empty),
                     style = MaterialTheme.typography.bodyMedium,
                     color = GateControlTheme.extraColors.muted,
                     modifier = Modifier.padding(16.dp),
+                )
+            }
+        }
+    }
+}
+
+/**
+ * A row of posters with its head ("Neue Filme 12 ›"); nothing without titles. [episodes]: an episode shows its series'
+ * name and "S2 · F5", a series with new ones "3 neu".
+ */
+private fun androidx.compose.foundation.lazy.LazyListScope.posterRow(
+    key: String,
+    title: @Composable () -> String,
+    titles: List<MediaTitle>,
+    count: Int,
+    onAll: () -> Unit,
+    nav: MediaHomeNav,
+    tag: String,
+    episodes: Boolean = false,
+    new: (MediaTitle) -> Boolean = { false },
+) {
+    if (titles.isEmpty()) return
+    item(key = "$key-head") { MediaRowHead(title(), end = count.coerceAtLeast(titles.size).toString(), onEnd = onAll) }
+    item(key = key) {
+        LazyRow(Modifier.testTag(tag), contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            items(titles, key = { "${it.sourceId}:${it.id}" }) { t ->
+                val newCount = t.newCount
+                MediaPoster(
+                    t,
+                    onClick = { nav.detail(t) },
+                    width = 112.dp,
+                    new = new(t),
+                    name = if (episodes && t.kind == MediaTitle.Kind.EPISODE) t.seriesName ?: t.name else t.name,
+                    mark = if (episodes && newCount != null) pluralStringResource(R.plurals.media_new_episodes, newCount, newCount) else null,
                 )
             }
         }
@@ -354,6 +467,9 @@ private fun OrderChips(movies: Boolean, g: MediaGridUi, onOrder: (MediaOrder) ->
             item(key = "unplayed") {
                 GcFilterChip(stringResource(R.string.media_filter_unplayed), selected = g.order.unplayed, onClick = { onOrder(g.order.copy(unplayed = !g.order.unplayed)) })
             }
+            item(key = "favorite") {
+                GcFilterChip(stringResource(R.string.media_filter_favorites), selected = g.order.favorite, onClick = { onOrder(g.order.copy(favorite = !g.order.favorite)) })
+            }
             if (g.genres.isNotEmpty() || g.order.genre != null) {
                 item(key = "genre") {
                     Box {
@@ -393,6 +509,15 @@ internal const val SOURCE_DOT_TAG = "media-source-dot"
 internal const val OFFLINE_ROW_TAG = "media-offline-row"
 internal const val OFFLINE_OPEN_TAG = "media-offline-open"
 internal const val MOVIES_TAG = "media-movies"
+internal const val ROW_RESUME_TAG = "media-row-resume"
+internal const val ROW_NEXT_TAG = "media-row-next"
+internal const val ROW_LATEST_MOVIES_TAG = "media-row-latest-movies"
+internal const val ROW_LATEST_EPISODES_TAG = "media-row-latest-episodes"
+internal const val ROW_FAVORITES_TAG = "media-row-favorites"
+internal const val ROW_MOVIES_TAG = "media-row-movies"
+internal const val ROW_SERIES_TAG = "media-row-series"
+internal const val ROW_COLLECTIONS_TAG = "media-row-collections"
+internal const val ROW_GENRES_TAG = "media-row-genres"
 internal const val SERIES_TAG = "media-series"
 
 /** "NEU" on a poster added within this long. */

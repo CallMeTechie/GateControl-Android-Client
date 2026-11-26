@@ -14,6 +14,7 @@ import com.gatecontrol.android.media.MediaPictures
 import com.gatecontrol.android.media.MediaPlayRequests
 import com.gatecontrol.android.media.MediaProblem
 import com.gatecontrol.android.media.MediaQualityOffer
+import com.gatecontrol.android.media.MediaRowsCache
 import com.gatecontrol.android.media.MediaSource
 import com.gatecontrol.android.media.MediaTitle
 import com.gatecontrol.android.media.jellyfin.JellyfinDeviceCaps
@@ -54,7 +55,12 @@ data class MediaDetailUi(
     val allowed: OfflineAllowed = OfflineAllowed.UNKNOWN,
     /** Shown from the download, without a connection. */
     val fromPhone: Boolean = false,
+    /** A collection's titles ("Sammlungen"). */
+    val items: List<MediaTitle> = emptyList(),
 ) {
+    /** The heart is offered: a Jellyfin source, not from the download (a share has no favourites, decision 74). */
+    val canFavorite: Boolean get() = source?.kind == com.gatecontrol.android.media.MediaSourceKind.JELLYFIN && !fromPhone && detail != null
+
     /** "Laden" is offered: Jellyfin, not refused. */
     val canLoad: Boolean get() = source?.kind == com.gatecontrol.android.media.MediaSourceKind.JELLYFIN && allowed != OfflineAllowed.NO && !fromPhone
 }
@@ -68,6 +74,8 @@ class MediaDetailViewModel @Inject constructor(
     private val network: MediaNetwork,
     val pictures: MediaPictures,
     private val offline: MediaOffline,
+    /** The overview's rows: asked again at the next opening after a heart or "Gesehen" here. */
+    private val rowsCache: MediaRowsCache,
 ) : ViewModel() {
 
     private val browse = MediaBrowse(hub) {}
@@ -155,6 +163,10 @@ class MediaDetailViewModel @Inject constructor(
                 )
             }
             _ui.value.source?.let { s -> launch { val a = offline.canDownload(s); _ui.update { it.copy(allowed = a) } } }
+            if (detail.title.kind == MediaTitle.Kind.COLLECTION) {
+                val items = browse.collection(detail.title)
+                _ui.update { it.copy(items = items) }
+            }
             if (detail.title.kind == MediaTitle.Kind.SERIES) {
                 val seasons = browse.seasons(detail.title)
                 _ui.update { it.copy(seasons = seasons) }
@@ -195,8 +207,28 @@ class MediaDetailViewModel @Inject constructor(
         viewModelScope.launch {
             if (browse.setPlayed(t, played)) {
                 _ui.update { it.copy(title = it.title.copy(played = played, positionMs = if (played) 0 else it.title.positionMs)) }
+                overviewChanged()
             }
         }
+    }
+
+    /** The heart (decision 74): kept in Jellyfin for the person, the row "Favoriten" follows at the next opening. */
+    fun toggleFavorite() {
+        val t = _ui.value.title
+        val favorite = !t.favorite
+        // shown at once, back when the server did not take it
+        _ui.update { it.copy(title = it.title.copy(favorite = favorite)) }
+        viewModelScope.launch {
+            if (browse.setFavorite(t, favorite)) {
+                overviewChanged()
+            } else {
+                _ui.update { it.copy(title = it.title.copy(favorite = !favorite)) }
+            }
+        }
+    }
+
+    private fun overviewChanged() {
+        _ui.value.source?.let { rowsCache.markStale(it) }
     }
 
     /** An episode's "Gesehen" in the list of a season. */
@@ -205,6 +237,7 @@ class MediaDetailViewModel @Inject constructor(
         viewModelScope.launch {
             if (browse.setPlayed(episode, played)) {
                 _ui.update { u -> u.copy(episodes = u.episodes.map { if (it.id == episode.id) it.copy(played = played, positionMs = if (played) 0 else it.positionMs) else it }) }
+                overviewChanged()
             }
         }
     }

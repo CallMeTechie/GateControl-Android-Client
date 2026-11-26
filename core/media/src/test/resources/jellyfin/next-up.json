@@ -1,0 +1,18 @@
+{
+  "Items": [
+    {"Id": "e16", "Name": "Die Flaute", "Type": "Episode", "SeriesId": "s12", "SeriesName": "Ankerplatz 12", "SeasonId": "s12-1",
+     "ParentIndexNumber": 1, "IndexNumber": 6, "RunTimeTicks": 26400000000, "Overview": "Kein Wind, kein Fang.",
+     "UserData": {"PlaybackPositionTicks": 0, "Played": false, "IsFavorite": false},
+     "ImageTags": {"Primary": "ep16"}, "SeriesPrimaryImageTag": "sp12", "ParentBackdropItemId": "s12", "ParentBackdropImageTags": ["sb12"],
+     "DateCreated": "2026-11-18T09:00:00.0000000Z"},
+    {"Id": "e41", "Name": "Neue Staffel", "Type": "Episode", "SeriesId": "s7", "SeriesName": "Hofgeflüster", "SeasonId": "s7-4",
+     "ParentIndexNumber": 4, "IndexNumber": 1, "RunTimeTicks": 30600000000,
+     "UserData": {"PlaybackPositionTicks": 0, "Played": false},
+     "SeriesPrimaryImageTag": "sp7", "ParentBackdropItemId": "s7", "ParentBackdropImageTags": ["sb7"]},
+    {"Id": "e24", "Name": "Folge 4", "Type": "Episode", "SeriesId": "s9", "SeriesName": "Station Eisvogel", "SeasonId": "se2",
+     "ParentIndexNumber": 2, "IndexNumber": 4, "RunTimeTicks": 27000000000,
+     "UserData": {"PlaybackPositionTicks": 0, "Played": false}, "SeriesPrimaryImageTag": "sp9"}
+  ],
+  "TotalRecordCount": 5,
+  "StartIndex": 0
+}

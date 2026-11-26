@@ -47,7 +47,15 @@ data class TvMediaUi(
     val loading: Boolean = false,
     val problem: MediaProblem? = null,
     val resume: List<MediaTitle> = emptyList(),
-    val latest: List<MediaTitle> = emptyList(),
+    /** "Als Nächstes", "Neue Filme", "Neue Folgen", "Favoriten", "Sammlungen" (decision 70 A, as on the phone). */
+    val nextUp: List<MediaTitle> = emptyList(),
+    val nextUpTotal: Int = 0,
+    val latestMovies: List<MediaTitle> = emptyList(),
+    val latestEpisodes: List<MediaTitle> = emptyList(),
+    val favorites: List<MediaTitle> = emptyList(),
+    val favoritesTotal: Int = 0,
+    val collections: List<MediaTitle> = emptyList(),
+    val collectionsTotal: Int = 0,
     val movies: List<MediaTitle> = emptyList(),
     val moviesTotal: Int = 0,
     val moviesNext: Int? = null,
@@ -62,6 +70,11 @@ data class TvMediaUi(
     val openSources: Boolean = false,
 ) {
     val any: Boolean get() = source != null || shares.isNotEmpty()
+
+    /** Any title in a row. */
+    val anyTitles: Boolean
+        get() = resume.isNotEmpty() || nextUp.isNotEmpty() || latestMovies.isNotEmpty() || latestEpisodes.isNotEmpty() ||
+            favorites.isNotEmpty() || movies.isNotEmpty() || series.isNotEmpty() || collections.isNotEmpty()
 }
 
 /** A title's detail page (mockup 8); a series with its seasons and episodes. */
@@ -78,6 +91,8 @@ data class TvDetailUi(
     /** "Original (direkt)" chosen; false: "Angepasst (NAS rechnet um)". */
     val original: Boolean = true,
     val offer: MediaQualityOffer? = null,
+    /** A collection's titles ("Sammlungen"). */
+    val items: List<MediaTitle> = emptyList(),
 )
 
 /**
@@ -148,7 +163,14 @@ class TvMediaViewModel @Inject constructor(
         _ui.update {
             it.copy(
                 resume = rows.resume,
-                latest = rows.latest,
+                nextUp = rows.nextUp,
+                nextUpTotal = rows.nextUpTotal,
+                latestMovies = rows.latestMovies,
+                latestEpisodes = rows.latestEpisodes,
+                favorites = rows.favorites,
+                favoritesTotal = rows.favoritesTotal,
+                collections = rows.collections,
+                collectionsTotal = rows.collectionsTotal,
                 movies = rows.movies,
                 moviesTotal = rows.moviesTotal,
                 moviesNext = rows.moviesNext,
@@ -179,7 +201,8 @@ class TvMediaViewModel @Inject constructor(
             media.prepare(source ?: shares.first())
             coroutineScope {
                 if (source != null) {
-                    launch { browse.loadJellyfin(source)?.let { p -> _ui.update { it.copy(problem = p) } } }
+                    // the TV shows no genre tiles (no grid to filter)
+                    launch { browse.loadJellyfin(source, genres = false)?.let { p -> _ui.update { it.copy(problem = p) } } }
                 }
                 for (s in shares) {
                     launch {
@@ -299,6 +322,10 @@ class TvMediaViewModel @Inject constructor(
                     offer = loaded.offer,
                 )
             }
+            if (detail.title.kind == MediaTitle.Kind.COLLECTION) {
+                val items = browse.collection(page.title)
+                replaceTop(id) { it.copy(items = items) }
+            }
             if (detail.title.kind == MediaTitle.Kind.SERIES) {
                 val seasons = browse.seasons(page.title)
                 replaceTop(id) { it.copy(seasons = seasons) }
@@ -346,6 +373,18 @@ class TvMediaViewModel @Inject constructor(
                 replaceTop(t.title.id) { it.copy(title = it.title.copy(played = played, positionMs = if (played) 0 else it.title.positionMs)) }
                 refreshResume()
             }
+        }
+    }
+
+    /** The heart (Jellyfin only, decision 74): shown at once, back when the server did not take it. */
+    fun toggleFavorite() {
+        val t = _details.value.lastOrNull() ?: return
+        val source = media.store.source(t.title.sourceId) ?: return
+        if (source.kind != com.gatecontrol.android.media.MediaSourceKind.JELLYFIN) return
+        val favorite = !t.title.favorite
+        replaceTop(t.title.id) { it.copy(title = it.title.copy(favorite = favorite)) }
+        viewModelScope.launch {
+            if (!browse.setFavorite(t.title, favorite)) replaceTop(t.title.id) { it.copy(title = it.title.copy(favorite = !favorite)) }
         }
     }
 

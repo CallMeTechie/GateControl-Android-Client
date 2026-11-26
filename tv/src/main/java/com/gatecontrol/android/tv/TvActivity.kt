@@ -355,6 +355,7 @@ class TvActivity : ComponentActivity() {
         onSubtitle = mediaVm::chooseSubtitle,
         onOriginal = mediaVm::chooseOriginal,
         onPlayed = mediaVm::togglePlayed,
+        onFavorite = mediaVm::toggleFavorite,
         onSelect = mediaVm::select,
         onAlwaysOriginal = mediaVm::setAlwaysOriginal,
         onReload = mediaVm::reload,

@@ -60,13 +60,24 @@ class MediaRowsCache(
     /** Whether [source]'s rows were loaded within [FRESH_MS] (then opening the page asks nothing). */
     fun fresh(source: MediaSource): Boolean = peek(source)?.let { now() - it.savedAt < FRESH_MS } == true
 
-    /** [source]'s rows as just loaded (the grids' "Filme" are not kept: the overview does not show them). */
+    /** [source]'s rows as just loaded (all rows of the overview, the first page of "Filme" and "Serien"). */
     @Synchronized
     fun put(source: MediaSource, rows: MediaRows) {
         val key = key(source)
-        val entry = Entry(rows.copy(movies = emptyList(), moviesTotal = 0, moviesNext = null), now())
+        val entry = Entry(rows, now())
         memory[key] = entry
         if (dir != null) writer { writeFile(key, entry) }
+    }
+
+    /**
+     * [source]'s rows are to be asked again at the next opening (a heart or "Gesehen" set on a detail page), still
+     * shown until then.
+     */
+    @Synchronized
+    fun markStale(source: MediaSource) {
+        val key = key(source)
+        val entry = memory[key] ?: return
+        memory[key] = entry.copy(savedAt = minOf(entry.savedAt, now() - FRESH_MS))
     }
 
     /** Only the entries of [sources] stay (a source removed, unpaired: its rows go, also from the disk). */
@@ -114,7 +125,8 @@ class MediaRowsCache(
         /** Older rows are not shown (a week: "Weiterschauen" and "Neu" would be too far off). */
         const val MAX_AGE_MS = 7 * 24 * 3600_000L
 
-        private const val VERSION = 1
+        /** 2: the rows of „Ergänzt“ (Als Nächstes, Neue Filme/Folgen, Favoriten, Filme, Sammlungen, Genres). */
+        private const val VERSION = 2
         private const val SUFFIX = ".json"
 
         private fun sha256(s: String): String =
@@ -126,10 +138,21 @@ class MediaRowsCache(
             addProperty("at", entry.savedAt)
             val r = entry.rows
             add("resume", titles(r.resume))
-            add("latest", titles(r.latest))
+            add("nextUp", titles(r.nextUp))
+            addProperty("nextUpTotal", r.nextUpTotal)
+            add("latestMovies", titles(r.latestMovies))
+            add("latestEpisodes", titles(r.latestEpisodes))
+            add("movies", titles(r.movies))
+            addProperty("moviesTotal", r.moviesTotal)
+            r.moviesNext?.let { addProperty("moviesNext", it) }
             add("series", titles(r.series))
             addProperty("seriesTotal", r.seriesTotal)
             r.seriesNext?.let { addProperty("seriesNext", it) }
+            add("favorites", titles(r.favorites))
+            addProperty("favoritesTotal", r.favoritesTotal)
+            add("collections", titles(r.collections))
+            addProperty("collectionsTotal", r.collectionsTotal)
+            add("genres", JsonArray().apply { r.genres.forEach { add(it) } })
         }.toString()
 
         /** Null when it is not an entry of this version (then the page loads as without one). */
@@ -140,10 +163,21 @@ class MediaRowsCache(
             return Entry(
                 MediaRows(
                     resume = titles(o.arr("resume")),
-                    latest = titles(o.arr("latest")),
+                    nextUp = titles(o.arr("nextUp")),
+                    nextUpTotal = o.i("nextUpTotal") ?: 0,
+                    latestMovies = titles(o.arr("latestMovies")),
+                    latestEpisodes = titles(o.arr("latestEpisodes")),
+                    movies = titles(o.arr("movies")),
+                    moviesTotal = o.i("moviesTotal") ?: 0,
+                    moviesNext = o.i("moviesNext"),
                     series = titles(o.arr("series")),
                     seriesTotal = o.i("seriesTotal") ?: 0,
                     seriesNext = o.i("seriesNext"),
+                    favorites = titles(o.arr("favorites")),
+                    favoritesTotal = o.i("favoritesTotal") ?: 0,
+                    collections = titles(o.arr("collections")),
+                    collectionsTotal = o.i("collectionsTotal") ?: 0,
+                    genres = o.arr("genres").mapNotNull { e -> e.takeIf { it.isJsonPrimitive }?.asString },
                 ),
                 at,
             )
@@ -180,6 +214,8 @@ class MediaRowsCache(
             t.addedAt?.let { addProperty("addedAt", it) }
             t.playedAt?.let { addProperty("playedAt", it) }
             if (t.fromShare) addProperty("share", true)
+            if (t.favorite) addProperty("fav", true)
+            t.newCount?.let { addProperty("new", it) }
         }
 
         private fun title(o: JsonObject): MediaTitle? = MediaTitle(
@@ -208,6 +244,8 @@ class MediaRowsCache(
             addedAt = o.l("addedAt"),
             playedAt = o.l("playedAt"),
             fromShare = o.b("share") == true,
+            favorite = o.b("fav") == true,
+            newCount = o.i("new"),
         )
 
         private fun JsonObject.p(k: String) = get(k)?.takeIf { it.isJsonPrimitive }?.asJsonPrimitive

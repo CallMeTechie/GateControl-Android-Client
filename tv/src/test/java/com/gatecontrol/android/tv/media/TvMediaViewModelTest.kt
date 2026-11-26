@@ -73,7 +73,18 @@ class TvMediaViewModelTest {
     private val sternwarte = MediaTitle("m9", "s1", MediaTitle.Kind.MOVIE, "Sternwarte 9")
 
     @BeforeEach
-    fun setUp() = Dispatchers.setMain(dispatcher)
+    fun setUp() {
+        Dispatchers.setMain(dispatcher)
+        // the rows of „Ergänzt“ empty unless a test says otherwise
+        for (l in listOf(lib, shareLib)) {
+            coEvery { l.nextUp(any()) } returns MediaResult.Ok(MediaPage(emptyList(), total = 0, start = 0))
+            coEvery { l.latestMovies(any()) } returns MediaResult.Ok(emptyList())
+            coEvery { l.latestEpisodes(any()) } returns MediaResult.Ok(emptyList())
+            coEvery { l.favorites(any()) } returns MediaResult.Ok(MediaPage(emptyList(), total = 0, start = 0))
+            coEvery { l.collections(any()) } returns MediaResult.Ok(MediaPage(emptyList(), total = 0, start = 0))
+            coEvery { l.genres(any()) } returns MediaResult.Ok(emptyList())
+        }
+    }
 
     @AfterEach
     fun tearDown() = Dispatchers.resetMain()
@@ -81,7 +92,7 @@ class TvMediaViewModelTest {
     @Test
     fun `the rows of the source`() = runTest(dispatcher) {
         coEvery { lib.resume(any()) } returns MediaResult.Ok(listOf(kobalt))
-        coEvery { lib.latest(any()) } returns MediaResult.Ok(listOf(kobalt, sternwarte))
+        coEvery { lib.latestMovies(any()) } returns MediaResult.Ok(listOf(kobalt, sternwarte))
         coEvery { lib.movies(0, any()) } returns MediaResult.Ok(MediaPage(listOf(kobalt, sternwarte), total = 412, start = 0))
         coEvery { lib.series(0, any()) } returns MediaResult.Ok(MediaPage(emptyList(), total = 0, start = 0))
         coEvery { lib.movies(2, any()) } returns MediaResult.Ok(MediaPage(listOf(MediaTitle("m3", "s1", MediaTitle.Kind.MOVIE, "Moorlicht")), total = 412, start = 2))
@@ -90,8 +101,8 @@ class TvMediaViewModelTest {
         advanceUntilIdle()
         val ui = vm.ui.value
         assertEquals(listOf("m1"), ui.resume.map { it.id })
-        // "Zuletzt hinzugefügt" without what is in "Weiterschauen"
-        assertEquals(listOf("m9"), ui.latest.map { it.id })
+        // "Neue Filme" without what is in "Weiterschauen"
+        assertEquals(listOf("m9"), ui.latestMovies.map { it.id })
         assertEquals(412, ui.moviesTotal)
         assertEquals(2, ui.moviesNext)
         assertFalse(ui.loading)
@@ -148,7 +159,7 @@ class TvMediaViewModelTest {
         coEvery { lib.movies(0, any()) } returns MediaResult.Ok(MediaPage(listOf(MediaTitle("m0", "s1", MediaTitle.Kind.MOVIE, "Achterwasser"), kobalt, MediaTitle("mk", "s1", MediaTitle.Kind.MOVIE, "Kupferstadt", year = 2025)), total = 3, start = 0))
         coEvery { lib.series(0, any()) } returns MediaResult.Ok(MediaPage(emptyList(), total = 0, start = 0))
         coEvery { shareLib.resume(any()) } returns MediaResult.Ok(listOf(lindqvist))
-        coEvery { shareLib.latest(any()) } returns MediaResult.Ok(listOf(kupfer))
+        coEvery { shareLib.latestMovies(any()) } returns MediaResult.Ok(listOf(kupfer))
         coEvery { shareLib.movies(0, any()) } returns MediaResult.Ok(MediaPage(listOf(achter, kupfer), total = 2, start = 0))
         coEvery { shareLib.series(0, any()) } returns MediaResult.Ok(MediaPage(emptyList(), total = 0, start = 0))
         val vm = TvMediaViewModel(media, selection, servers)
@@ -160,7 +171,7 @@ class TvMediaViewModelTest {
         // Kupferstadt is in Jellyfin too: Jellyfin's
         assertEquals(listOf("m0", "f:a.mkv", "m1", "mk"), ui.movies.map { it.id })
         assertEquals(4, ui.moviesTotal)
-        assertTrue(ui.latest.isEmpty())
+        assertTrue(ui.latestMovies.isEmpty())
 
         // the share cannot be read: its pill says so, Jellyfin's rows stay
         coEvery { shareLib.resume(any()) } returns MediaResult.Offline

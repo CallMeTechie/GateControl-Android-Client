@@ -35,6 +35,8 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
@@ -87,6 +89,7 @@ fun subline(t: MediaTitle, resume: Boolean = false): String? = when {
     t.kind == MediaTitle.Kind.EPISODE && t.season != null && t.episode != null -> stringResource(R.string.media_season_episode_short, t.season!!, t.episode!!)
     resume && t.positionMs > 0 -> stringResource(R.string.media_from, com.gatecontrol.android.media.MediaPhoneLogic.clock(t.positionMs))
     t.kind == MediaTitle.Kind.SERIES && t.childCount != null -> pluralStringResource(R.plurals.media_seasons, t.childCount!!, t.childCount!!)
+    t.kind == MediaTitle.Kind.COLLECTION && t.childCount != null -> pluralStringResource(R.plurals.media_movies_count, t.childCount!!, t.childCount!!)
     t.year != null -> t.year.toString()
     else -> null
 }
@@ -123,6 +126,10 @@ fun MediaPoster(
     width: Dp? = null,
     onLongClick: (() -> Unit)? = null,
     new: Boolean = false,
+    /** The name below (an episode of "Neue Folgen": its series'). */
+    name: String = title.name,
+    /** A mark of its own top left ("3 neu"). */
+    mark: String? = null,
 ) {
     val x = GateControlTheme.extraColors
     val picture = rememberMediaPicture(title)
@@ -140,6 +147,7 @@ fun MediaPoster(
             }
             Row(Modifier.align(Alignment.TopStart).padding(6.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                 if (new) MediaMark(stringResource(R.string.media_mark_new), accent = true)
+                if (mark != null) MediaMark(mark, accent = true)
                 if (title.fromShare) MediaMark(stringResource(R.string.media_mark_nas))
             }
             if (title.played) {
@@ -153,7 +161,7 @@ fun MediaPoster(
             if (title.resumable) MediaProgressBar(title.progress, Modifier.align(Alignment.BottomCenter).padding(6.dp))
         }
         Column(Modifier.padding(horizontal = 2.dp)) {
-            Text(title.name, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(name, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
             subline(title)?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = x.muted, maxLines = 1) }
         }
     }
@@ -187,16 +195,74 @@ fun MediaResumeCard(title: MediaTitle, onPlay: () -> Unit, onDetail: () -> Unit,
     }
 }
 
-/** The head of a row: its name and, on the right, a count or "Alle". */
+/** The head of a row: its name and, on the right, a count (with "›" when it opens the whole list) or "Alle". */
 @Composable
 fun MediaRowHead(text: String, modifier: Modifier = Modifier, end: String? = null, onEnd: (() -> Unit)? = null, horizontal: Dp = 16.dp, top: Dp = 18.dp) {
     val x = GateControlTheme.extraColors
     Row(modifier.fillMaxWidth().padding(horizontal = horizontal).padding(top = top, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
         Text(text, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
         if (end != null) {
-            val m = if (onEnd != null) Modifier.clip(RoundedCornerShape(8.dp)).combinedClickableCompat(onEnd).padding(horizontal = 6.dp, vertical = 4.dp) else Modifier
-            Text(end, style = MaterialTheme.typography.labelLarge, color = if (onEnd != null) x.accentText else x.muted, modifier = m)
+            if (onEnd != null) {
+                val all = stringResource(R.string.media_show_all)
+                Row(
+                    Modifier.clip(RoundedCornerShape(8.dp)).combinedClickableCompat(onEnd).padding(start = 6.dp, top = 4.dp, bottom = 4.dp)
+                        .semantics(mergeDescendants = true) { contentDescription = "$text: $all ($end)" },
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(end, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold, color = x.accentText)
+                    Icon(GcIcons.ChevronRight, contentDescription = null, tint = x.accentText, modifier = Modifier.size(18.dp))
+                }
+            } else {
+                Text(end, style = MaterialTheme.typography.labelLarge, color = x.muted)
+            }
         }
+    }
+}
+
+/**
+ * A card of "Als Nächstes" (16:9 like "Weiterschauen", "S1 · F6" top left): the series' name, the episode's name and
+ * length below; a tap plays it, a long press opens the detail page.
+ */
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+fun MediaNextCard(title: MediaTitle, onPlay: () -> Unit, onDetail: () -> Unit, modifier: Modifier = Modifier, width: Dp = 200.dp) {
+    val x = GateControlTheme.extraColors
+    val picture = rememberMediaPicture(title, backdrop = true) ?: rememberMediaPicture(title)
+    Column(
+        modifier.width(width).clip(RoundedCornerShape(14.dp))
+            .combinedClickable(role = Role.Button, onClick = onPlay, onLongClick = onDetail, onLongClickLabel = stringResource(R.string.media_open_detail)),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        Box(Modifier.fillMaxWidth().aspectRatio(16f / 9f).clip(RoundedCornerShape(14.dp)).background(placeholder(title))) {
+            if (picture != null) Image(picture, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+            Box(Modifier.align(Alignment.Center).size(40.dp).clip(RoundedCornerShape(20.dp)).background(Color.Black.copy(alpha = 0.45f)), contentAlignment = Alignment.Center) {
+                Icon(GcIcons.Play, contentDescription = null, tint = Color.White, modifier = Modifier.size(20.dp))
+            }
+            if (title.season != null && title.episode != null) {
+                MediaMark(stringResource(R.string.media_season_episode_short, title.season!!, title.episode!!), Modifier.align(Alignment.TopStart).padding(6.dp))
+            }
+            if (title.resumable) MediaProgressBar(title.progress, Modifier.align(Alignment.BottomCenter).padding(horizontal = 8.dp, vertical = 6.dp))
+        }
+        Column(Modifier.padding(horizontal = 2.dp)) {
+            Text(title.seriesName ?: title.name, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            val line = listOfNotNull(title.name.takeIf { title.seriesName != null }, title.runtimeMs?.takeIf { it > 0 }?.let { runtimeText(it) }).joinToString(" · ")
+            if (line.isNotEmpty()) Text(line, style = MaterialTheme.typography.bodySmall, color = x.muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
+    }
+}
+
+/** A tile of "Genres": its name on a calm colour of its own; opens "Filme" with that genre. */
+@Composable
+fun MediaGenreTile(genre: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    val x = GateControlTheme.extraColors
+    val tones = listOf(x.blueBg to x.blue, x.accentBg to x.accentText, x.proBg to x.pro, x.warnBg to x.warn, x.panel2 to MaterialTheme.colorScheme.onSurface)
+    val (bg, fg) = tones[(genre.lowercase().hashCode() and 0x7fffffff) % tones.size]
+    Box(
+        modifier.width(132.dp).height(64.dp).clip(RoundedCornerShape(14.dp)).background(bg)
+            .combinedClickableCompat(onClick).padding(horizontal = 12.dp, vertical = 10.dp),
+        contentAlignment = Alignment.BottomStart,
+    ) {
+        Text(genre, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold, color = fg, maxLines = 2, overflow = TextOverflow.Ellipsis)
     }
 }
 

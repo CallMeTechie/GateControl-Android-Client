@@ -135,6 +135,7 @@ fun TvMediaDetailPage(
                         TvButton(stringResource(R.string.tv_media_play), onClick = { actions.onPlay(t, true) }, style = TvButtonStyle.Primary, modifier = Modifier.focusRequester(first))
                     }
                     TvButton(stringResource(if (t.played) R.string.tv_media_mark_unplayed else R.string.tv_media_mark_played), onClick = actions.onPlayed)
+                    FavoriteButton(detail, actions)
                 }
                 val version = detail.detail?.version
                 if (version != null) {
@@ -155,8 +156,13 @@ fun TvMediaDetailPage(
                 QualityChoice(detail, link, actions)
                 Text(stringResource(R.string.tv_media_detail_keys), style = MaterialTheme.typography.labelMedium, color = colors.faint)
             } else if (t.kind == MediaTitle.Kind.SERIES) {
+                FavoriteButton(detail, actions)
                 Seasons(detail, actions, first)
                 Episodes(detail, pictures, actions)
+            } else if (t.kind == MediaTitle.Kind.COLLECTION) {
+                FavoriteButton(detail, actions)
+                // a collection's films: OK opens one
+                if (detail.items.isNotEmpty()) PosterRow(detail.items, pictures, actions, focus = first)
             }
             Spacer(Modifier.height(20.dp))
         }
@@ -191,6 +197,14 @@ fun TvMediaDetailPage(
         }
         else -> Unit
     }
+}
+
+/** The heart (decision 74): only a Jellyfin title (a share has no favourites), once the details are there. */
+@Composable
+private fun FavoriteButton(detail: TvDetailUi, actions: TvMediaActions) {
+    val t = detail.title
+    if (t.fromShare || detail.detail == null) return
+    TvButton(stringResource(if (t.favorite) R.string.tv_media_favorite_remove else R.string.tv_media_favorite_add), onClick = actions.onFavorite)
 }
 
 /** "Deutsch · DTS 5.1". */

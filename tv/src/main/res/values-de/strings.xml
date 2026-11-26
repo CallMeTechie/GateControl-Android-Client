@@ -359,10 +359,24 @@
     <string name="tv_media_signing_in">Anmelden …</string>
     <string name="tv_media_sign_in_retry">Erneut versuchen</string>
     <string name="tv_media_row_resume">Weiterschauen</string>
-    <string name="tv_media_row_latest">Zuletzt hinzugefügt</string>
     <string name="tv_media_row_movies">Filme</string>
     <string name="tv_media_movies_count">%1$d · A–Z</string>
     <string name="tv_media_row_series">Serien</string>
+    <string name="tv_media_row_next_up">Als Nächstes</string>
+    <string name="tv_media_row_latest_movies">Neue Filme</string>
+    <string name="tv_media_row_latest_episodes">Neue Folgen</string>
+    <string name="tv_media_row_favorites">Favoriten</string>
+    <string name="tv_media_row_collections">Sammlungen</string>
+    <string name="tv_media_favorite_add">♡ Favorit</string>
+    <string name="tv_media_favorite_remove">♥ Favorit</string>
+    <plurals name="tv_media_new_episodes">
+        <item quantity="one">%d neu</item>
+        <item quantity="other">%d neu</item>
+    </plurals>
+    <plurals name="tv_media_collection_titles">
+        <item quantity="one">%d Film</item>
+        <item quantity="other">%d Filme</item>
+    </plurals>
     <string name="tv_media_empty">In dieser Bibliothek ist noch nichts.</string>
     <string name="tv_media_keys">OK Abspielen  ·  ☰ Details  ·  ▲ Quellen</string>
     <string name="tv_media_left_hours">noch %1$s</string>

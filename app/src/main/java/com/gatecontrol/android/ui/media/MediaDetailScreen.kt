@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -109,7 +110,14 @@ fun MediaDetailScreen(
     val gate by viewModel.gate.collectAsStateWithLifecycle()
     CompositionLocalProvider(LocalMediaPictures provides viewModel.pictures, LocalOfflineWifi provides wifi) {
         LazyColumn(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).testTag(DETAIL_TAG), contentPadding = PaddingValues(bottom = 32.dp)) {
-            item(key = "head") { DetailHead(ui.title, onBack, onCast = { cast = true }.takeIf { castable && ui.title.playable && ui.detail != null && castViewModel?.canCast(ui.title) == true }) }
+            item(key = "head") {
+                DetailHead(
+                    ui.title,
+                    onBack,
+                    onCast = { cast = true }.takeIf { castable && ui.title.playable && ui.detail != null && castViewModel?.canCast(ui.title) == true },
+                    onFavorite = viewModel::toggleFavorite.takeIf { ui.canFavorite },
+                )
+            }
             item(key = "vpn") { MediaVpnGate(gate, onConsent = viewModel::consent, onRetry = viewModel::load) }
             when {
                 ui.loading && ui.detail == null -> item(key = "loading") {
@@ -136,6 +144,15 @@ fun MediaDetailScreen(
                     ui.title.overview?.takeIf { it.isNotBlank() }?.let { text ->
                         item(key = "overview") {
                             Text(text, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
+                        }
+                    }
+                    if (ui.title.kind == MediaTitle.Kind.COLLECTION && ui.items.isNotEmpty()) {
+                        // a collection's films, three to a line
+                        items(ui.items.chunked(COLLECTION_COLUMNS), key = { line -> "set:" + line.first().id }) { line ->
+                            Row(Modifier.padding(horizontal = 16.dp, vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                line.forEach { t -> MediaPoster(t, onClick = { onOpen(t) }, modifier = Modifier.weight(1f)) }
+                                repeat(COLLECTION_COLUMNS - line.size) { Spacer(Modifier.weight(1f)) }
+                            }
                         }
                     }
                     if (ui.title.kind == MediaTitle.Kind.SERIES) {
@@ -184,7 +201,7 @@ private enum class TrackSheet { AUDIO, SUBTITLE }
 
 /** Backdrop with the way back, then the poster beside the name and the line "2025 · 1 Std. 48 Min. · Drama". */
 @Composable
-private fun DetailHead(t: MediaTitle, onBack: () -> Unit, onCast: (() -> Unit)? = null) {
+private fun DetailHead(t: MediaTitle, onBack: () -> Unit, onCast: (() -> Unit)? = null, onFavorite: (() -> Unit)? = null) {
     val x = GateControlTheme.extraColors
     val backdrop = rememberMediaPicture(t, backdrop = true)
     val poster = rememberMediaPicture(t)
@@ -195,9 +212,23 @@ private fun DetailHead(t: MediaTitle, onBack: () -> Unit, onCast: (() -> Unit)? 
             Box(Modifier.statusBarsPadding().padding(8.dp).clip(CircleShape).background(Color.Black.copy(alpha = 0.35f))) {
                 GcIconButton(GcIcons.Back, contentDescription = stringResource(R.string.common_back), onClick = onBack, tint = Color.White)
             }
-            if (onCast != null) {
-                Box(Modifier.align(Alignment.TopEnd).statusBarsPadding().padding(8.dp).clip(CircleShape).background(Color.Black.copy(alpha = 0.35f))) {
-                    GcIconButton(GcIcons.Cast, contentDescription = stringResource(R.string.media_cast), onClick = onCast, tint = Color.White, modifier = Modifier.testTag(CAST_TAG))
+            Row(Modifier.align(Alignment.TopEnd).statusBarsPadding().padding(8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                // the heart (decision 74): a favourite in Jellyfin, on all devices of the person
+                if (onFavorite != null) {
+                    Box(Modifier.clip(CircleShape).background(Color.Black.copy(alpha = 0.35f))) {
+                        GcIconButton(
+                            if (t.favorite) GcIcons.HeartFilled else GcIcons.Heart,
+                            contentDescription = stringResource(if (t.favorite) R.string.media_favorite_remove else R.string.media_favorite_add),
+                            onClick = onFavorite,
+                            tint = if (t.favorite) MaterialTheme.colorScheme.primary else Color.White,
+                            modifier = Modifier.testTag(FAVORITE_TAG),
+                        )
+                    }
+                }
+                if (onCast != null) {
+                    Box(Modifier.clip(CircleShape).background(Color.Black.copy(alpha = 0.35f))) {
+                        GcIconButton(GcIcons.Cast, contentDescription = stringResource(R.string.media_cast), onClick = onCast, tint = Color.White, modifier = Modifier.testTag(CAST_TAG))
+                    }
                 }
             }
         }
@@ -555,6 +586,8 @@ private fun EpisodeRow(e: MediaTitle, offline: OfflineItem?, onPlay: () -> Unit,
 
 internal const val DETAIL_TAG = "media-detail"
 internal const val CAST_TAG = "media-cast"
+internal const val FAVORITE_TAG = "media-favorite"
+private const val COLLECTION_COLUMNS = 3
 internal const val PLAY_TAG = "media-play"
 internal const val PLAYED_TAG = "media-played"
 internal const val LOAD_TAG = "media-load"

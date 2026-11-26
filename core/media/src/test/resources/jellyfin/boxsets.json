@@ -1,0 +1,10 @@
+{
+  "Items": [
+    {"Id": "b1", "Name": "Sternwarte-Reihe", "Type": "BoxSet", "IsFolder": true, "ChildCount": 3,
+     "UserData": {"Played": false, "IsFavorite": false}, "ImageTags": {"Primary": "pb1"}, "BackdropImageTags": ["bb1"]},
+    {"Id": "b2", "Name": "Kupferstadt-Trilogie", "Type": "BoxSet", "IsFolder": true, "ChildCount": 2,
+     "UserData": {"Played": true}, "ImageTags": {"Primary": "pb2"}}
+  ],
+  "TotalRecordCount": 2,
+  "StartIndex": 0
+}

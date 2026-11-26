@@ -21,7 +21,20 @@ internal class FakeLibrary(
     var details: Map<String, MediaDetail> = emptyMap(),
     var episodes: List<MediaTitle> = emptyList(),
     var seasons: List<MediaTitle> = emptyList(),
+    /** The rows of „Ergänzt“: null keeps the library's own default (a share's). */
+    var nextUp: List<MediaTitle>? = null,
+    var latestEpisodes: List<MediaTitle>? = null,
+    var favorites: List<MediaTitle>? = null,
+    var collections: List<MediaTitle>? = null,
+    var collectionItems: Map<String, List<MediaTitle>> = emptyMap(),
+    var genres: List<String>? = null,
 ) : MediaLibrary {
+    /** The hearts set: id to favourite. */
+    val hearts = mutableListOf<Pair<String, Boolean>>()
+
+    /** Every row asked for, in the order asked (they go out side by side). */
+    val asked = java.util.Collections.synchronizedList(mutableListOf<String>())
+
     val orders = mutableListOf<MediaOrder>()
     val played = mutableListOf<Pair<String, Boolean>>()
 
@@ -43,6 +56,28 @@ internal class FakeLibrary(
         return resumeAnswer ?: MediaResult.Ok(resume.take(limit))
     }
     override suspend fun latest(limit: Int) = MediaResult.Ok(latest.take(limit))
+    override suspend fun nextUp(limit: Int): MediaResult<MediaPage> {
+        asked += "nextUp"
+        return nextUp?.let { MediaResult.Ok(MediaPage(it.take(limit), it.size, 0)) } ?: super.nextUp(limit)
+    }
+    override suspend fun latestEpisodes(limit: Int): MediaResult<List<MediaTitle>> {
+        asked += "latestEpisodes"
+        return latestEpisodes?.let { MediaResult.Ok(it.take(limit)) } ?: super.latestEpisodes(limit)
+    }
+    override suspend fun favorites(limit: Int): MediaResult<MediaPage> {
+        asked += "favorites"
+        return favorites?.let { MediaResult.Ok(MediaPage(it.take(limit), it.size, 0)) } ?: super.favorites(limit)
+    }
+    override suspend fun collections(limit: Int): MediaResult<MediaPage> {
+        asked += "collections"
+        return collections?.let { MediaResult.Ok(MediaPage(it.take(limit), it.size, 0)) } ?: super.collections(limit)
+    }
+    override suspend fun collection(id: String): MediaResult<List<MediaTitle>> = MediaResult.Ok(collectionItems[id].orEmpty())
+    override suspend fun genres(movies: Boolean): MediaResult<List<String>> = genres?.let { MediaResult.Ok(it) } ?: super.genres(movies)
+    override suspend fun setFavorite(itemId: String, favorite: Boolean): MediaResult<Unit> {
+        hearts += itemId to favorite
+        return if (source.kind == com.gatecontrol.android.media.MediaSourceKind.JELLYFIN) MediaResult.Ok(Unit) else MediaResult.Failed(0)
+    }
     override suspend fun movies(start: Int, limit: Int) = MediaResult.Ok(MediaPage(movies.drop(start).take(limit), movies.size, start))
     override suspend fun series(start: Int, limit: Int) = MediaResult.Ok(MediaPage(series.drop(start).take(limit), series.size, start))
     override suspend fun list(movies: Boolean, start: Int, limit: Int, order: MediaOrder): MediaResult<MediaPage> {

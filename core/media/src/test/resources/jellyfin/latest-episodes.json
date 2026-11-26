@@ -1,0 +1,10 @@
+[
+  {"Id": "s3", "Name": "Graufeld", "Type": "Series", "ProductionYear": 2022, "ChildCount": 3,
+   "UserData": {"UnplayedItemCount": 3, "Played": false}, "ImageTags": {"Primary": "ps3"}, "BackdropImageTags": ["bs3"],
+   "DateCreated": "2026-11-25T06:00:00.0000000Z"},
+  {"Id": "e57", "Name": "Treibeis", "Type": "Episode", "SeriesId": "s9", "SeriesName": "Station Eisvogel", "SeasonId": "se2",
+   "ParentIndexNumber": 2, "IndexNumber": 5, "RunTimeTicks": 28200000000, "UserData": {"Played": false},
+   "ImageTags": {"Primary": "still57"}, "SeriesPrimaryImageTag": "sp9", "DateCreated": "2026-11-23T06:00:00.0000000Z"},
+  {"Id": "s7", "Name": "Hofgeflüster", "Type": "Series", "ChildCount": 1,
+   "UserData": {"UnplayedItemCount": 1}, "ImageTags": {"Primary": "ps7"}}
+]

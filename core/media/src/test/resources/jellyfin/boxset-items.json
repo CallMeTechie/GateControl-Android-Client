@@ -1,0 +1,9 @@
+{
+  "Items": [
+    {"Id": "m7", "Name": "Sternwarte 7", "Type": "Movie", "ProductionYear": 2019, "UserData": {"Played": true}, "ImageTags": {"Primary": "pm7"}},
+    {"Id": "m8", "Name": "Sternwarte 8", "Type": "Movie", "ProductionYear": 2022, "UserData": {"Played": false}, "ImageTags": {"Primary": "pm8"}},
+    {"Id": "m9", "Name": "Sternwarte 9", "Type": "Movie", "ProductionYear": 2026, "UserData": {"IsFavorite": true}, "ImageTags": {"Primary": "pm9"}}
+  ],
+  "TotalRecordCount": 3,
+  "StartIndex": 0
+}

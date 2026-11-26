@@ -18,8 +18,22 @@
     <string name="media_mobile_limit_chip">Mobile data · at most %1$s</string>
     <string name="media_share_unreachable">%1$s not reachable</string>
     <string name="media_row_resume">Continue watching</string>
-    <string name="media_row_latest">Recently added</string>
     <string name="media_row_series">Series</string>
+    <string name="media_row_next_up">Next up</string>
+    <string name="media_row_latest_movies">New films</string>
+    <string name="media_row_latest_episodes">New episodes</string>
+    <string name="media_row_favorites">Favourites</string>
+    <string name="media_row_movies">Films</string>
+    <string name="media_row_collections">Collections</string>
+    <string name="media_row_genres">Genres</string>
+    <string name="media_show_all">Show all</string>
+    <string name="media_filter_favorites">Favourites</string>
+    <string name="media_favorite_add">Add to favourites</string>
+    <string name="media_favorite_remove">Remove from favourites</string>
+    <plurals name="media_new_episodes">
+        <item quantity="one">%d new</item>
+        <item quantity="other">%d new</item>
+    </plurals>
     <string name="media_all">All</string>
     <string name="media_library_empty">There is nothing in this library yet.</string>
     <string name="media_grid_empty">No titles with this choice.</string>
