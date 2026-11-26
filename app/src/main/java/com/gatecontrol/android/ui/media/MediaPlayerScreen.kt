@@ -10,6 +10,20 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.OptIn
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.height
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.withStyle
+import com.gatecontrol.android.media.MediaAwayFit
+import com.gatecontrol.android.media.MediaAwayOriginal
+import com.gatecontrol.android.media.MediaPlayAhead
+import com.gatecontrol.android.media.MediaPlayAheadState
+import com.gatecontrol.android.media.offline.MediaOfflineLogic
+import com.gatecontrol.android.ui.components.GcCard
+import com.gatecontrol.android.ui.components.GcSecondaryButton
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
@@ -131,6 +145,10 @@ class MediaPlayerActions(
     val onMobileHintRead: () -> Unit = {},
     /** "Abspielen auf …" (question 23a); null: not offered. */
     val onCast: (() -> Unit)? = null,
+    /** The answer to „Wie abspielen?“; null: „Abbrechen“. */
+    val onAway: (MediaAwayOriginal?) -> Unit = {},
+    /** „Jetzt abspielen“ while it loads ahead. */
+    val onStartNow: () -> Unit = {},
 )
 
 /** The parts of the info line with their tone: the network, what the NAS does, the sound. */
@@ -206,6 +224,7 @@ fun MediaPlayerScreen(
     if (ui.mobileHint) {
         MobileHint(mobileCap, actions.onMobileHintRead)
     }
+    ui.awayAsk?.let { AwaySheet(ui, it, actions.onAway) }
 }
 
 /** The picture of [player], fitted, with its subtitles. */
@@ -350,7 +369,7 @@ private fun BoxScope.VideoArea(ui: MediaPlayerUi, player: Player?, landscape: Bo
                 Text(stringResource(R.string.media_player_locked), color = Color.White, style = MaterialTheme.typography.labelMedium)
             }
         }
-    } else if (controls && ui.trouble == null && ui.countdown == null) {
+    } else if (controls && ui.trouble == null && ui.countdown == null && !ui.aheadWait) {
         Controls(
             ui = ui,
             landscape = landscape,
@@ -385,6 +404,7 @@ private fun BoxScope.VideoArea(ui: MediaPlayerUi, player: Player?, landscape: Bo
             modifier = Modifier.align(Alignment.TopCenter).padding(12.dp).clip(RoundedCornerShape(8.dp)).background(Color.Black.copy(alpha = 0.6f)).padding(horizontal = 10.dp, vertical = 6.dp).testTag(FELL_BACK_TAG),
         )
     }
+    if (ui.aheadWait && ui.trouble == null) AheadWaiting(ui, actions)
     ui.resumedAt?.let { at ->
         if (!controls && !locked) {
             Text(
@@ -552,6 +572,9 @@ private fun Infos(ui: MediaPlayerUi, onPlayAt: (Int) -> Unit, onSheet: () -> Uni
                 }
             }
         }
+        ui.ahead?.let { state ->
+            item(key = "ahead") { AheadCard(state, ui.aheadBitrate) }
+        }
         t.overview?.takeIf { it.isNotBlank() }?.let { text ->
             item(key = "overview") { Text(text, style = MaterialTheme.typography.bodyMedium, color = x.muted, modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) }
         }
@@ -690,6 +713,159 @@ private fun MobileHint(cap: Long?, onRead: () -> Unit) {
         },
         confirmButton = { TextButton(onClick = onRead, modifier = Modifier.testTag(MOBILE_HINT_TAG)) { Text(stringResource(R.string.media_player_mobile_ok)) } },
     )
+}
+
+/**
+ * „Wie abspielen?“ (decision 89 b, mockup 04 for the device): away the original does not go through the home line.
+ * „Sofort, umgewandelt“, „Original mit Mitladen“ (when what has to be ahead fits the space) or „Original sofort“.
+ */
+@kotlin.OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun AwaySheet(ui: MediaPlayerUi, fit: MediaAwayFit, onAway: (MediaAwayOriginal?) -> Unit) {
+    var chosen by rememberSaveable(fit) { mutableStateOf(if (fit.waitMs != null) MediaAwayOriginal.WAIT else MediaAwayOriginal.CONVERTED) }
+    ModalBottomSheet(onDismissRequest = { onAway(null) }, containerColor = MaterialTheme.colorScheme.surface, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
+        AwayChoices(ui, fit, chosen, onChoose = { chosen = it }, onAway = onAway)
+    }
+}
+
+/** The content of „Wie abspielen?“ (also shown without the sheet in the tests). */
+@Composable
+internal fun AwayChoices(ui: MediaPlayerUi, fit: MediaAwayFit, chosen: MediaAwayOriginal, onChoose: (MediaAwayOriginal) -> Unit, onAway: (MediaAwayOriginal?) -> Unit) {
+    val x = GateControlTheme.extraColors
+    Column(Modifier.padding(start = 20.dp, end = 20.dp, bottom = 24.dp).verticalScroll(rememberScrollState()).testTag(AWAY_SHEET_TAG), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(stringResource(R.string.media_away_title), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+            Text(stringResource(R.string.media_away_line, MediaQuality.label(fit.lineBps)), style = MaterialTheme.typography.bodyMedium, color = x.muted)
+        }
+        AwayOption(
+            stringResource(R.string.media_away_converted),
+            AnnotatedString(stringResource(R.string.media_away_converted_desc, MediaQuality.resolution(fit.convertedBps), MediaQuality.label(fit.convertedBps))),
+            chosen == MediaAwayOriginal.CONVERTED,
+        ) { onChoose(MediaAwayOriginal.CONVERTED) }
+        fit.waitMs?.let { wait ->
+            val bold = if (wait < 60_000) stringResource(R.string.media_away_wait_soon) else stringResource(R.string.media_away_wait_min, MediaPlayAhead.minutes(wait))
+            val text = stringResource(R.string.media_away_wait_desc, "\u0000")
+            val desc = buildAnnotatedString {
+                append(text.substringBefore('\u0000'))
+                withStyle(SpanStyle(fontWeight = FontWeight.Bold)) { append(bold) }
+                append(text.substringAfter('\u0000'))
+            }
+            AwayOption(stringResource(R.string.media_away_wait), desc, chosen == MediaAwayOriginal.WAIT, Modifier.testTag(AWAY_WAIT_TAG)) { onChoose(MediaAwayOriginal.WAIT) }
+        }
+        AwayOption(stringResource(R.string.media_away_now), AnnotatedString(stringResource(R.string.media_away_now_desc)), chosen == MediaAwayOriginal.NOW) { onChoose(MediaAwayOriginal.NOW) }
+        Row(Modifier.padding(top = 6.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            GcSecondaryButton(stringResource(R.string.media_away_cancel), onClick = { onAway(null) }, modifier = Modifier.weight(1f))
+            GcPrimaryButton(
+                stringResource(if (chosen == MediaAwayOriginal.WAIT) R.string.media_away_start_wait else R.string.media_away_play),
+                onClick = { onAway(chosen) },
+                icon = GcIcons.Play,
+                modifier = Modifier.weight(1.3f).testTag(AWAY_GO_TAG),
+            )
+        }
+    }
+}
+
+@Composable
+private fun AwayOption(title: String, desc: AnnotatedString, selected: Boolean, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    val x = GateControlTheme.extraColors
+    val shape = RoundedCornerShape(14.dp)
+    Row(
+        modifier.fillMaxWidth().clip(shape)
+            .background(if (selected) x.accentBg else MaterialTheme.colorScheme.surface)
+            .border(if (selected) 1.5.dp else 1.dp, if (selected) MaterialTheme.colorScheme.primary else x.border, shape)
+            .clickable(role = Role.RadioButton, onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(14.dp),
+    ) {
+        Box(
+            Modifier.size(22.dp).clip(CircleShape).border(2.dp, if (selected) MaterialTheme.colorScheme.primary else x.faint, CircleShape),
+            contentAlignment = Alignment.Center,
+        ) {
+            if (selected) Box(Modifier.size(12.dp).clip(CircleShape).background(MaterialTheme.colorScheme.primary))
+        }
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+            Text(desc, style = MaterialTheme.typography.bodyMedium, color = x.muted)
+        }
+    }
+}
+
+/** „Original mit Mitladen“: over the picture while it loads ahead, with „Jetzt abspielen“. */
+@Composable
+private fun BoxScope.AheadWaiting(ui: MediaPlayerUi, actions: MediaPlayerActions) {
+    val left = ui.aheadWaitMs
+    Column(
+        Modifier.align(Alignment.Center).padding(12.dp).widthIn(max = 320.dp).clip(RoundedCornerShape(14.dp)).background(Color.Black.copy(alpha = 0.75f)).padding(14.dp).testTag(AHEAD_WAIT_TAG),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        Text(
+            if (left != null && left > 0) stringResource(R.string.media_ahead_waiting, MediaPlayAhead.minutes(left)) else stringResource(R.string.media_ahead_waiting_plain),
+            color = Color.White,
+            style = MaterialTheme.typography.titleSmall,
+            fontWeight = FontWeight.SemiBold,
+        )
+        Text(stringResource(R.string.media_ahead_waiting_note), color = Color.White.copy(alpha = 0.8f), style = MaterialTheme.typography.bodySmall, textAlign = TextAlign.Center)
+        TextButton(onClick = actions.onStartNow) { Text(stringResource(R.string.media_ahead_start_now), color = Color.White) }
+    }
+}
+
+/**
+ * „Auf dem Gerät mitgeladen“ (mockup 05 for the device): seen, on the device, still missing; how fast it loads, how
+ * long what is ahead plays, that it goes after watching.
+ */
+@Composable
+internal fun AheadCard(state: MediaPlayAheadState, bitrate: Long?) {
+    val x = GateControlTheme.extraColors
+    GcCard(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp).testTag(AHEAD_CARD_TAG)) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Icon(GcIcons.Smartphone, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(22.dp))
+            Text(stringResource(R.string.media_ahead_title), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+            GcChip(
+                text = stringResource(
+                    when {
+                        state.complete -> R.string.media_ahead_complete
+                        state.full -> R.string.media_ahead_full
+                        else -> R.string.media_ahead_running
+                    },
+                ),
+                tone = GcTone.Ok,
+            )
+        }
+        if (state.totalBytes > 0) {
+            val seen = (state.headBytes.toFloat() / state.totalBytes).coerceIn(0f, 1f)
+            val ahead = (state.aheadBytes.toFloat() / state.totalBytes).coerceIn(0f, 1f - seen)
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Row(Modifier.weight(1f).height(8.dp).clip(RoundedCornerShape(4.dp)).background(x.panel2)) {
+                    if (seen > 0f) Box(Modifier.fillMaxHeight().weight(seen).background(MaterialTheme.colorScheme.primary))
+                    if (ahead > 0f) Box(Modifier.fillMaxHeight().weight(ahead).background(x.faint.copy(alpha = 0.55f)))
+                    val rest = 1f - seen - ahead
+                    if (rest > 0f) Spacer(Modifier.weight(rest))
+                }
+                Text(stringResource(R.string.media_ahead_amount, MediaOfflineLogic.sizeText(state.aheadBytes)), style = MaterialTheme.typography.bodyMedium, color = x.muted)
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                Legend(MaterialTheme.colorScheme.primary, stringResource(R.string.media_ahead_seen))
+                Legend(x.faint.copy(alpha = 0.55f), stringResource(R.string.media_ahead_on_device))
+                Legend(x.panel2, stringResource(R.string.media_ahead_missing))
+            }
+        }
+        val parts = buildList {
+            if (state.rateBps > 0 && !state.complete) add(stringResource(R.string.media_ahead_rate, MediaQuality.label(state.rateBps)))
+            MediaPlayAhead.aheadMs(state.aheadBytes, bitrate)?.takeIf { it >= 60_000 }?.let { add(stringResource(R.string.media_ahead_lasts, MediaPlayAhead.minutes(it))) }
+            add(stringResource(R.string.media_ahead_deleted))
+        }
+        Text(parts.joinToString(" · "), style = MaterialTheme.typography.bodyMedium, color = x.muted)
+    }
+}
+
+@Composable
+private fun Legend(color: Color, text: String) {
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        Box(Modifier.size(width = 14.dp, height = 8.dp).clip(RoundedCornerShape(3.dp)).background(color))
+        Text(text, style = MaterialTheme.typography.bodySmall, color = GateControlTheme.extraColors.muted)
+    }
 }
 
 /** The short name of a quality ("Automatisch", "Original", "720p · 4 Mbit/s"). */
@@ -848,3 +1024,8 @@ internal const val VPN_TROUBLE_TAG = "media-player-vpn"
 internal const val VPN_ON_PLAYER_TAG = "media-player-vpn-on"
 internal const val VPN_CONNECTING_TAG = "media-player-vpn-connecting"
 internal const val NO_SOUND_TAG = "media-player-no-sound"
+internal const val AWAY_SHEET_TAG = "media-player-away"
+internal const val AWAY_WAIT_TAG = "media-player-away-wait"
+internal const val AWAY_GO_TAG = "media-player-away-go"
+internal const val AHEAD_WAIT_TAG = "media-player-ahead-wait"
+internal const val AHEAD_CARD_TAG = "media-player-ahead"

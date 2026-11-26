@@ -70,6 +70,8 @@ class MediaOfflineUiTest {
     private fun settings() = mockk<MediaPhoneSettings>(relaxed = true) {
         every { offlineQuality } returns MutableStateFlow(OfflineQuality.P1080)
         every { offlineLimitGb } returns MutableStateFlow(20)
+        every { aheadGb } returns MutableStateFlow(4)
+        every { awayOriginal } returns MutableStateFlow(com.gatecontrol.android.media.MediaAwayOriginal.ASK)
         every { mobileCap } returns MutableStateFlow(3_000_000L)
     }
 

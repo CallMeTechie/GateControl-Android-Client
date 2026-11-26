@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.159.0] - 2026-11-26
+
+### Features
+- Medien-Übersicht ergänzt – Als Nächstes, Neue Filme/Folgen, Favoriten, Sammlungen, Genres (#309)
+
+---
+
 ## [1.158.3] - 2026-11-26
 
 ### Fixes

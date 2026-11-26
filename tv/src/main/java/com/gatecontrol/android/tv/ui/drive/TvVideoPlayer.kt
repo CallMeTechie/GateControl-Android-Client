@@ -106,7 +106,7 @@ fun TvVideoPlayer(
     val key = source.key(at)
     val count = source.count
     val factory = remember { source.factory(context) }
-    val player = remember(factory) { factory?.let { MediaPlayers.player(context, it) } }
+    val player = remember(factory) { factory?.let { MediaPlayers.player(context, it, media = source.longBuffer) } }
     var playing by remember { mutableStateOf(false) }
     var position by remember { mutableLongStateOf(0L) }
     var duration by remember { mutableLongStateOf(0L) }
@@ -197,7 +197,13 @@ fun TvVideoPlayer(
             player?.removeListener(listener)
         }
     }
-    DisposableEffect(player) { onDispose { player?.release() } }
+    DisposableEffect(player) {
+        onDispose {
+            player?.release()
+            // after the player: what Medien loaded ahead goes
+            source.release()
+        }
+    }
     // the video at [at]: its stream first (Drive: the rights, the virus scan; Medien: direct or converted), then from
     // where it was left
     LaunchedEffect(player, key, reload) {

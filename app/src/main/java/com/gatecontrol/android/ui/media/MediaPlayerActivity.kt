@@ -150,6 +150,8 @@ class MediaPlayerActivity : ComponentActivity() {
                         onRetry = session::retry,
                         onVpnConsent = session::vpnConsent,
                         onMobileHintRead = session::mobileHintRead,
+                        onAway = session::answerAway,
+                        onStartNow = session::startNow,
                         onCast = {
                             session.pause()
                             casting = player?.currentPosition?.coerceAtLeast(0) ?: 0

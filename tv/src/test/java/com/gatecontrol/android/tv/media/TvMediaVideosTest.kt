@@ -257,7 +257,12 @@ class TvMediaVideosTest {
         // the file's own sound tracks and subtitles in the player's panel, no quality
         assertNull(v.choices(0))
         assertEquals(42_000L, v.startAt(0))
-        assertTrue(v.factory(RuntimeEnvironment.getApplication()) is ShareDataSource.Factory)
+        // the player's source: the share's file (through the space of „mitladen“, which follows nothing here)
+        val factory = v.factory(RuntimeEnvironment.getApplication())!!
+        val viaPlayer = factory.createDataSource()
+        assertEquals(10L, viaPlayer.open(androidx.media3.datasource.DataSpec.Builder().setUri(open.item.localConfiguration!!.uri).setPosition(90).build()))
+        viaPlayer.close()
+        v.release()
         v.report(0, PlaybackEvent.PROGRESS, 50_000, false, durationMs = 6_480_000)
         coVerify { lib.progress(match { it.positionMs == 50_000L && it.durationMs == 6_480_000L }) }
 

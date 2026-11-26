@@ -14,7 +14,8 @@ import javax.inject.Singleton
 
 /**
  * The phone's settings of Medien (Medien › Quellen): the quality setting of [MediaDevice], the limit on mobile data
- * (question 28: 3 Mbit/s by default, "keine" switches it off) and whether "Weiterschauen" stands on Start. Nothing
+ * (question 28: 3 Mbit/s by default, "keine" switches it off), whether "Weiterschauen" stands on Start, the space for
+ * loading ahead away and what plays when the original does not go through. Nothing
  * secret: the sources and their access are in the encrypted [MediaSourceStore].
  */
 @Singleton
@@ -43,6 +44,26 @@ class MediaPhoneSettings @Inject constructor(@ApplicationContext context: Contex
 
     /** The storage limit of the downloads in GB (20 by default). */
     val offlineLimitGb: StateFlow<Int> = _offlineLimitGb.asStateFlow()
+
+    private val _aheadGb = MutableStateFlow(prefs.getInt(KEY_AHEAD_GB, MediaPlayAhead.DEFAULT_GB))
+
+    /** „Unterwegs mitladen“ (part 2, stage 1): the space for one playback in GB; 0: off. */
+    val aheadGb: StateFlow<Int> = _aheadGb.asStateFlow()
+
+    private val _awayOriginal = MutableStateFlow(MediaAwayOriginal.fromWire(prefs.getString(KEY_AWAY_ORIGINAL, null)))
+
+    /** When the original does not go through away (decision 89 b): ask, or what was chosen to keep. */
+    val awayOriginal: StateFlow<MediaAwayOriginal> = _awayOriginal.asStateFlow()
+
+    fun setAheadGb(gb: Int) {
+        prefs.edit { putInt(KEY_AHEAD_GB, gb) }
+        _aheadGb.value = gb
+    }
+
+    fun setAwayOriginal(value: MediaAwayOriginal) {
+        prefs.edit { putString(KEY_AWAY_ORIGINAL, value.wire) }
+        _awayOriginal.value = value
+    }
 
     fun setOfflineQuality(value: OfflineQuality) {
         prefs.edit { putString(KEY_OFFLINE_QUALITY, value.wire) }
@@ -82,5 +103,7 @@ class MediaPhoneSettings @Inject constructor(@ApplicationContext context: Contex
         const val KEY_MOBILE_HINT = "mobile_hint_seen"
         const val KEY_OFFLINE_QUALITY = "offline_quality"
         const val KEY_OFFLINE_LIMIT = "offline_limit_gb"
+        const val KEY_AHEAD_GB = "ahead_gb"
+        const val KEY_AWAY_ORIGINAL = "away_original"
     }
 }
