@@ -112,4 +112,12 @@ class SetupRepositoryTest {
         assertEquals(before + 1, repository.revision.value)
         assertFalse(repository.restoreServerUrl(" "))
     }
+
+    @Test
+    fun `stored checks ask the storage, not the decrypted value`() {
+        every { storage.contains("server_url") } returns true
+        every { storage.contains("api_token") } returns false
+        assertTrue(repository.hasStoredServerUrl())
+        assertFalse(repository.hasStoredApiToken())
+    }
 }

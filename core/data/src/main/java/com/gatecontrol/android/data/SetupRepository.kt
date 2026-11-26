@@ -43,6 +43,9 @@ class SetupRepository @Inject constructor(private val storage: EncryptedStorage)
     /** A server URL is stored (possibly unreadable for a moment); false when it is really missing. */
     fun hasStoredServerUrl(): Boolean = storage.contains(KEY_SERVER_URL)
 
+    /** An API token is stored (possibly unreadable for a moment); false when it is really missing. */
+    fun hasStoredApiToken(): Boolean = storage.contains(KEY_API_TOKEN)
+
     /**
      * Puts back a server URL that was lost while the token stayed (older
      * versions dropped it on a passing Keystore error). Only when none is
