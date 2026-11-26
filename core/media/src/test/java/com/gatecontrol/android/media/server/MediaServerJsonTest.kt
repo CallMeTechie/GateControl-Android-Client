@@ -136,4 +136,13 @@ class MediaServerJsonTest {
         assertNull(MediaServerJson.revoke(obj("""{"kind":"media.cast"}""")))
         assertNull(MediaServerJson.revoke(JsonParser.parseString("[1]")))
     }
+
+    @Test
+    fun `deviceId - the own device id (1_4_0), not in unchanged or from an older plugin`() {
+        assertEquals("11", MediaServerJson.list(obj("""{"ok":true,"v":1,"rev":"r1","deviceId":"11","sources":[]}"""))!!.deviceId)
+        assertEquals("11", MediaServerJson.list(obj("""{"ok":true,"v":1,"rev":"r1","deviceId":11,"sources":[]}"""))!!.deviceId)
+        assertNull(MediaServerJson.list(obj("""{"ok":true,"v":1,"rev":"r1","deviceId":null,"sources":[]}"""))!!.deviceId)
+        assertNull(MediaServerJson.list(obj("""{"ok":true,"v":1,"rev":"r1","sources":[]}"""))!!.deviceId)
+        assertNull(MediaServerJson.list(obj("""{"ok":true,"v":1,"rev":"r1","unchanged":true,"deviceId":"11"}"""))!!.deviceId)
+    }
 }

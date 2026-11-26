@@ -267,6 +267,8 @@ class MediaServerSources internal constructor(
     }
 
     private fun apply(list: MediaServerList) {
+        // this device's own id at once (plugin 1.4.0), not only from the first silent push; `unchanged` keeps the last
+        list.deviceId?.let { cast?.learnSelf(it) }
         if (list.unchanged) {
             change { it.copy(known = true, lastContact = now(), unavailable = false, unavailableSince = 0) }
             return

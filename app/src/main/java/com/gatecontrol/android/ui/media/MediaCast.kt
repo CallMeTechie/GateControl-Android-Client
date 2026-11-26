@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.res.Configuration
 import android.os.Bundle
+import android.view.KeyEvent
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -23,6 +24,7 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.CircularProgressIndicator
@@ -60,6 +62,7 @@ import com.gatecontrol.android.R
 import com.gatecontrol.android.data.SettingsRepository
 import com.gatecontrol.android.media.CastListProblem
 import com.gatecontrol.android.media.CastStartProblem
+import com.gatecontrol.android.media.CastVolumeKeys
 import com.gatecontrol.android.media.MediaPhoneLogic
 import com.gatecontrol.android.media.MediaPlayRequests
 import com.gatecontrol.android.media.MediaTitle
@@ -88,6 +91,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.util.Locale
 import javax.inject.Inject
+import kotlin.math.roundToInt
 
 /*
  * "Abspielen auf …" (stage 4, mockup 7 left, question 23a): the cast mark on the detail page and in the player opens
@@ -157,6 +161,10 @@ class MediaCastViewModel @Inject constructor(
     }
 
     fun command(cmd: CastCmd, positionMs: Long? = null, deltaMs: Long? = null, track: String? = null) = cast.command(cmd, positionMs, deltaMs, track)
+
+    fun setVolume(volume: Int) = cast.setVolume(volume)
+
+    fun toggleMute() = cast.toggleMute()
 
     /** "Auf diesem Handy weiter ab …": the title of the session from where it stopped there. */
     fun goOnHere(positionMs: Long) {
@@ -286,6 +294,13 @@ class MediaCastActivity : ComponentActivity() {
 
     @Inject lateinit var settingsRepository: SettingsRepository
 
+    @Inject lateinit var phoneCast: PhoneCast
+
+    /** The volume keys change the volume on the other device while it tells it. */
+    override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean = CastVolumeKeys.handle(event, phoneCast) || super.onKeyDown(keyCode, event)
+
+    override fun onKeyUp(keyCode: Int, event: KeyEvent): Boolean = CastVolumeKeys.handle(event, phoneCast) || super.onKeyUp(keyCode, event)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
@@ -401,6 +416,9 @@ fun MediaRemoteScreen(onClose: () -> Unit, viewModel: MediaCastViewModel = hiltV
         }
         TrackChips(stringResource(R.string.media_cast_audio), s.audio.takeIf { it.size > 1 }.orEmpty(), live) { viewModel.command(CastCmd.AUDIO, track = it.id) }
         TrackChips(stringResource(R.string.media_cast_subtitles), s.subtitles, live) { viewModel.command(CastCmd.SUBTITLE, track = it.id) }
+        s.volume?.takeIf { !s.phase.final }?.let { volume ->
+            VolumeRow(volume, s.muted, live, onVolume = viewModel::setVolume, onMute = viewModel::toggleMute)
+        }
         if (!s.phase.final) {
             GcOutlineButton(stringResource(R.string.media_cast_stop), onClick = { viewModel.command(CastCmd.STOP) }, icon = GcIcons.Stop, modifier = Modifier.testTag(REMOTE_STOP_TAG))
         } else {
@@ -427,6 +445,37 @@ private fun TrackChips(label: String, tracks: List<CastTrack>, enabled: Boolean,
         Text(label, style = MaterialTheme.typography.labelLarge, color = GateControlTheme.extraColors.muted)
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             tracks.forEach { t -> GcFilterChip(text = t.label, selected = t.selected, onClick = { onPick(t) }, enabled = enabled) }
+        }
+    }
+}
+
+/** The volume on the other device (only when it tells it): mute, the slider, the value; the volume keys do the same. */
+@Composable
+private fun VolumeRow(volume: Int, muted: Boolean, enabled: Boolean, onVolume: (Int) -> Unit, onMute: () -> Unit) {
+    val x = GateControlTheme.extraColors
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.testTag(REMOTE_VOLUME_TAG)) {
+        Text(stringResource(R.string.media_cast_volume), style = MaterialTheme.typography.labelLarge, color = x.muted)
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            GcIconButton(
+                if (muted || volume == 0) GcIcons.VolumeOff else GcIcons.Volume,
+                contentDescription = stringResource(if (muted) R.string.media_cast_unmute else R.string.media_cast_mute),
+                onClick = onMute,
+                enabled = enabled,
+                tint = if (muted) MaterialTheme.colorScheme.primary else x.muted,
+                modifier = Modifier.testTag(REMOTE_MUTE_TAG),
+            )
+            Slider(
+                value = volume / 100f,
+                onValueChange = { onVolume((it * 100).roundToInt()) },
+                enabled = enabled,
+                modifier = Modifier.weight(1f),
+            )
+            Text(
+                if (muted) stringResource(R.string.media_cast_muted) else stringResource(R.string.media_cast_volume_value, volume),
+                style = MaterialTheme.typography.labelMedium,
+                color = x.muted,
+                modifier = Modifier.widthIn(min = 44.dp),
+            )
         }
     }
 }
@@ -464,3 +513,5 @@ internal const val REMOTE_STATE_TAG = "media-remote-state"
 internal const val REMOTE_SEEK_TAG = "media-remote-seek"
 internal const val REMOTE_TOGGLE_TAG = "media-remote-toggle"
 internal const val REMOTE_STOP_TAG = "media-remote-stop"
+internal const val REMOTE_VOLUME_TAG = "media-remote-volume"
+internal const val REMOTE_MUTE_TAG = "media-remote-mute"

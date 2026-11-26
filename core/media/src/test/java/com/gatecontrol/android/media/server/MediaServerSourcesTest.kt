@@ -482,4 +482,25 @@ class MediaServerSourcesTest {
         assertEquals("tok2", w.store.source("jf-1")?.token)
         coVerify(exactly = 2) { w.pair.pair(any()) }
     }
+
+    @Test
+    fun `cast - the list tells this device its own id at once, unchanged keeps it`() = runTest {
+        val w = World(this)
+        w.api.list = MediaServerResult.Ok(MediaServerList(rev = "r1", at = null, deviceId = "11", cast = true, sources = listOf(jf)))
+        w.sources.refresh(force = true)
+        advanceUntilIdle()
+        assertEquals("11", w.channel.self)
+        w.api.list = MediaServerResult.Ok(MediaServerList(rev = "r1", at = null, unchanged = true))
+        w.clock += 60_000
+        w.sources.refresh(force = true)
+        advanceUntilIdle()
+        assertEquals("11", w.channel.self)
+        // the event for this device is taken without a silent push before
+        val got = ArrayList<com.gatecontrol.android.media.cast.CastEnvelope>()
+        val job = launch(kotlinx.coroutines.test.UnconfinedTestDispatcher(testScheduler)) { w.channel.incoming.collect { got += it } }
+        w.sources.onEvent("media.cast", castData(to = "11"))
+        w.sources.onEvent("media.cast", castData(to = "12"))
+        assertEquals(listOf("11"), got.map { it.to })
+        job.cancel()
+    }
 }

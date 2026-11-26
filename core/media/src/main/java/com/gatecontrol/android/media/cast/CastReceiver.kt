@@ -20,6 +20,8 @@ data class CastSnapshot(
     val audio: String? = null,
     val subtitle: String? = null,
     val tracks: Int = 0,
+    val volume: Int? = null,
+    val muted: Boolean? = null,
 )
 
 /** The receiver's rules (GateControl TV here, the Windows app by the same contract). Pure, unit-tested. */
@@ -56,11 +58,22 @@ object CastReceiverRules {
     fun shouldReport(last: CastSnapshot?, lastAt: Long, now: CastSnapshot, nowMs: Long): Boolean {
         if (last == null) return true
         if (now.phase != last.phase || now.audio != last.audio || now.subtitle != last.subtitle || now.tracks != last.tracks) return true
+        if (now.volume != last.volume || now.muted != last.muted) return true
         if (now.durationMs > 0 && last.durationMs <= 0) return true
         val expected = if (last.phase == CastPhase.PLAYING) last.positionMs + (nowMs - lastAt) else last.positionMs
         if (abs(now.positionMs - expected) > JUMP_MS) return true
         return now.phase == CastPhase.PLAYING && nowMs - lastAt >= CastProtocol.HEARTBEAT_MS
     }
+
+    /**
+     * The volume and muting after [CastCmd.VOLUME] [c] from [volume] / [muted] (each field only when it came along);
+     * the player's volume is then `volume / 100` or 0 while muted ([playerVolume]).
+     */
+    fun volume(c: CastMessage.Command, volume: Int, muted: Boolean): Pair<Int, Boolean> =
+        (c.volume?.coerceIn(0, 100) ?: volume.coerceIn(0, 100)) to (c.muted ?: muted)
+
+    /** The player's volume (0–1) for [volume] (0–100) and [muted]. */
+    fun playerVolume(volume: Int, muted: Boolean): Float = if (muted) 0f else volume.coerceIn(0, 100) / 100f
 
     /** The place after [CastCmd.SEEK_BY] from [position], within the video. */
     fun seekTarget(position: Long, delta: Long, duration: Long): Long {

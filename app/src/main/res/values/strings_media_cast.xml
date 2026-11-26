@@ -29,6 +29,12 @@
     <string name="media_cast_stop">Stop</string>
     <string name="media_cast_audio">Sound</string>
     <string name="media_cast_subtitles">Subtitles</string>
+    <string name="media_cast_volume">Volume</string>
+    <string name="media_cast_volume_value">%1$d %%</string>
+    <string name="media_cast_muted">Muted</string>
+    <string name="media_cast_mute">Mute</string>
+    <string name="media_cast_unmute">Unmute</string>
+    <string name="media_cast_volume_on">Volume on %1$s: %2$s</string>
     <string name="media_cast_go_on_here">Go on on this phone from %1$s</string>
     <string name="media_cast_done">Close</string>
     <string name="media_cast_error_source_missing">The source is not there on %1$s. Open Media there so the sources load from the server, or ask your administrator for access.</string>

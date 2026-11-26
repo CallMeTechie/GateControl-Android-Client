@@ -175,4 +175,72 @@ class CastLogicTest {
         assertEquals(0, CastReceiverRules.seekTarget(5_000, -10_000, 60_000))
         assertEquals(59_000, CastReceiverRules.seekTarget(55_000, 10_000, 60_000))
     }
+
+    // ─── volume (plugin 1.4.1) ──────────────────────────────────────
+
+    @Test
+    fun `volume only with a receiver that tells it, keys step and louder ends muting`() {
+        var s = CastRemote.start(session, "tv", "TV", "K", 0, now = 0)
+        assertFalse(CastRemote.hasVolume(s))
+        assertNull(CastRemote.setVolume(s, 1, delta = 5))
+        // an older receiver: no volume in its states, nothing to change
+        s = CastRemote.onState(s, state(1, CastPhase.PLAYING, 0), "tv", 1_000)
+        assertNull(s.volume)
+        assertFalse(CastRemote.hasVolume(s))
+        s = CastRemote.onState(s, state(2, CastPhase.PLAYING, 0).copy(volume = 40, muted = true), "tv", 2_000)
+        assertTrue(CastRemote.hasVolume(s))
+        assertEquals(40, s.volume)
+        assertTrue(s.muted)
+        val down = CastRemote.setVolume(s, 3_000, delta = -CastRemote.VOLUME_STEP)!!
+        assertEquals(35, down.volume)
+        assertTrue(down.muted, "quieter keeps muting")
+        val up = CastRemote.setVolume(s, 3_000, delta = 3 * CastRemote.VOLUME_STEP)!!
+        assertEquals(55, up.volume)
+        assertFalse(up.muted, "louder ends muting")
+        assertEquals(100, CastRemote.setVolume(s, 3_000, delta = 100)!!.volume)
+        assertEquals(0, CastRemote.setVolume(s, 3_000, delta = -100)!!.volume)
+        assertFalse(CastRemote.setVolume(s, 3_000, muted = false)!!.muted)
+        assertEquals(70, CastRemote.setVolume(s, 3_000, volume = 70)!!.volume)
+        val over = CastRemote.onState(s, state(3, CastPhase.STOPPED, 0), "tv", 4_000)
+        assertNull(CastRemote.setVolume(over, 5_000, delta = 1))
+    }
+
+    @Test
+    fun `the volume command carries volume and muted, a change here wins a moment over older states`() {
+        var s = CastRemote.start(session, "tv", "TV", "K", 0, now = 0)
+        s = CastRemote.onState(s, state(1, CastPhase.PLAYING, 0).copy(volume = 40, muted = false), "tv", 1_000)
+        assertNull(CastRemote.command(s, CastCmd.VOLUME, 2_000), "a volume command needs a value")
+        val (c, shown) = CastRemote.command(s, CastCmd.VOLUME, 2_000, volume = 120, muted = true)!!
+        assertEquals(CastCmd.VOLUME, c.cmd)
+        assertEquals(100, c.volume)
+        assertEquals(true, c.muted)
+        assertNull(c.positionMs)
+        assertEquals(100, shown.volume)
+        assertTrue(shown.muted)
+        assertEquals(s.nextSeq + 1, shown.nextSeq)
+        // a state that left the TV before the command arrived: the volume shown here stays
+        val early = CastRemote.onState(shown, state(2, CastPhase.PLAYING, 0).copy(volume = 40, muted = false), "tv", 2_000 + 1_000)
+        assertEquals(100, early.volume)
+        assertTrue(early.muted)
+        val later = CastRemote.onState(early, state(3, CastPhase.PLAYING, 0).copy(volume = 90, muted = false), "tv", 2_000 + CastRemote.VOLUME_HOLD_MS)
+        assertEquals(90, later.volume)
+        assertFalse(later.muted)
+        // a state without volume keeps the last one
+        assertEquals(90, CastRemote.onState(later, state(4, CastPhase.PLAYING, 0), "tv", 9_000).volume)
+    }
+
+    @Test
+    fun `the receiver applies the volume and tells a change of it`() {
+        val c = CastMessage.Command(session, 1, 1, CastCmd.VOLUME, volume = 30)
+        assertEquals(30 to false, CastReceiverRules.volume(c, 80, false))
+        assertEquals(80 to true, CastReceiverRules.volume(c.copy(volume = null, muted = true), 80, false))
+        assertEquals(100 to false, CastReceiverRules.volume(c.copy(volume = 300), 80, false))
+        assertEquals(0.3f, CastReceiverRules.playerVolume(30, false))
+        assertEquals(0f, CastReceiverRules.playerVolume(30, true))
+        assertEquals(1f, CastReceiverRules.playerVolume(100, false))
+        val a = CastSnapshot(CastPhase.PAUSED, 0, 1_000, volume = 50, muted = false)
+        assertFalse(CastReceiverRules.shouldReport(a, 0, a, 1_000))
+        assertTrue(CastReceiverRules.shouldReport(a, 0, a.copy(volume = 55), 1_000))
+        assertTrue(CastReceiverRules.shouldReport(a, 0, a.copy(muted = true), 1_000))
+    }
 }

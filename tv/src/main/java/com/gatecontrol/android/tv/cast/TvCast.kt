@@ -42,11 +42,24 @@ import javax.inject.Singleton
  * plays. Only for the session it was opened for.
  */
 interface TvVideoRemote {
-    /** The phone's keys for this session (pause, jump, sound, subtitle, stop, status). */
+    /** The phone's keys for this session (pause, jump, sound, subtitle, volume, stop, status). */
     val commands: Flow<CastMessage.Command>
 
-    /** How it plays now ([TvCast] decides whether that is worth a message: changes, jumps, a heartbeat). */
-    fun state(phase: CastPhase, positionMs: Long, durationMs: Long, title: String?, audio: List<CastTrack>, subtitles: List<CastTrack>, force: Boolean = false)
+    /**
+     * How it plays now ([TvCast] decides whether that is worth a message: changes, jumps, a heartbeat); [volume] 0–100
+     * and [muted] the player's (plugin 1.4.1: the phone shows them and changes them with [CastCmd.VOLUME]).
+     */
+    fun state(
+        phase: CastPhase,
+        positionMs: Long,
+        durationMs: Long,
+        title: String?,
+        audio: List<CastTrack>,
+        subtitles: List<CastTrack>,
+        force: Boolean = false,
+        volume: Int? = null,
+        muted: Boolean? = null,
+    )
 
     /** The player closed: by the phone's "Stopp" ([byRemote]), at the end, or on the TV itself. */
     fun closed(positionMs: Long, durationMs: Long, byRemote: Boolean)
@@ -185,9 +198,19 @@ class TvCast @Inject constructor(
         return object : TvVideoRemote {
             override val commands: Flow<CastMessage.Command> = _commands.filter { it.session == castSession }
 
-            override fun state(phase: CastPhase, positionMs: Long, durationMs: Long, title: String?, audio: List<CastTrack>, subtitles: List<CastTrack>, force: Boolean) {
+            override fun state(
+                phase: CastPhase,
+                positionMs: Long,
+                durationMs: Long,
+                title: String?,
+                audio: List<CastTrack>,
+                subtitles: List<CastTrack>,
+                force: Boolean,
+                volume: Int?,
+                muted: Boolean?,
+            ) {
                 if (session?.session != castSession) return
-                tell(phase, positionMs, durationMs, title, audio, subtitles, force)
+                tell(phase, positionMs, durationMs, title, audio, subtitles, force, volume, muted)
             }
 
             override fun closed(positionMs: Long, durationMs: Long, byRemote: Boolean) {
@@ -202,15 +225,25 @@ class TvCast @Inject constructor(
         }
     }
 
-    private fun tell(phase: CastPhase, positionMs: Long, durationMs: Long, title: String?, audio: List<CastTrack> = emptyList(), subtitles: List<CastTrack> = emptyList(), force: Boolean = false) {
+    private fun tell(
+        phase: CastPhase,
+        positionMs: Long,
+        durationMs: Long,
+        title: String?,
+        audio: List<CastTrack> = emptyList(),
+        subtitles: List<CastTrack> = emptyList(),
+        force: Boolean = false,
+        volume: Int? = null,
+        muted: Boolean? = null,
+    ) {
         val s = session ?: return
         val now = clock()
-        val snap = CastSnapshot(phase, positionMs, durationMs, audio.firstOrNull { it.selected }?.id, subtitles.firstOrNull { it.selected }?.id, audio.size + subtitles.size)
+        val snap = CastSnapshot(phase, positionMs, durationMs, audio.firstOrNull { it.selected }?.id, subtitles.firstOrNull { it.selected }?.id, audio.size + subtitles.size, volume, muted)
         if (!force && !CastReceiverRules.shouldReport(lastTold, lastToldAt, snap, now)) return
         lastTold = snap
         lastToldAt = now
         scope.launch {
-            send(s, CastMessage.State(s.session, 0, now, phase, positionMs, durationMs, title, audio, subtitles, device = pairing.deviceName()))
+            send(s, CastMessage.State(s.session, 0, now, phase, positionMs, durationMs, title, audio, subtitles, device = pairing.deviceName(), volume = volume, muted = muted))
         }
     }
 

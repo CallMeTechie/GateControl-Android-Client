@@ -16,6 +16,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -58,6 +59,9 @@ class PhoneCast internal constructor(
         this(hub, servers, channel, CoroutineScope(SupervisorJob() + Dispatchers.IO))
 
     private val lock = Mutex()
+
+    /** The volume changes in their order (keys, slider, mute), each under [lock]. */
+    private val volumeChanges = Channel<(CastRemoteState, Long) -> CastRemoteState?>(Channel.UNLIMITED)
     private var ticker: Job? = null
 
     private val _state = MutableStateFlow<CastRemoteState?>(null)
@@ -88,6 +92,7 @@ class PhoneCast internal constructor(
 
     init {
         scope.launch { channel.incoming.collect { onMessage(it) } }
+        scope.launch { for (f in volumeChanges) applyVolume(f) }
     }
 
     /** Only a title of a source of the plugin can be cast (the receiver knows the source by the plugin's id). */
@@ -181,6 +186,86 @@ class PhoneCast internal constructor(
         }
     }
 
+    /**
+     * The phone's volume keys during a session: [steps] of [CastRemote.VOLUME_STEP] up (positive) or down at the
+     * receiver. False when there is no volume to change (no session, or a receiver that does not tell its volume):
+     * then the keys stay the phone's own.
+     */
+    fun volumeKey(steps: Int): Boolean = changeVolume { s, now -> CastRemote.setVolume(s, now, delta = steps * CastRemote.VOLUME_STEP) }
+
+    /** The volume key "Stumm" (or the remote's button): muting on or off at the receiver. False as [volumeKey]. */
+    fun toggleMute(): Boolean = changeVolume { s, now -> CastRemote.setVolume(s, now, muted = !s.muted) }
+
+    /** The remote's slider: [volume] 0–100 at the receiver (louder ends muting). */
+    fun setVolume(volume: Int): Boolean = changeVolume { s, now ->
+        CastRemote.setVolume(s, now, volume = volume, muted = if (volume > (s.volume ?: 0)) false else null)
+    }
+
+    /**
+     * Shown at once (in order, under [lock]); the receiver gets the newest volume a moment later, at most every
+     * [VOLUME_GAP_MS] (a held key is a message or two, not one per repeat).
+     */
+    private fun changeVolume(f: (CastRemoteState, Long) -> CastRemoteState?): Boolean {
+        val s = _state.value ?: return false
+        if (!CastRemote.hasVolume(s)) return false
+        volumeChanges.trySend(f)
+        return true
+    }
+
+    private suspend fun applyVolume(f: (CastRemoteState, Long) -> CastRemoteState?) {
+        val changed = lock.withLock {
+            val s = _state.value ?: return@withLock false
+            val next = f(s, clock()) ?: return@withLock false
+            _state.value = next
+            true
+        }
+        if (changed) sendVolumeSoon()
+    }
+
+    private var volumeJob: Job? = null
+
+    /** The volume the receiver was sent last in [sentSession]. */
+    private var volumeSent: Pair<Int?, Boolean>? = null
+    private var sentSession: String? = null
+
+    private suspend fun sendVolumeSoon() {
+        lock.withLock {
+            if (volumeJob?.isActive == true) return
+            volumeJob = scope.launch { sendVolume() }
+        }
+    }
+
+    private suspend fun sendVolume() {
+        while (true) {
+            delay(VOLUME_GAP_MS)
+            val (c, target) = lock.withLock {
+                val s = _state.value
+                val want = s?.let { it.volume to it.muted }
+                val sent = s?.takeIf { want != volumeSent || it.session != sentSession }
+                    ?.let { CastRemote.command(it, CastCmd.VOLUME, clock(), volume = it.volume, muted = it.muted) }
+                if (s == null || sent == null) {
+                    // nothing new: the next change starts the sending again
+                    volumeJob = null
+                    return
+                }
+                _state.value = sent.second
+                volumeSent = want
+                sentSession = s.session
+                sent.first to s.deviceId
+            }
+            if (channel.send(target, c) == CastSendResult.RATE_LIMITED) {
+                // not there: the newest volume once more after the plugin's minute
+                lock.withLock { volumeSent = null }
+                _limited.value = true
+                delay(LIMIT_HINT_MS)
+                _limited.value = false
+            }
+        }
+    }
+
+    /** The receiver's volume can be changed now (a session runs, the receiver tells its volume). */
+    val hasVolume: Boolean get() = _state.value?.let(CastRemote::hasVolume) == true
+
     /** The remote closed after the end: nothing is shown any more. */
     fun dismiss() {
         val s = _state.value ?: return
@@ -201,6 +286,9 @@ class PhoneCast internal constructor(
 
     private companion object {
         const val LIMIT_HINT_MS = 60_000L
+
+        /** The volume goes out at most this often while a key is held or the slider moves. */
+        const val VOLUME_GAP_MS = 400L
     }
 
     /** Once a second: the place runs on in the remote by itself, no answer in time ends it. */

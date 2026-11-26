@@ -39,7 +39,7 @@ class CastChannelTest {
     private class FakeApi : MediaCastApi {
         val sent = ArrayList<Pair<String, CastMessage>>()
         var answer: MediaServerResult<Unit> = MediaServerResult.Ok(Unit)
-        var targets: MediaServerResult<List<CastTarget>> = MediaServerResult.Ok(emptyList())
+        var targets: MediaServerResult<CastTargetList> = MediaServerResult.Ok(CastTargetList(null, emptyList()))
         override suspend fun castTargets() = targets
         override suspend fun castMessage(to: String, message: CastMessage): MediaServerResult<Unit> {
             sent += to to message
@@ -200,5 +200,60 @@ class CastChannelTest {
         assertEquals(CastSendResult.OFFLINE, channel.send("42", pause))
         api.answer = MediaServerResult.Refused(MediaServerError(403, "forbidden"))
         assertEquals(CastSendResult.REFUSED, channel.send("42", pause))
+    }
+
+    // ─── the own id from the plugin (1.4.0) ─────────────────────────
+
+    @Test
+    fun `deviceId - text or number, missing or null is not told`() {
+        assertEquals("11", CastEnvelopes.self(JsonParser.parseString("""{"ok":true,"deviceId":"11"}""").asJsonObject))
+        assertEquals("11", CastEnvelopes.self(JsonParser.parseString("""{"ok":true,"deviceId":11}""").asJsonObject))
+        assertNull(CastEnvelopes.self(JsonParser.parseString("""{"ok":true,"deviceId":null}""").asJsonObject))
+        assertNull(CastEnvelopes.self(JsonParser.parseString("""{"ok":true}""").asJsonObject))
+        assertNull(CastEnvelopes.self(JsonParser.parseString("""{"ok":true,"deviceId":"bad id"}""").asJsonObject))
+        val list = CastEnvelopes.targetList(JsonParser.parseString("""{"ok":true,"v":1,"deviceId":"11","devices":[{"id":"8","name":"TV","kind":"tv","online":true}]}""").asJsonObject)!!
+        assertEquals("11", list.self)
+        assertEquals(listOf(CastTarget("8", "TV", CastTarget.Kind.TV, true)), list.devices)
+        assertNull(CastEnvelopes.targetList(JsonParser.parseString("""{"ok":true,"v":1,"devices":[]}""").asJsonObject)!!.self)
+    }
+
+    @Test
+    fun `the own id told by the plugin counts at once, before any silent push`() = runTest(UnconfinedTestDispatcher()) {
+        val saved = ArrayList<String>()
+        val api = FakeApi()
+        val channel = MediaCastChannel(api, { null }, { saved += it })
+        // without the id an event for another session is not taken
+        assertFalse(channel.receive(data(pause), push = false))
+        api.targets = MediaServerResult.Ok(CastTargetList("42", listOf(CastTarget("17", "Handy", CastTarget.Kind.TV, true))))
+        assertEquals(listOf(CastTarget("17", "Handy", CastTarget.Kind.TV, true)), (channel.targets() as MediaServerResult.Ok).value)
+        assertEquals("42", channel.self)
+        assertEquals(listOf("42"), saved)
+        // the same again, or none: nothing new is saved
+        channel.learnSelf("42")
+        channel.learnSelf(null)
+        assertEquals(listOf("42"), saved)
+        val next = launch { channel.incoming.first() }
+        assertTrue(channel.receive(data(pause.copy(seq = 9)), push = false))
+        next.join()
+        assertFalse(channel.receive(data(pause.copy(seq = 10), to = "43"), push = false))
+        // an older plugin: no id in the list, the first silent push tells it as before
+        val old = MediaCastChannel(FakeApi(), { null }, {})
+        old.targets()
+        assertNull(old.self)
+        assertTrue(old.receive(data(play), push = true))
+        assertEquals("42", old.self)
+    }
+
+    @Test
+    fun `the inbox learns the id once`() {
+        val learned = ArrayList<String>()
+        val inbox = CastInbox()
+        assertTrue(inbox.learn("11") { learned += it })
+        assertFalse(inbox.learn("11") { learned += it })
+        assertFalse(inbox.learn(null) { learned += it })
+        assertFalse(inbox.learn("bad id") { learned += it })
+        assertTrue(inbox.learn("12") { learned += it })
+        assertEquals(listOf("11", "12"), learned)
+        assertEquals("12", inbox.self)
     }
 }

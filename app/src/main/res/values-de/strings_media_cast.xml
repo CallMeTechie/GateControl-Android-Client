@@ -29,6 +29,12 @@
     <string name="media_cast_stop">Stopp</string>
     <string name="media_cast_audio">Ton</string>
     <string name="media_cast_subtitles">Untertitel</string>
+    <string name="media_cast_volume">Lautstärke</string>
+    <string name="media_cast_volume_value">%1$d %%</string>
+    <string name="media_cast_muted">Stumm</string>
+    <string name="media_cast_mute">Stummschalten</string>
+    <string name="media_cast_unmute">Ton an</string>
+    <string name="media_cast_volume_on">Lautstärke auf %1$s: %2$s</string>
     <string name="media_cast_go_on_here">Auf diesem Handy weiter ab %1$s</string>
     <string name="media_cast_done">Schließen</string>
     <string name="media_cast_error_source_missing">Die Quelle ist auf %1$s nicht da. Öffne dort Medien, damit die Quellen vom Server geladen werden, oder frage deinen Administrator nach dem Zugriff.</string>

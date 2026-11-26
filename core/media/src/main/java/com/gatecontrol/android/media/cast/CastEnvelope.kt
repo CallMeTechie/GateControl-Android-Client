@@ -24,6 +24,9 @@ data class CastTarget(val id: String, val name: String, val kind: Kind, val onli
     enum class Kind { TV, PC }
 }
 
+/** `GET v1/cast/targets`: the own TVs and PCs and, from plugin 1.4.0, this device's own id ([self]; null: not told). */
+data class CastTargetList(val self: String?, val devices: List<CastTarget>)
+
 /** The JSON of the plugin's cast routes and deliveries. Pure, unit-tested. */
 object CastEnvelopes {
     const val KIND = "media.cast"
@@ -52,6 +55,16 @@ object CastEnvelopes {
         addProperty("to", to)
         add("body", CastWire.toJson(message))
     }
+
+    /**
+     * This device's own GateControl id as the plugin tells it (`deviceId` of `GET v1/sources` and `GET v1/cast/targets`,
+     * plugin 1.4.0): the same as `devices[].id` and the deliveries' `to` / `from`. Null: not told (an older plugin, or a
+     * request without a device).
+     */
+    fun self(o: JsonObject?): String? = o?.id("deviceId")?.takeIf(::validDevice)
+
+    /** `GET v1/cast/targets` with this device's own id. */
+    fun targetList(o: JsonObject?): CastTargetList? = targets(o)?.let { CastTargetList(self(o), it) }
 
     /** `GET v1/cast/targets` → the own TVs and PCs, online first, then by name. */
     fun targets(o: JsonObject?): List<CastTarget>? {
@@ -89,7 +102,9 @@ object CastEnvelopes {
 /**
  * Which deliveries of `media.cast` are for this device and new (pure state, unit-tested; [MediaCastChannel] holds one).
  *
- * - A silent push goes to exactly the addressed device: it is ours, and its `to` tells this device its own id ([self]).
+ * - The plugin tells this device its own id ([self]) with `deviceId` of `GET v1/sources` / `GET v1/cast/targets`
+ *   (plugin 1.4.0, [learn]); with an older plugin the first silent push does: it goes to exactly the addressed device,
+ *   so it is ours, and its `to` is this device's id.
  * - The realtime event goes to every open app of the person: only `to == self` counts. As long as this device does
  *   not know its id yet, an event is only taken for a session this device runs itself ([CastInbox.take]'s `mine`) —
  *   never a start (a start always comes as a silent push too).
@@ -125,6 +140,19 @@ class CastInbox(self: String? = null, private val capacity: Int = 400) {
         if (!seen.add(e.key)) return Verdict.DUPLICATE
         while (seen.size > capacity) seen.remove(seen.first())
         return Verdict.TAKE
+    }
+
+    /**
+     * The plugin told this device its own id ([CastEnvelopes.self]); [onSelf] when it is new or another. False when it
+     * was known already or is no id.
+     */
+    @Synchronized
+    fun learn(id: String?, onSelf: (String) -> Unit = {}): Boolean {
+        val me = id?.takeIf(CastEnvelopes::validDevice) ?: return false
+        if (self == me) return false
+        self = me
+        onSelf(me)
+        return true
     }
 
     @Synchronized
