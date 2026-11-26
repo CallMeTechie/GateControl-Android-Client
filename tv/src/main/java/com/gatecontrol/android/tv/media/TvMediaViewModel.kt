@@ -17,6 +17,7 @@ import com.gatecontrol.android.media.server.MediaSourcesLogic
 import com.gatecontrol.android.media.MediaLink
 import com.gatecontrol.android.media.MediaProblem
 import com.gatecontrol.android.media.MediaQualityOffer
+import com.gatecontrol.android.media.MediaRowsCache
 import com.gatecontrol.android.media.MediaSource
 import com.gatecontrol.android.media.MediaTitle
 import com.gatecontrol.android.tv.drive.TvMediaSelection
@@ -106,6 +107,8 @@ class TvMediaViewModel @Inject constructor(
     private val media: MediaHub,
     private val selection: TvMediaSelection,
     private val servers: MediaServerSources,
+    /** The rows last loaded, per source (as on the phone): shown at once, then checked again in the background. */
+    private val rowsCache: MediaRowsCache,
 ) : ViewModel() {
 
     private val browse = MediaBrowse(media) { publish() }
@@ -181,32 +184,58 @@ class TvMediaViewModel @Inject constructor(
         }
     }
 
-    /** The page (or the start page) came to the front: home or away, then the rows of the server and the shares. */
-    fun refresh() {
+    /**
+     * The page (or the start page) came to the front: the rows kept are shown at once (of this page, else of the cache,
+     * also after a restart of the app), then asked again in the background without the spinner
+     * (stale-while-revalidate). Loaded within [MediaRowsCache.FRESH_MS]: nothing is asked.
+     */
+    fun show() = load(force = false)
+
+    /** „Erneut versuchen“, the VPN up, signed in again, another server: everything again, with the spinner. */
+    fun refresh() = load(force = true)
+
+    private fun load(force: Boolean) {
         // the list of the server (opening Medien), at most every half minute
         servers.refreshSoon()
         val source = media.currentSource()
         val shares = media.shares()
         _ui.update { it.copy(source = source, shares = shares, sources = media.store.sources.value) }
-        loadJob?.cancel()
         if (source == null && shares.isEmpty()) {
+            loadJob?.cancel()
             browse.clear()
             _ui.update { TvMediaUi(sources = it.sources) }
             return
         }
+        val shown = listOfNotNull(source?.takeIf { it.token != null }) + shares
+        // loading already (shown again meanwhile)
+        if (!force && loadJob?.isActive == true) return
+        loadJob?.cancel()
         browse.keepOnly(source, shares)
         loadJob = viewModelScope.launch {
-            _ui.update { it.copy(loading = true, problem = null) }
+            rowsCache.keepOnly(media.store.sources.value)
+            // the rows last loaded, until the sources answer
+            if (source?.token != null) rowsCache.load(source)?.let { browse.seedJellyfin(it.rows) }
+            for (s in shares) rowsCache.load(s)?.let { browse.seedShare(s.id, it.rows) }
+            publish()
+            // loaded just now (back from a title, another page before): nothing is asked
+            if (!force && browse.any() && shown.isNotEmpty() && shown.all { rowsCache.fresh(it) }) return@launch
+            val quiet = !force && browse.any()
+            _ui.update { if (quiet) it.copy(loading = false) else it.copy(loading = true, problem = null) }
             // home or away; away the VPN is started when a source needs it (Netz-Regel)
             media.prepare(source ?: shares.first())
             coroutineScope {
                 if (source != null) {
                     // the TV shows no genre tiles (no grid to filter)
-                    launch { browse.loadJellyfin(source, genres = false)?.let { p -> _ui.update { it.copy(problem = p) } } }
+                    launch {
+                        val p = browse.loadJellyfin(source, genres = false)
+                        _ui.update { it.copy(problem = p) }
+                        if (p == null) rowsCache.put(source, browse.jellyfinRows())
+                    }
                 }
                 for (s in shares) {
                     launch {
-                        browse.loadShare(s) { bad -> _ui.update { it.copy(shareProblems = if (bad) it.shareProblems + s.id else it.shareProblems - s.id) } }
+                        val ok = browse.loadShare(s) { bad -> _ui.update { it.copy(shareProblems = if (bad) it.shareProblems + s.id else it.shareProblems - s.id) } }
+                        if (ok) browse.shareRows(s.id)?.let { rowsCache.put(s, it) }
                     }
                 }
             }
@@ -366,12 +395,13 @@ class TvMediaViewModel @Inject constructor(
     /** "Als gesehen markieren" (and back). */
     fun togglePlayed() {
         val t = _details.value.lastOrNull() ?: return
-        media.store.source(t.title.sourceId) ?: return
+        val source = media.store.source(t.title.sourceId) ?: return
         val played = !t.title.played
         viewModelScope.launch {
             if (browse.setPlayed(t.title, played)) {
                 replaceTop(t.title.id) { it.copy(title = it.title.copy(played = played, positionMs = if (played) 0 else it.title.positionMs)) }
                 refreshResume()
+                overviewChanged(source)
             }
         }
     }
@@ -384,9 +414,12 @@ class TvMediaViewModel @Inject constructor(
         val favorite = !t.title.favorite
         replaceTop(t.title.id) { it.copy(title = it.title.copy(favorite = favorite)) }
         viewModelScope.launch {
-            if (!browse.setFavorite(t.title, favorite)) replaceTop(t.title.id) { it.copy(title = it.title.copy(favorite = !favorite)) }
+            if (browse.setFavorite(t.title, favorite)) overviewChanged(source) else replaceTop(t.title.id) { it.copy(title = it.title.copy(favorite = !favorite)) }
         }
     }
+
+    /** The overview's rows are asked again the next time the page shows (a heart or "Gesehen" set here). */
+    private fun overviewChanged(source: MediaSource) = rowsCache.markStale(source)
 
     /**
      * Plays [title] (an episode with the rest of its series after it), [fromStart] or where it was left; with the

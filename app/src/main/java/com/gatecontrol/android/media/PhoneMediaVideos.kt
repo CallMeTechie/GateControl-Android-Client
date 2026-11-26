@@ -21,7 +21,12 @@ sealed interface PhoneOpen {
         val shareChoice: MediaTrackChoice? = null,
         /** A download on the phone (question 22 a): its file's own tracks, the progress kept here first. */
         val offline: Boolean = false,
+        /** „Original mit Mitladen“: the player loads ahead first and starts once the rest goes through. */
+        val wait: Boolean = false,
     ) : PhoneOpen
+
+    /** „Abbrechen“ of „Wie abspielen?“: nothing plays. */
+    data object Cancelled : PhoneOpen
 
     data object Offline : PhoneOpen
 
@@ -49,6 +54,10 @@ class PhoneMediaVideos(
     private val cellular: () -> Boolean,
     /** The downloads: a ready one plays from the phone, also without a connection. */
     private val offline: MediaOffline? = null,
+    /** What plays when the original does not go through away (decision 89 b); [MediaAwayOriginal.ASK]: asked. */
+    private val awayOriginal: () -> MediaAwayOriginal = { MediaAwayOriginal.ASK },
+    /** The space for loading ahead in this playback (bytes); 0: off, nothing is asked. */
+    private val aheadBytes: () -> Long = { 0L },
 ) {
     val source: MediaSource? = hub.store.source(queue.sourceId)
 
@@ -74,6 +83,15 @@ class PhoneMediaVideos(
     /** The detail page's "Original" / "Angepasst" for the first title; gone once a quality is chosen here. */
     private var firstOriginal: Boolean? = queue.original
 
+    /** „Wie abspielen?“ answered for this queue: not asked again for the next episode. */
+    private var awayChoice: MediaAwayOriginal? = null
+
+    /** Per index, what „Wie abspielen?“ gave (a new sound or subtitle asks nothing again). */
+    private val away = HashMap<Int, MediaAwayOriginal>()
+
+    /** The quality was chosen in the player for these: nothing is asked. */
+    private val chosenHere = HashSet<Int>()
+
     init {
         // nothing chosen on the detail page ("Weiterschauen"): the series' choice, else the server's default
         queue.audioIndex?.let { audio[queue.at] = it }
@@ -92,8 +110,11 @@ class PhoneMediaVideos(
         return items[i].positionMs.takeIf { items[i].resumable }
     }
 
-    /** The stream of video [i] from [from] (null: where it was left). */
-    suspend fun open(i: Int, from: Long? = null): PhoneOpen {
+    /**
+     * The stream of video [i] from [from] (null: where it was left). Away, when the original does not go through and
+     * loading ahead is on, [ask] asks „Wie abspielen?“ (decision 89 b) unless the answer is kept; null: „Abbrechen“.
+     */
+    suspend fun open(i: Int, from: Long? = null, ask: suspend (MediaAwayFit) -> MediaAwayOriginal? = { null }): PhoneOpen {
         val src = source ?: return PhoneOpen.Failed
         val lib = library ?: return PhoneOpen.Failed
         val title = items[i]
@@ -118,16 +139,27 @@ class PhoneMediaVideos(
             else -> return PhoneOpen.Failed
         }
         val version = detail.version
-        val choice = title.seriesId?.let { hub.store.trackChoice(it) }
-        val a = if (audio.containsKey(i)) audio[i] else version?.let { MediaTracks.pickAudio(it, choice) }
-        val s = if (text.containsKey(i)) text[i] else version?.let { MediaTracks.pickSubtitle(it, choice) }
-        val setting = when {
+        val tracks = title.seriesId?.let { hub.store.trackChoice(it) }
+        val a = if (audio.containsKey(i)) audio[i] else version?.let { MediaTracks.pickAudio(it, tracks) }
+        val s = if (text.containsKey(i)) text[i] else version?.let { MediaTracks.pickSubtitle(it, tracks) }
+        var setting = when {
             i == queue.at && firstOriginal == true -> MediaQualitySetting.ORIGINAL
             i == queue.at && firstOriginal == false -> MediaQualitySetting.AUTO
             else -> quality()
         }
-        val base = MediaQuality.cap(setting, link.atHome == true, link.bps, version?.bitrate, src.alwaysOriginal, src.kind.canConvert)
         val limit = MediaPlayerLogic.limit(src, cell, link.atHome, mobileCap())
+        val start = from ?: startAt(i)
+        val choice = awayChoice(i, setting, link, version?.bitrate, (detail.title.runtimeMs ?: title.runtimeMs)?.minus(start ?: 0), src, limit, ask)
+        if (askedAndCancelled) {
+            askedAndCancelled = false
+            return PhoneOpen.Cancelled
+        }
+        when (choice) {
+            MediaAwayOriginal.CONVERTED -> setting = MediaQualitySetting.AUTO
+            MediaAwayOriginal.WAIT, MediaAwayOriginal.NOW -> setting = MediaQualitySetting.ORIGINAL
+            else -> Unit
+        }
+        val base = MediaQuality.cap(setting, link.atHome == true, link.bps, version?.bitrate, src.alwaysOriginal, src.kind.canConvert)
         val cap = MediaPlayerLogic.capped(base, limit)
         val plan = when (val p = lib.play(MediaPlay(title.id, version?.id, startMs = 0, audioIndex = a, subtitleIndex = s, maxBitrate = cap))) {
             is MediaResult.Ok -> p.value
@@ -139,12 +171,11 @@ class PhoneMediaVideos(
         audio[i] = plan.audioIndex
         text[i] = plan.subtitleIndex ?: s
         val net = MediaPlayerLogic.net(link.atHome, cell)
-        val start = from ?: startAt(i)
         if (share) {
             val via = if (lib.files()?.kind == MediaSourceKind.WEBDAV) "WebDAV" else "SMB"
             val line = MediaPlayerLogic.line(plan, net, link.bps, hub.caps(), canConvert = false, limitBps = null, askedBps = cap, shareVia = via)
             lines[i] = line
-            return PhoneOpen.Ready(plan, line, start, shareChoice = choice)
+            return PhoneOpen.Ready(plan, line, start, shareChoice = tracks)
         }
         val line = MediaPlayerLogic.line(plan, net, link.bps, hub.caps(), src.kind.canConvert, limit, cap)
         lines[i] = line
@@ -157,7 +188,42 @@ class PhoneMediaVideos(
             audioOrdinal = if (direct) MediaTracks.ordinal(plan.version, plan.audioIndex) else null,
             textOrdinal = if (direct && plan.sideSubtitles.isEmpty()) MediaTracks.ordinal(plan.version, subtitle) else null,
             textOff = subtitle == MediaPlay.SUBTITLES_OFF || subtitle == null && plan.sideSubtitles.isEmpty() && direct,
+            wait = choice == MediaAwayOriginal.WAIT && !plan.converted && from == null,
         )
+    }
+
+    private var askedAndCancelled = false
+
+    /**
+     * What „Wie abspielen?“ says for video [i]: null when there is nothing to ask (home, it fits, a fixed step, off, the
+     * mobile limit decides) or it was cancelled ([askedAndCancelled]). Kept for the index and for the rest of the queue.
+     */
+    private suspend fun awayChoice(
+        i: Int,
+        setting: MediaQualitySetting,
+        link: MediaLink,
+        originalBps: Long?,
+        remainingMs: Long?,
+        src: MediaSource,
+        limit: Long?,
+        ask: suspend (MediaAwayFit) -> MediaAwayOriginal?,
+    ): MediaAwayOriginal? {
+        away[i]?.let { return it }
+        if (i in chosenHere) return null
+        // on mobile data with a limit below the original: the limit decides (question 28)
+        if (limit != null && (originalBps == null || originalBps > limit)) return null
+        val fit = MediaPlayAhead.fit(link.atHome, link.bps, originalBps, remainingMs, setting, src.kind.canConvert, src.alwaysOriginal, aheadBytes()) ?: return null
+        val kept = awayChoice ?: awayOriginal().takeIf { it != MediaAwayOriginal.ASK }
+        // „mit Mitladen“ kept, but this one does not fit the space: asked
+        val usable = kept?.takeIf { it != MediaAwayOriginal.WAIT || fit.waitMs != null }
+        val c = usable ?: ask(fit)
+        if (c == null) {
+            askedAndCancelled = true
+            return null
+        }
+        away[i] = c
+        awayChoice = c
+        return c
     }
 
     /** Not reachable: away the VPN went down meanwhile („Unterwegs nur über VPN“), else offline. */
@@ -242,6 +308,9 @@ class PhoneMediaVideos(
     fun chooseQuality(i: Int, q: MediaQualitySetting): Boolean {
         if (q == currentQuality(i) && firstOriginal == null) return false
         firstOriginal = null
+        // chosen here: „Wie abspielen?“ is not asked again for this video, the quality decides
+        away.remove(i)
+        chosenHere += i
         setQuality(q)
         return plans.containsKey(i)
     }

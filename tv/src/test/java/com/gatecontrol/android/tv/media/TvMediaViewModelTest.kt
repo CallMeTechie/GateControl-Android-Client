@@ -12,6 +12,8 @@ import com.gatecontrol.android.media.MediaLink
 import com.gatecontrol.android.media.MediaPage
 import com.gatecontrol.android.media.MediaProblem
 import com.gatecontrol.android.media.MediaResult
+import com.gatecontrol.android.media.MediaRows
+import com.gatecontrol.android.media.MediaRowsCache
 import com.gatecontrol.android.media.MediaSource
 import com.gatecontrol.android.media.MediaSourceKind
 import com.gatecontrol.android.media.MediaSourceStore
@@ -67,6 +69,8 @@ class TvMediaViewModelTest {
     }
     private var shownShares: List<MediaSource> = emptyList()
     private val selection = TvMediaSelection()
+    private var clock = 1_000_000L
+    private val rowsCache = MediaRowsCache(null, now = { clock })
     private val servers = mockk<MediaServerSources>(relaxed = true) { every { state } returns MutableStateFlow(MediaServerState(known = true, tab = true)) }
 
     private val kobalt = MediaTitle("m1", "s1", MediaTitle.Kind.MOVIE, "Kobaltnacht", runtimeMs = 6_480_000, positionMs = 2_530_000, seriesId = null)
@@ -96,7 +100,7 @@ class TvMediaViewModelTest {
         coEvery { lib.movies(0, any()) } returns MediaResult.Ok(MediaPage(listOf(kobalt, sternwarte), total = 412, start = 0))
         coEvery { lib.series(0, any()) } returns MediaResult.Ok(MediaPage(emptyList(), total = 0, start = 0))
         coEvery { lib.movies(2, any()) } returns MediaResult.Ok(MediaPage(listOf(MediaTitle("m3", "s1", MediaTitle.Kind.MOVIE, "Moorlicht")), total = 412, start = 2))
-        val vm = TvMediaViewModel(media, selection, servers)
+        val vm = TvMediaViewModel(media, selection, servers, rowsCache)
         vm.refresh()
         advanceUntilIdle()
         val ui = vm.ui.value
@@ -114,7 +118,7 @@ class TvMediaViewModelTest {
     @Test
     fun `signed out by the server - the access is dropped`() = runTest(dispatcher) {
         coEvery { lib.resume(any()) } returns MediaResult.Unauthorized
-        val vm = TvMediaViewModel(media, selection, servers)
+        val vm = TvMediaViewModel(media, selection, servers, rowsCache)
         vm.refresh()
         advanceUntilIdle()
         assertEquals(MediaProblem.SIGNED_OUT, vm.ui.value.problem)
@@ -124,7 +128,7 @@ class TvMediaViewModelTest {
     @Test
     fun `the detail page away suggests the adapted quality, play hands the queue over`() = runTest(dispatcher) {
         coEvery { lib.detail("m1") } returns MediaResult.Ok(MediaDetail(kobalt, listOf(MediaVersion("v1", bitrate = 52_000_000))))
-        val vm = TvMediaViewModel(media, selection, servers)
+        val vm = TvMediaViewModel(media, selection, servers, rowsCache)
         vm.open(kobalt)
         advanceUntilIdle()
         val d = vm.details.value.single()
@@ -162,7 +166,7 @@ class TvMediaViewModelTest {
         coEvery { shareLib.latestMovies(any()) } returns MediaResult.Ok(listOf(kupfer))
         coEvery { shareLib.movies(0, any()) } returns MediaResult.Ok(MediaPage(listOf(achter, kupfer), total = 2, start = 0))
         coEvery { shareLib.series(0, any()) } returns MediaResult.Ok(MediaPage(emptyList(), total = 0, start = 0))
-        val vm = TvMediaViewModel(media, selection, servers)
+        val vm = TvMediaViewModel(media, selection, servers, rowsCache)
         vm.refresh()
         advanceUntilIdle()
         val ui = vm.ui.value
@@ -189,7 +193,7 @@ class TvMediaViewModelTest {
         every { media.library(share) } returns shareLib
         val lindqvist = MediaTitle("f:l.mkv", "smb1", MediaTitle.Kind.MOVIE, "Die Lindqvist-Akten", positionMs = 60_000, fromShare = true)
         coEvery { shareLib.resume(any()) } returns MediaResult.Ok(listOf(lindqvist))
-        val vm = TvMediaViewModel(media, selection, servers)
+        val vm = TvMediaViewModel(media, selection, servers, rowsCache)
         vm.refreshResume()
         advanceUntilIdle()
         assertEquals(listOf("f:l.mkv"), vm.ui.value.resume.map { it.id })
@@ -202,7 +206,7 @@ class TvMediaViewModelTest {
         coEvery { lib.latest(any()) } returns MediaResult.Ok(emptyList())
         coEvery { lib.movies(0, any()) } returns MediaResult.Ok(MediaPage(emptyList(), total = 0, start = 0))
         coEvery { lib.series(0, any()) } returns MediaResult.Ok(MediaPage(emptyList(), total = 0, start = 0))
-        val vm = TvMediaViewModel(media, selection, servers)
+        val vm = TvMediaViewModel(media, selection, servers, rowsCache)
         vm.refresh()
         advanceUntilIdle()
         verify { servers.refreshSoon() }
@@ -244,7 +248,7 @@ class TvMediaViewModelTest {
         signedOut()
         val answer = CompletableDeferred<MediaSignIn>()
         coEvery { servers.signIn("s1") } coAnswers { answer.await() }
-        val vm = TvMediaViewModel(media, selection, servers)
+        val vm = TvMediaViewModel(media, selection, servers, rowsCache)
         vm.refresh()
         advanceUntilIdle()
         assertEquals(MediaProblem.SIGNED_OUT, vm.ui.value.problem)
@@ -266,7 +270,7 @@ class TvMediaViewModelTest {
     fun `Neu anmelden - it fails, the reason is shown, a source by hand opens Quellen`() = runTest(dispatcher) {
         signedOut()
         coEvery { servers.signIn("s1") } returns MediaSignIn.Problem("no_mapping")
-        val vm = TvMediaViewModel(media, selection, servers)
+        val vm = TvMediaViewModel(media, selection, servers, rowsCache)
         vm.refresh()
         advanceUntilIdle()
         vm.repair()
@@ -287,7 +291,7 @@ class TvMediaViewModelTest {
     fun `signed in again in the background (after a revocation) - the rows load by themselves`() = runTest(dispatcher) {
         emptyLibrary()
         signedOut()
-        val vm = TvMediaViewModel(media, selection, servers)
+        val vm = TvMediaViewModel(media, selection, servers, rowsCache)
         vm.refresh()
         advanceUntilIdle()
         assertEquals(MediaProblem.SIGNED_OUT, vm.ui.value.problem)
@@ -303,10 +307,58 @@ class TvMediaViewModelTest {
         every { media.gate } returns MutableStateFlow(MediaGate.BLOCKED)
         every { media.route(any()) } returns MediaRoute.BLOCKED
         coEvery { lib.resume(any()) } returns MediaResult.Offline
-        val vm = TvMediaViewModel(media, selection, servers)
+        val vm = TvMediaViewModel(media, selection, servers, rowsCache)
         vm.refresh()
         advanceUntilIdle()
         assertEquals(MediaProblem.VPN, vm.ui.value.problem)
         assertEquals(MediaGate.BLOCKED, vm.gate.value)
+    }
+
+    @Test
+    fun `the rows kept show at once, then are asked again quietly and kept`() = runTest(dispatcher) {
+        rowsCache.put(source, MediaRows(resume = listOf(sternwarte), movies = listOf(sternwarte), moviesTotal = 1))
+        clock += MediaRowsCache.FRESH_MS + 1
+        val answer = CompletableDeferred<MediaResult<List<MediaTitle>>>()
+        coEvery { lib.resume(any()) } coAnswers { answer.await() }
+        coEvery { lib.movies(0, any()) } returns MediaResult.Ok(MediaPage(listOf(kobalt), total = 412, start = 0))
+        coEvery { lib.series(0, any()) } returns MediaResult.Ok(MediaPage(emptyList(), total = 0, start = 0))
+        val vm = TvMediaViewModel(media, selection, servers, rowsCache)
+        vm.show()
+        advanceUntilIdle()
+        // the cache's rows, without the spinner, while the server is asked
+        assertEquals(listOf("m9"), vm.ui.value.resume.map { it.id })
+        assertFalse(vm.ui.value.loading)
+        answer.complete(MediaResult.Ok(listOf(kobalt)))
+        advanceUntilIdle()
+        assertEquals(listOf("m1"), vm.ui.value.resume.map { it.id })
+        assertEquals(listOf("m1"), rowsCache.peek(source)?.rows?.resume?.map { it.id })
+    }
+
+    @Test
+    fun `shown again within a minute - nothing is asked, Erneut versuchen asks`() = runTest(dispatcher) {
+        rowsCache.put(source, MediaRows(resume = listOf(sternwarte)))
+        val vm = TvMediaViewModel(media, selection, servers, rowsCache)
+        vm.show()
+        advanceUntilIdle()
+        assertEquals(listOf("m9"), vm.ui.value.resume.map { it.id })
+        coVerify(exactly = 0) { lib.resume(any()) }
+        emptyLibrary()
+        vm.refresh()
+        advanceUntilIdle()
+        coVerify(exactly = 1) { lib.resume(any()) }
+    }
+
+    @Test
+    fun `a heart on the detail page - the overview is asked again next time`() = runTest(dispatcher) {
+        rowsCache.put(source, MediaRows(resume = listOf(sternwarte)))
+        coEvery { lib.detail("m1") } returns MediaResult.Ok(MediaDetail(kobalt, listOf(MediaVersion("v1"))))
+        coEvery { lib.setFavorite("m1", true) } returns MediaResult.Ok(Unit)
+        val vm = TvMediaViewModel(media, selection, servers, rowsCache)
+        vm.open(kobalt)
+        advanceUntilIdle()
+        assertTrue(rowsCache.fresh(source))
+        vm.toggleFavorite()
+        advanceUntilIdle()
+        assertFalse(rowsCache.fresh(source))
     }
 }

@@ -70,6 +70,8 @@ class MediaSourcesUiTest {
             every { startCard } returns MutableStateFlow(true)
             every { offlineQuality } returns MutableStateFlow(com.gatecontrol.android.media.offline.OfflineQuality.P1080)
             every { offlineLimitGb } returns MutableStateFlow(20)
+            every { aheadGb } returns MutableStateFlow(4)
+            every { awayOriginal } returns MutableStateFlow(com.gatecontrol.android.media.MediaAwayOriginal.ASK)
         }
         val vm = MediaSourcesViewModel(hub, settings, fakeOffline(), servers)
         rule.setContent {
@@ -103,10 +105,12 @@ class MediaSourcesUiTest {
         rule.onNodeWithText(context.getString(R.string.media_this_device), ignoreCase = true).performScrollTo().assertIsDisplayed()
         rule.onNodeWithText("3 Mbit/s").performScrollTo().assertIsDisplayed()
         rule.onNodeWithTag(OFFLINE_SETTINGS_TAG).performScrollTo().assertIsDisplayed()
-
+        // „Unterwegs mitladen“ with its space, and what plays when the original does not go through
+        rule.onNodeWithTag(AHEAD_SETTING_TAG).performScrollTo().assertIsDisplayed()
+        rule.onNodeWithText(context.getString(R.string.media_away_setting)).performScrollTo().assertIsDisplayed()
 
         // a source tapped: its address and way
-        rule.onNodeWithText("Jellyfin · DS918+").performClick()
+        rule.onNodeWithText("Jellyfin · DS918+").performScrollTo().performClick()
         rule.onNodeWithText(context.getString(R.string.media_detail_device, "GateControl · Pixel von Mila")).assertIsDisplayed()
         rule.onNodeWithText(context.getString(R.string.media_detail_close)).performClick()
 

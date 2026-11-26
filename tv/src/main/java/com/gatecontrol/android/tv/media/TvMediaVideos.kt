@@ -26,6 +26,8 @@ import com.gatecontrol.android.media.PlayMethod
 import com.gatecontrol.android.media.jellyfin.JellyfinDeviceCaps
 import com.gatecontrol.android.media.player.PlaybackEvent
 import com.gatecontrol.android.media.player.MediaPlayers
+import com.gatecontrol.android.media.player.PlayAhead
+import com.gatecontrol.android.media.MediaPlayAhead
 import com.gatecontrol.android.tv.R
 import com.gatecontrol.android.tv.ui.drive.TvChoice
 import com.gatecontrol.android.tv.ui.drive.TvChoiceKind
@@ -88,11 +90,33 @@ class TvMediaVideos(
 
     override fun typeName(i: Int): String = plans[i]?.version?.container?.uppercase(Locale.ROOT) ?: "Video"
 
+    /** „Unterwegs mitladen“ (part 2, stage 1, as on the phone); null: no room on the TV. */
+    private var ahead: PlayAhead? = null
+
+    override val longBuffer: Boolean get() = true
+
     @OptIn(UnstableApi::class)
     override fun factory(context: Context): DataSource.Factory? {
         if (library == null) return null
         // a share's file through its own connection (SMB, or WebDAV with its access), read at the player's place
-        return MediaPlayers.dataSource(media, source!!)
+        val upstream = MediaPlayers.dataSource(media, source!!)
+        // away the original is loaded further ahead into a space of its own on the TV (only for this playback)
+        val root = PlayAhead.root(context.cacheDir)
+        val limit = MediaPlayAhead.limitBytes(MediaPlayAhead.DEFAULT_GB, runCatching { root.apply { mkdirs() }.usableSpace }.getOrDefault(0L))
+        ahead = if (limit > 0) runCatching { PlayAhead(root, upstream, limit) }.getOrNull() else null
+        return ahead?.factory ?: upstream
+    }
+
+    override fun release() {
+        ahead?.release()
+        ahead = null
+    }
+
+    /** Away the file itself (the original, a share's file) is loaded ahead; converted or at home nothing. */
+    private fun follow(plan: MediaPlan, away: Boolean) {
+        val a = ahead ?: return
+        val file = !plan.hls && (plan.method == PlayMethod.DIRECT_PLAY || share)
+        a.follow(plan.url.takeIf { away && file }, MediaPlayAhead.aheadLimit(a.limitBytes, cellular = false, bitrateBps = plan.version.bitrate))
     }
 
     /** Where Jellyfin has it (or the detail page's "Von vorn"); only for the first title of the queue. */
@@ -136,6 +160,7 @@ class TvMediaVideos(
         plans[i] = plan
         audio[i] = plan.audioIndex
         text[i] = plan.subtitleIndex ?: s
+        follow(plan, away = link.atHome == false)
         if (share) {
             val via = if (lib.files()?.kind == com.gatecontrol.android.media.MediaSourceKind.WEBDAV) "WebDAV" else "SMB"
             return TvOpen.Ready(MediaPlayers.item(plan, key(i)), info = res.getString(R.string.tv_media_info_share, via))

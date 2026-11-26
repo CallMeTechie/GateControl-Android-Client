@@ -399,7 +399,7 @@
     <string name="tv_media_forced">erzwungen</string>
     <string name="tv_media_detail_keys">OK Abspielen  ·  ⟲ Zurück</string>
     <string name="tv_media_about">etwa %1$s</string>
-    <string name="tv_media_original_too_much">%1$s. Mehr als die %2$s unterwegs, würde ruckeln.</string>
+    <string name="tv_media_original_too_much">%1$s. Mehr als die %2$s unterwegs: kann stocken, der Fernseher lädt nebenher mit.</string>
     <string name="tv_media_original_direct">Original (direkt)</string>
     <string name="tv_media_adapted">Angepasst (NAS rechnet um)</string>
     <string name="tv_media_audio_stays">Ton bleibt %1$s</string>

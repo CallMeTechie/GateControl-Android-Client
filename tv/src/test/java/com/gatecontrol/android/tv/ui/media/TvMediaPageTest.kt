@@ -209,7 +209,7 @@ class TvMediaPageTest {
         rule.onNodeWithText("Audio: German · DTS 5.1 ▾").assertExists()
         rule.onNodeWithText("Subtitles: Off ▾").assertExists()
         rule.onNodeWithText("Original (direct)").assertExists()
-        rule.onNodeWithText("4K HDR10 · about 52 Mbit/s. More than the 18 Mbit/s away, it would stall.").assertExists()
+        rule.onNodeWithText("4K HDR10 · about 52 Mbit/s. More than the 18 Mbit/s away: may stall, the TV loads ahead meanwhile.").assertExists()
         rule.onNodeWithText("1080p · 8 Mbit/s · audio stays DTS. Suggested for this connection").assertExists()
         // the remote starts on "Weiter ab 42:10"
         rule.onNodeWithText("Continue from 42:10").assertIsFocused()
