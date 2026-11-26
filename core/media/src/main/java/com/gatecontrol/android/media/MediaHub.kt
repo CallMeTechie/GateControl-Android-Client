@@ -325,9 +325,10 @@ class MediaHub @Inject constructor(
 
     /**
      * Home or away now, and away the bandwidth from [source] (at most every [MEASURE_EVERY_MS] unless [force]).
-     * Never throws except for cancellation.
+     * [measure] false: no bandwidth test now (it loads [JellyfinLibrary.MEASURE_BYTES]; a page that only lists titles
+     * does not wait for it), the last one measured away is kept. Never throws except for cancellation.
      */
-    suspend fun check(source: MediaSource? = currentSource(), force: Boolean = false) = checking.withLock {
+    suspend fun check(source: MediaSource? = currentSource(), force: Boolean = false, measure: Boolean = true) = checking.withLock {
         val home = atHome()
         val now = System.currentTimeMillis()
         val old = _link.value
@@ -337,7 +338,8 @@ class MediaHub @Inject constructor(
         }
         val fresh = old.atHome == false && old.bps != null && now - old.measuredAt < MEASURE_EVERY_MS
         if (fresh && !force) return@withLock
-        _link.value = old.copy(atHome = false)
+        _link.value = old.copy(atHome = false, bps = old.bps.takeIf { old.atHome == false })
+        if (!measure) return@withLock
         // a share has no bandwidth test: it plays the original in any case
         val bps = source?.takeIf { it.kind == MediaSourceKind.JELLYFIN && it.token != null }?.let { library(it).measure() }
         _link.value = MediaLink(atHome = false, bps = bps ?: old.bps.takeIf { old.atHome == false }, measuredAt = now)
@@ -352,10 +354,10 @@ class MediaHub @Inject constructor(
      * Opening or playing media: home or away; away, when a source needs it and the VPN is off, the app starts it itself
      * ([gate] [MediaGate.CONNECTING] meanwhile, [MediaGate.CONSENT] when Android's consent is missing: the screen asks
      * once, then [consent]). Without the VPN nothing goes out ([MediaGate.BLOCKED], „Unterwegs nur über VPN“); downloads
-     * still play. Never throws except for cancellation.
+     * still play. [measure] false: without the bandwidth test ([check]). Never throws except for cancellation.
      */
-    suspend fun prepare(source: MediaSource? = currentSource() ?: shares().firstOrNull()): MediaGate = preparing.withLock {
-        check(source)
+    suspend fun prepare(source: MediaSource? = currentSource() ?: shares().firstOrNull(), measure: Boolean = true): MediaGate = preparing.withLock {
+        check(source, measure = measure)
         val sources = store.sources.value
         if (_link.value.atHome == true || sources.isEmpty() || !MediaRouting.needsVpn(sources) || vpnUp()) {
             _gate.value = MediaGate.OPEN
@@ -379,7 +381,7 @@ class MediaHub @Inject constructor(
             // through the tunnel now: home or away asked again (the server's check may see the tunnel's address)
             homeKey = null
             homeLan.forget()
-            check(source, force = true)
+            check(source, force = true, measure = measure)
         }
         _gate.value = next
         next
@@ -403,14 +405,23 @@ class MediaHub @Inject constructor(
     }
 
     /** A poster or backdrop of [url] (with [headers]); null when it cannot be loaded. 16-bit colour: half the memory (a TV stick has little). */
-    suspend fun picture(url: String, headers: Map<String, String>, source: MediaSource): Bitmap? = withContext(Dispatchers.IO) {
+    suspend fun picture(url: String, headers: Map<String, String>, source: MediaSource): Bitmap? =
+        pictureBytes(url, headers, source)?.let { bytes ->
+            withContext(Dispatchers.Default) {
+                BitmapFactory.decodeByteArray(bytes, 0, bytes.size, BitmapFactory.Options().apply { inPreferredConfig = Bitmap.Config.RGB_565 })
+            }
+        }
+
+    /** The bytes of a poster or backdrop of [url] (with [headers]), as the server sent them (for a cache on the disk); null when it cannot be loaded. */
+    suspend fun pictureBytes(url: String, headers: Map<String, String>, source: MediaSource): ByteArray? = withContext(Dispatchers.IO) {
         try {
-            val request = Request.Builder().url(url).apply { headers.forEach { (k, v) -> header(k, v) } }.build()
+            // WebP when the server can (Jellyfin picks it by the Accept header, as for a browser): smaller than JPEG
+            val request = Request.Builder().url(url).header("Accept", PICTURE_ACCEPT).apply { headers.forEach { (k, v) -> header(k, v) } }.build()
             http(source).newCall(request).execute().use { r ->
                 if (!r.isSuccessful) return@withContext null
                 val bytes = r.body.bytes()
                 if (bytes.size > MAX_PICTURE_BYTES) return@withContext null
-                BitmapFactory.decodeByteArray(bytes, 0, bytes.size, BitmapFactory.Options().apply { inPreferredConfig = Bitmap.Config.RGB_565 })
+                bytes
             }
         } catch (e: CancellationException) {
             throw e
@@ -466,6 +477,7 @@ class MediaHub @Inject constructor(
         /** Home or away is kept this long while the networks stay the same. */
         const val HOME_MS = 2 * 60_000L
         private const val MAX_PICTURE_BYTES = 4 * 1024 * 1024
+        private const val PICTURE_ACCEPT = "image/webp,image/*;q=0.8"
     }
 }
 

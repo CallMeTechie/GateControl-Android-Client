@@ -25,6 +25,7 @@ import com.gatecontrol.android.media.server.MediaServerSources
 import com.gatecontrol.android.media.server.MediaServerState
 import com.gatecontrol.android.media.server.MediaSignIn
 import com.gatecontrol.android.media.MediaProblem
+import com.gatecontrol.android.media.MediaRowsCache
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
@@ -103,10 +104,12 @@ class MediaViewModelsTest {
     private val pictures = mockk<MediaPictures>(relaxed = true)
     private val serverState = MutableStateFlow(MediaServerState(known = true, tab = true))
     private val servers = mockk<MediaServerSources>(relaxed = true) { every { state } returns serverState }
+    private var clock = 1_800_000_000_000L
+    private val rowsCache = MediaRowsCache(null, now = { clock })
 
     @Test
     fun `the overview over Jellyfin and the share, a film in both once`() = runTest(dispatcher) {
-        val vm = MediaHomeViewModel(hub, requests, pictures, offline, servers).also { models += it }
+        val vm = MediaHomeViewModel(hub, requests, pictures, offline, servers, rowsCache).also { models += it }
         vm.refresh()
         advanceUntilIdle()
         val ui = vm.ui.value
@@ -117,12 +120,12 @@ class MediaViewModelsTest {
         assertFalse(ui.loading)
         // opening Medien: the server's list, home or away (the VPN started away when needed)
         verify { servers.refreshSoon() }
-        coVerify { hub.prepare(jellyfin) }
+        coVerify { hub.prepare(jellyfin, false) }
     }
 
     @Test
     fun `the grid of films with the share's titles in their places, the chips' order to the library`() = runTest(dispatcher) {
-        val vm = MediaHomeViewModel(hub, requests, pictures, offline, servers).also { models += it }
+        val vm = MediaHomeViewModel(hub, requests, pictures, offline, servers, rowsCache).also { models += it }
         vm.openGrid(movies = true)
         advanceUntilIdle()
         assertEquals(listOf("Kobaltnacht", "Kupferstadt", "Sternwarte 9"), vm.movies.value.items.map { it.name })
@@ -137,7 +140,7 @@ class MediaViewModelsTest {
 
     @Test
     fun `a card of Weiterschauen plays through the requests, the player is stage 4c`() = runTest(dispatcher) {
-        val vm = MediaHomeViewModel(hub, requests, pictures, offline, servers).also { models += it }
+        val vm = MediaHomeViewModel(hub, requests, pictures, offline, servers, rowsCache).also { models += it }
         val got = mutableListOf<MediaQueue>()
         val collecting = launch { requests.queues.collect { got += it } }
         advanceUntilIdle()
@@ -208,12 +211,12 @@ class MediaViewModelsTest {
     @Test
     fun `away without the VPN, the consent, the takeover sheet`() = runTest(dispatcher) {
         every { hub.gate } returns MutableStateFlow(MediaGate.CONSENT)
-        val vm = MediaHomeViewModel(hub, requests, pictures, offline, servers).also { models += it }
+        val vm = MediaHomeViewModel(hub, requests, pictures, offline, servers, rowsCache).also { models += it }
         assertEquals(MediaGate.CONSENT, vm.gate.value)
         vm.consent(true)
         advanceUntilIdle()
         coVerify { hub.consent(true) }
-        coVerify { hub.prepare(jellyfin) }
+        coVerify { hub.prepare(jellyfin, false) }
         vm.consent(false)
         advanceUntilIdle()
         coVerify { hub.consent(false) }
@@ -240,7 +243,7 @@ class MediaViewModelsTest {
     fun `Neu anmelden - a source of the server, waited for with Anmelden, then the overview and the open grid anew`() = runTest(dispatcher) {
         val answer = CompletableDeferred<MediaSignIn>()
         coEvery { servers.signIn("jf") } coAnswers { answer.await() }
-        val vm = MediaHomeViewModel(hub, requests, pictures, offline, servers).also { models += it }
+        val vm = MediaHomeViewModel(hub, requests, pictures, offline, servers, rowsCache).also { models += it }
         vm.refresh()
         vm.openGrid(movies = true)
         advanceUntilIdle()
@@ -267,7 +270,7 @@ class MediaViewModelsTest {
     fun `Neu anmelden - it fails, the card keeps the reason until signed in`() = runTest(dispatcher) {
         signedOut()
         coEvery { servers.signIn("jf") } returns MediaSignIn.Problem("quick_connect_off")
-        val vm = MediaHomeViewModel(hub, requests, pictures, offline, servers).also { models += it }
+        val vm = MediaHomeViewModel(hub, requests, pictures, offline, servers, rowsCache).also { models += it }
         vm.refresh()
         advanceUntilIdle()
         assertEquals(MediaProblem.SIGNED_OUT, vm.ui.value.problem)
@@ -288,7 +291,7 @@ class MediaViewModelsTest {
     fun `Neu anmelden - a source set up by hand leads to Medien - Quellen, once`() = runTest(dispatcher) {
         signedOut()
         coEvery { servers.signIn("jf") } returns MediaSignIn.Manual
-        val vm = MediaHomeViewModel(hub, requests, pictures, offline, servers).also { models += it }
+        val vm = MediaHomeViewModel(hub, requests, pictures, offline, servers, rowsCache).also { models += it }
         vm.repair()
         advanceUntilIdle()
         assertEquals("jf", vm.ui.value.openSource)
@@ -300,7 +303,7 @@ class MediaViewModelsTest {
     @Test
     fun `signed in again in the background (after a revocation) - the page loads anew by itself`() = runTest(dispatcher) {
         signedOut()
-        val vm = MediaHomeViewModel(hub, requests, pictures, offline, servers).also { models += it }
+        val vm = MediaHomeViewModel(hub, requests, pictures, offline, servers, rowsCache).also { models += it }
         vm.refresh()
         advanceUntilIdle()
         assertEquals(MediaProblem.SIGNED_OUT, vm.ui.value.problem)
@@ -310,5 +313,77 @@ class MediaViewModelsTest {
         assertNull(vm.ui.value.problem)
         assertEquals(loads + 1, jfLib.resumeCalls)
         assertEquals(listOf("m1"), vm.ui.value.resume.map { it.id })
+    }
+
+    // --- the rows kept (stale-while-revalidate) ---
+
+    @Test
+    fun `opened again within a minute asks nothing, later quietly in the background`() = runTest(dispatcher) {
+        val vm = MediaHomeViewModel(hub, requests, pictures, offline, servers, rowsCache).also { models += it }
+        vm.open()
+        advanceUntilIdle()
+        assertEquals(1, jfLib.resumeCalls)
+        assertEquals(listOf("m1"), vm.ui.value.resume.map { it.id })
+
+        // back from a title, another tab and back
+        clock += 30_000
+        vm.open()
+        advanceUntilIdle()
+        assertEquals(1, jfLib.resumeCalls, "loaded just now: no request")
+
+        clock += 60_000
+        val seen = mutableListOf<MediaHomeUi>()
+        val watch = launch { vm.ui.collect { seen += it } }
+        vm.open()
+        advanceUntilIdle()
+        assertEquals(2, jfLib.resumeCalls, "older than a minute: asked again")
+        assertTrue(seen.none { it.loading }, "quietly: no spinner while the rows are shown")
+        assertTrue(seen.all { it.resume.map { t -> t.id } == listOf("m1") }, "the rows stay while they are asked again")
+        watch.cancel()
+
+        // "Erneut versuchen": always asked
+        vm.refresh()
+        advanceUntilIdle()
+        assertEquals(3, jfLib.resumeCalls)
+    }
+
+    @Test
+    fun `a new page shows the rows kept at once, before the server answers`() = runTest(dispatcher) {
+        MediaHomeViewModel(hub, requests, pictures, offline, servers, rowsCache).also { models += it }.apply { open() }
+        advanceUntilIdle()
+        clock += 5 * 60_000
+
+        // the page made anew (another tab before, the app restarted): the way to the NAS is slow
+        val way = CompletableDeferred<MediaGate>()
+        coEvery { hub.prepare(any(), any()) } coAnswers { way.await() }
+        jfLib.resume = listOf(kobalt, sternwarte.copy(positionMs = 600_000))
+        val vm = MediaHomeViewModel(hub, requests, pictures, offline, servers, rowsCache).also { models += it }
+        vm.open()
+        advanceUntilIdle()
+        assertEquals(listOf("m1"), vm.ui.value.resume.map { it.id }, "the rows kept, at once")
+        assertEquals(listOf("m2"), vm.ui.value.latest.map { it.id })
+        assertFalse(vm.ui.value.loading)
+
+        way.complete(MediaGate.OPEN)
+        advanceUntilIdle()
+        assertEquals(listOf("m1", "m2"), vm.ui.value.resume.map { it.id }, "then the server's rows")
+    }
+
+    @Test
+    fun `not reached - the rows kept stay under the card, signed out they go`() = runTest(dispatcher) {
+        val vm = MediaHomeViewModel(hub, requests, pictures, offline, servers, rowsCache).also { models += it }
+        vm.open()
+        advanceUntilIdle()
+        jfLib.resumeAnswer = com.gatecontrol.android.media.MediaResult.Offline
+        vm.refresh()
+        advanceUntilIdle()
+        assertTrue(vm.ui.value.problem != null && vm.ui.value.problem != MediaProblem.SIGNED_OUT)
+        assertEquals(listOf("m1"), vm.ui.value.resume.map { it.id })
+
+        jfLib.resumeAnswer = com.gatecontrol.android.media.MediaResult.Unauthorized
+        vm.refresh()
+        advanceUntilIdle()
+        assertEquals(MediaProblem.SIGNED_OUT, vm.ui.value.problem)
+        assertTrue(vm.ui.value.resume.isEmpty())
     }
 }

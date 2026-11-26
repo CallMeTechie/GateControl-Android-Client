@@ -88,7 +88,7 @@ fun MediaHomeScreen(nav: MediaHomeNav, viewModel: MediaHomeViewModel = hiltViewM
     val migration by viewModel.migration.collectAsStateWithLifecycle()
     var tab by rememberSaveable { mutableStateOf(MediaTab.OVERVIEW) }
     LifecycleResumeEffect(viewModel) {
-        viewModel.refresh()
+        viewModel.open()
         onPauseOrDispose { }
     }
     // „Neu anmelden“ of a source set up by hand: its sign-in is on Medien › Quellen

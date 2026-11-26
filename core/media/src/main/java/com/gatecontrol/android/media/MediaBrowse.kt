@@ -3,6 +3,8 @@ package com.gatecontrol.android.media
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.cancelChildren
 import kotlinx.coroutines.launch
 
 /**
@@ -63,7 +65,15 @@ data class MediaDetailChoice(
  * detail page's loading (sound, subtitle and quality), the seasons and episodes, "Als gesehen markieren" and the
  * queue for the player. Used from one thread (the page model's main scope), as the rows are plain fields.
  */
-class MediaBrowse(private val hub: MediaHub, private val onChange: () -> Unit) {
+class MediaBrowse(
+    private val hub: MediaHub,
+    /**
+     * A source not reached (offline, no VPN, failed) keeps the rows shown (those of the cache, [seed]) under the
+     * problem; signed out they go in any case. False: they go (GateControl TV).
+     */
+    private val keepOnProblem: Boolean = false,
+    private val onChange: () -> Unit,
+) {
 
     /** The rows as loaded: the Jellyfin server's, each share's (by id). */
     private var jellyfin = MediaRows()
@@ -91,6 +101,25 @@ class MediaBrowse(private val hub: MediaHub, private val onChange: () -> Unit) {
         )
     }
 
+    /** The Jellyfin server's rows as loaded (for the cache). */
+    fun jellyfinRows(): MediaRows = jellyfin
+
+    /** Share [id]'s rows as loaded (for the cache); null when not loaded. */
+    fun shareRows(id: String): MediaRows? = shareRows[id]
+
+    /** Whether anything is shown (the cache's or loaded). */
+    fun any(): Boolean = jellyfin != MediaRows() || shareRows.isNotEmpty()
+
+    /** The rows of the Jellyfin server last loaded (the cache), shown until it answers. Only when none are loaded. */
+    fun seedJellyfin(rows: MediaRows) {
+        if (jellyfin == MediaRows()) jellyfin = rows
+    }
+
+    /** Share [id]'s rows last loaded (the cache), shown until it answers. Only when none are loaded. */
+    fun seedShare(id: String, rows: MediaRows) {
+        if (id !in shareRows) shareRows = shareRows + (id to rows)
+    }
+
     /** No source left: nothing loaded. */
     fun clear() {
         jellyfin = MediaRows()
@@ -103,8 +132,13 @@ class MediaBrowse(private val hub: MediaHub, private val onChange: () -> Unit) {
         shareRows = shareRows.filterKeys { id -> shares.any { it.id == id } }
     }
 
-    /** The rows of the Jellyfin server [source], step by step ([onChange] after each); the problem, if any. */
-    suspend fun loadJellyfin(source: MediaSource): MediaProblem? {
+    /**
+     * The rows of the Jellyfin server [source] ([onChange] after each); the problem, if any. The requests go out at
+     * once side by side (away each one costs the way through the tunnel; one after the other they added up), shown in
+     * the page's order. [movies] false: no first page of "Filme" (the phone's overview does not show it, its grid
+     * loads its own).
+     */
+    suspend fun loadJellyfin(source: MediaSource, movies: Boolean = true): MediaProblem? {
         if (source.token == null) {
             // signed out by the server earlier: sign in again
             jellyfin = MediaRows()
@@ -112,29 +146,37 @@ class MediaBrowse(private val hub: MediaHub, private val onChange: () -> Unit) {
             return MediaProblem.SIGNED_OUT
         }
         val lib = hub.library(source)
-        val resume = lib.resume(RESUME)
-        val problem = problemOf(resume, source)
-        if (problem != null) {
-            jellyfin = MediaRows()
+        return coroutineScope {
+            val resumeAsk = async { lib.resume(RESUME) }
+            val latestAsk = async { lib.latest(LATEST) }
+            val seriesAsk = async { lib.series(0, MediaLogic.PAGE) }
+            val moviesAsk = if (movies) async { lib.movies(0, MediaLogic.PAGE) } else null
+            val resume = resumeAsk.await()
+            val problem = problemOf(resume, source)
+            if (problem != null) {
+                // the others would fail the same way
+                currentCoroutineContext().cancelChildren()
+                if (!keepOnProblem || problem == MediaProblem.SIGNED_OUT) jellyfin = MediaRows()
+                onChange()
+                return@coroutineScope problem
+            }
+            jellyfin = jellyfin.copy(resume = resume.valueOrNull().orEmpty())
             onChange()
-            return problem
+            jellyfin = jellyfin.copy(latest = latestAsk.await().valueOrNull().orEmpty())
+            onChange()
+            val m = moviesAsk?.await()?.valueOrNull()
+            val series = seriesAsk.await().valueOrNull()
+            jellyfin = jellyfin.copy(
+                movies = m?.items.orEmpty(),
+                moviesTotal = m?.total ?: 0,
+                moviesNext = m?.next,
+                series = series?.items.orEmpty(),
+                seriesTotal = series?.total ?: 0,
+                seriesNext = series?.next,
+            )
+            onChange()
+            null
         }
-        jellyfin = jellyfin.copy(resume = resume.valueOrNull().orEmpty())
-        onChange()
-        jellyfin = jellyfin.copy(latest = lib.latest(LATEST).valueOrNull().orEmpty())
-        onChange()
-        val movies = lib.movies(0, MediaLogic.PAGE).valueOrNull()
-        val series = lib.series(0, MediaLogic.PAGE).valueOrNull()
-        jellyfin = jellyfin.copy(
-            movies = movies?.items.orEmpty(),
-            moviesTotal = movies?.total ?: 0,
-            moviesNext = movies?.next,
-            series = series?.items.orEmpty(),
-            seriesTotal = series?.total ?: 0,
-            seriesNext = series?.next,
-        )
-        onChange()
-        return null
     }
 
     /**
@@ -145,7 +187,7 @@ class MediaBrowse(private val hub: MediaHub, private val onChange: () -> Unit) {
         val lib = hub.library(source)
         val resume = lib.resume(RESUME)
         if (resume !is MediaResult.Ok) {
-            shareRows = shareRows - source.id
+            if (!keepOnProblem) shareRows = shareRows - source.id
             onShareProblem(true)
             onChange()
             return false

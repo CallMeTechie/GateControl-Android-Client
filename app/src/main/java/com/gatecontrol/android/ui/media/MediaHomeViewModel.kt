@@ -15,6 +15,7 @@ import com.gatecontrol.android.media.MediaOrder
 import com.gatecontrol.android.media.MediaPictures
 import com.gatecontrol.android.media.MediaPlayRequests
 import com.gatecontrol.android.media.MediaProblem
+import com.gatecontrol.android.media.MediaRowsCache
 import com.gatecontrol.android.media.MediaSource
 import com.gatecontrol.android.media.MediaTitle
 import com.gatecontrol.android.media.offline.MediaOffline
@@ -81,6 +82,8 @@ class MediaHomeViewModel @Inject constructor(
     val pictures: MediaPictures,
     private val offline: MediaOffline,
     private val servers: MediaServerSources,
+    /** The rows last loaded per source (also after a restart of the app): shown at once, then asked again quietly. */
+    private val rowsCache: MediaRowsCache,
 ) : ViewModel() {
 
     /** "Offline verfügbar": the ready downloads, the newest first (also without a connection). */
@@ -92,7 +95,7 @@ class MediaHomeViewModel @Inject constructor(
     val anyOffline: StateFlow<Boolean> = offline.items.map { it.isNotEmpty() }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
 
 
-    private val browse = MediaBrowse(hub) { publish() }
+    private val browse = MediaBrowse(hub, keepOnProblem = true) { publish() }
     private val movieGrid = MediaGrid(hub, movies = true)
     private val seriesGrid = MediaGrid(hub, movies = false)
 
@@ -190,38 +193,73 @@ class MediaHomeViewModel @Inject constructor(
         _ui.update { it.copy(resume = rows.resume, latest = rows.latest, series = rows.series, seriesTotal = rows.seriesTotal) }
     }
 
-    /** The tab came to the front: home or away, then the rows (and the grids already opened) again. */
-    fun refresh() {
+    /**
+     * The tab came to the front (opened, back from a title, another tab before): the rows kept are shown at once (of
+     * this page, else of the cache, also after a restart of the app), then asked again in the background without the
+     * spinner (stale-while-revalidate); the page changes only where something changed. Loaded within
+     * [MediaRowsCache.FRESH_MS]: nothing is asked.
+     */
+    fun open() = load(force = false)
+
+    /** „Erneut versuchen“, the VPN up, signed in again, another server: everything again, with the spinner. */
+    fun refresh() = load(force = true)
+
+    private fun load(force: Boolean) {
         // the list of the server (opening Medien), at most every half minute
         servers.refreshSoon()
         val source = hub.currentSource()
         val shares = hub.shares()
         _ui.update { sourcesInto(it, hub.store.sources.value) }
-        loadJob?.cancel()
         if (source == null && shares.isEmpty()) {
+            loadJob?.cancel()
             browse.clear()
             _ui.update { MediaHomeUi(sources = it.sources) }
             _movies.value = MediaGridUi()
             _series.value = MediaGridUi()
             return
         }
+        val shown = listOfNotNull(source?.takeIf { it.token != null }) + shares
+        // loading already (opened again meanwhile)
+        if (!force && loadJob?.isActive == true) return
+        loadJob?.cancel()
         browse.keepOnly(source, shares)
         loadJob = viewModelScope.launch {
-            _ui.update { it.copy(loading = true, problem = null) }
-            // home or away; away the VPN is started when a source needs it (Netz-Regel)
-            hub.prepare(source ?: shares.first())
+            rowsCache.keepOnly(hub.store.sources.value)
+            // the rows last loaded, until the sources answer
+            if (source?.token != null) rowsCache.load(source)?.let { browse.seedJellyfin(it.rows) }
+            for (s in shares) rowsCache.load(s)?.let { browse.seedShare(s.id, it.rows) }
+            publish()
+            // loaded just now (switching tabs, back from a title): nothing is asked
+            if (!force && browse.any() && shown.isNotEmpty() && shown.all { rowsCache.fresh(it) }) return@launch
+            val quiet = !force && browse.any()
+            _ui.update { if (quiet) it.copy(loading = false) else it.copy(loading = true, problem = null) }
+            // home or away; away the VPN is started when a source needs it (Netz-Regel). The bandwidth is not waited
+            // for (2.5 MB through the tunnel before the first title): it is measured once the rows are there.
+            hub.prepare(source ?: shares.first(), measure = false)
+            var problem: MediaProblem? = null
             coroutineScope {
-                if (source != null) launch { browse.loadJellyfin(source)?.let { p -> _ui.update { it.copy(problem = p) } } }
+                if (source != null) {
+                    launch {
+                        val p = browse.loadJellyfin(source, movies = false)
+                        problem = p
+                        // the card at once (the shares may take longer)
+                        _ui.update { it.copy(problem = p) }
+                        if (p == null) rowsCache.put(source, browse.jellyfinRows())
+                    }
+                }
                 for (s in shares) {
                     launch {
-                        browse.loadShare(s) { bad -> _ui.update { it.copy(shareProblems = if (bad) it.shareProblems + s.id else it.shareProblems - s.id) } }
+                        val ok = browse.loadShare(s) { bad -> _ui.update { it.copy(shareProblems = if (bad) it.shareProblems + s.id else it.shareProblems - s.id) } }
+                        if (ok) browse.shareRows(s.id)?.let { rowsCache.put(s, it) }
                     }
                 }
             }
             // signed in now (or another problem): the reason of a failed sign-in no longer counts
-            _ui.update { it.copy(loading = false, signIn = if (it.problem == MediaProblem.SIGNED_OUT) it.signIn else MediaSignInState()) }
+            _ui.update { it.copy(loading = false, problem = problem, signIn = if (problem == MediaProblem.SIGNED_OUT) it.signIn else MediaSignInState()) }
             if (_movies.value.loaded) grid(true, _movies.value.order)
             if (_series.value.loaded) grid(false, _series.value.order)
+            // away: "Unterwegs · 18 Mbit/s" (at most every few minutes), after the rows
+            if (hub.link.value.atHome == false) viewModelScope.launch { hub.check(source ?: shares.first()) }
         }
     }
 
@@ -271,6 +309,8 @@ class MediaHomeViewModel @Inject constructor(
     /** "Jellyfin · DS918+ ▾": another server. */
     fun select(source: MediaSource) {
         hub.select(source.id)
+        // the other server's rows (its cache) instead of this one's
+        browse.keepOnly(null, hub.shares())
         _movies.update { MediaGridUi(order = it.order) }
         _series.update { MediaGridUi(order = it.order) }
         refresh()
