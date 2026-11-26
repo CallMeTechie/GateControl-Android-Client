@@ -221,7 +221,7 @@ private fun MediaOverview(ui: MediaHomeUi, viewModel: MediaHomeViewModel, nav: M
     LazyColumn(Modifier.fillMaxSize().testTag(OVERVIEW_TAG), contentPadding = PaddingValues(bottom = 24.dp)) {
         ui.problem?.let { p -> item(key = "problem") { MediaProblemCard(p, onRetry = viewModel::refresh, onSignIn = onSignIn, signIn = ui.signIn) } }
         // the downloads first without a connection, else after "Weiterschauen"
-        val offlineFirst = ui.problem == com.gatecontrol.android.media.MediaProblem.OFFLINE
+        val offlineFirst = ui.problem == com.gatecontrol.android.media.MediaProblem.OFFLINE || ui.problem == com.gatecontrol.android.media.MediaProblem.NO_ROUTE
         if (offlineFirst && offline.isNotEmpty()) offlineRow(offline, nav)
         if (ui.resume.isNotEmpty()) {
             item(key = "resume-head") {

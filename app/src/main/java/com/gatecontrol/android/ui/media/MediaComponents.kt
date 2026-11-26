@@ -236,6 +236,7 @@ fun MediaProblemCard(
                     MediaProblem.SIGNED_OUT -> R.string.media_problem_signed_out
                     MediaProblem.FAILED -> R.string.media_problem_failed
                     MediaProblem.VPN -> R.string.media_problem_vpn
+                    MediaProblem.NO_ROUTE -> R.string.media_problem_no_route
                 },
             ),
             style = MaterialTheme.typography.bodyMedium,

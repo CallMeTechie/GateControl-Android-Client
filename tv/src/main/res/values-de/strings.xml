@@ -350,6 +350,7 @@
     <string name="tv_media_away">Unterwegs</string>
     <string name="tv_media_away_bw">Unterwegs · %1$s</string>
     <string name="tv_media_offline">Der Medienserver ist nicht erreichbar. Zu Hause das WLAN prüfen, unterwegs den Tunnel.</string>
+    <string name="tv_media_no_route">Unterwegs braucht Medien eine Route für den Server – Admin: Medien-Plugin aktualisieren.</string>
     <string name="tv_media_failed">Die Medien konnten nicht geladen werden.</string>
     <string name="tv_media_signed_out">Die Anmeldung am Medienserver ist abgelaufen.</string>
     <string name="tv_media_signed_out_short">neu anmelden</string>

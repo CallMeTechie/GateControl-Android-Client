@@ -5,12 +5,12 @@ import androidx.lifecycle.viewModelScope
 import com.gatecontrol.android.media.MediaHub
 import com.gatecontrol.android.media.MediaProblem
 import com.gatecontrol.android.media.MediaResult
-import com.gatecontrol.android.media.MediaRoute
 import com.gatecontrol.android.media.MediaSource
 import com.gatecontrol.android.media.MediaSourceKind
 import com.gatecontrol.android.media.MediaTitle
 import com.gatecontrol.android.media.jellyfin.JellyfinFolder
 import com.gatecontrol.android.media.jellyfin.JellyfinLibrary
+import com.gatecontrol.android.media.offlineProblem
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -67,7 +67,7 @@ class MediaLibraryFolderViewModel @Inject constructor(private val hub: MediaHub)
 
     private fun problemOf(r: MediaResult<*>, s: MediaSource): MediaProblem? = when (r) {
         is MediaResult.Ok -> null
-        MediaResult.Offline -> if (runCatching { hub.route(s) }.getOrNull() == MediaRoute.BLOCKED) MediaProblem.VPN else MediaProblem.OFFLINE
+        MediaResult.Offline -> hub.offlineProblem(s)
         MediaResult.Unauthorized -> MediaProblem.SIGNED_OUT
         else -> MediaProblem.FAILED
     }

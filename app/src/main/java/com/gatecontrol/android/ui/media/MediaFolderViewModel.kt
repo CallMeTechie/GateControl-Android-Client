@@ -13,6 +13,7 @@ import com.gatecontrol.android.media.MediaSource
 import com.gatecontrol.android.media.MediaSourceKind
 import com.gatecontrol.android.media.MediaTitle
 import com.gatecontrol.android.media.jellyfin.JellyfinDeviceCaps
+import com.gatecontrol.android.media.offlineProblem
 import com.gatecontrol.android.media.share.ShareEntry
 import com.gatecontrol.android.media.share.ShareFolderCount
 import com.gatecontrol.android.media.share.ShareFolderVideo
@@ -198,7 +199,7 @@ class MediaFolderViewModel @Inject constructor(
                     if (_ui.value.query.isNotBlank()) search(_ui.value.query, delayMs = 0)
                 }
                 else -> _ui.update {
-                    it.copy(via = via, paired = paired, loading = false, loaded = true, problem = if (r is MediaResult.Offline) MediaProblem.OFFLINE else MediaProblem.FAILED)
+                    it.copy(via = via, paired = paired, loading = false, loaded = true, problem = if (r is MediaResult.Offline) hub.offlineProblem(s) else MediaProblem.FAILED)
                 }
             }
         }

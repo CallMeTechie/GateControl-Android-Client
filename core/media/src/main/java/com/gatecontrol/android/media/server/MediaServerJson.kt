@@ -60,6 +60,8 @@ data class MediaServerSource(
     val alwaysOriginal: Boolean = false,
     /** Away without VPN (`away.mode = "direct"`): the HTTPS address; null: away only through the VPN. */
     val awayAddress: String? = null,
+    /** Away through the VPN (`away.mode = "vpn"` with an address): the route's HTTPS address; null: the home address. */
+    val awayVpnAddress: String? = null,
     /** A share. */
     val folder: String? = null,
     val smb: String? = null,
@@ -170,9 +172,12 @@ object MediaServerJson {
         return MediaNetworkRule(rule = o.str("rule") ?: MediaNetworkRule.RULE, vpnRequiredAway = o.bool("vpnRequiredAway") != false, probes = probes)
     }
 
-    /** `away: { mode: "direct", address: "https://…" }` → the address; `vpn` (or anything else) → null. */
-    private fun away(o: JsonObject?, kind: MediaSourceKind): String? {
-        if (o?.str("mode") != "direct") return null
+    /**
+     * `away: { mode: [mode], address: "https://…" }` → the address (`direct`: without the VPN; `vpn`: the route through
+     * the tunnel); another mode or no address (an older plugin's `{ mode: "vpn" }`) → null.
+     */
+    private fun away(o: JsonObject?, kind: MediaSourceKind, mode: String): String? {
+        if (o?.str("mode") != mode) return null
         val a = o.str("address")?.takeIf { it.startsWith("https://") } ?: return null
         return when (kind) {
             MediaSourceKind.JELLYFIN -> MediaAddress.normalize(a)
@@ -204,7 +209,8 @@ object MediaServerJson {
                     quickConnect = o.bool("quickConnect") != false,
                     downloads = o.bool("downloads") != false,
                     alwaysOriginal = o.bool("alwaysOriginal") == true,
-                    awayAddress = away(o.obj("away"), MediaSourceKind.JELLYFIN),
+                    awayAddress = away(o.obj("away"), MediaSourceKind.JELLYFIN, "direct"),
+                    awayVpnAddress = away(o.obj("away"), MediaSourceKind.JELLYFIN, "vpn"),
                 )
             }
             "share" -> {
@@ -223,7 +229,8 @@ object MediaServerJson {
                     shareUser = o.str("user"),
                     secretRev = o.int("secretRev")?.coerceAtLeast(0) ?: 0,
                     downloads = o.bool("downloads") != false,
-                    awayAddress = away(o.obj("away"), MediaSourceKind.WEBDAV),
+                    awayAddress = away(o.obj("away"), MediaSourceKind.WEBDAV, "direct"),
+                    awayVpnAddress = away(o.obj("away"), MediaSourceKind.WEBDAV, "vpn"),
                 )
             }
             else -> null

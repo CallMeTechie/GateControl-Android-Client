@@ -41,6 +41,7 @@
     <string name="media_filter_genre">Genre</string>
     <string name="media_filter_all_genres">Alle Genres</string>
     <string name="media_problem_offline">Der Medienserver ist nicht erreichbar. Zu Hause das WLAN prüfen, unterwegs den Tunnel.</string>
+    <string name="media_problem_no_route">Unterwegs braucht Medien eine Route für den Server – Admin: Medien-Plugin aktualisieren.</string>
     <string name="media_problem_failed">Die Medien konnten nicht geladen werden.</string>
     <string name="media_problem_signed_out">Die Anmeldung am Medienserver ist abgelaufen.</string>
     <string name="media_sign_in_again">Neu anmelden</string>

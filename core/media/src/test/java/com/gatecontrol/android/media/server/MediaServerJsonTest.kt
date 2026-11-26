@@ -106,6 +106,23 @@ class MediaServerJsonTest {
     }
 
     @Test
+    fun `away through the VPN - the route's HTTPS address, none of an older plugin`() {
+        val jf = MediaServerJson.source(obj("""{"id":"jf-1","kind":"jellyfin","address":"http://192.168.1.20:8096","away":{"mode":"vpn","address":"https://jellyfin.example.test/"}}"""))!!
+        assertEquals("https://jellyfin.example.test", jf.awayVpnAddress)
+        assertNull(jf.awayAddress, "through the VPN is no exception without it")
+        val share = MediaServerJson.source(obj("""{"id":"sh-1","kind":"share","name":"Filme","webdav":{"address":"https://192.168.1.20:5006/filme"},"away":{"mode":"vpn","address":"https://nas.example.test/filme"}}"""))!!
+        assertEquals("https://nas.example.test/filme", share.awayVpnAddress)
+        assertNull(share.awayAddress)
+        val old = MediaServerJson.source(obj("""{"id":"jf-1","kind":"jellyfin","address":"http://192.168.1.20:8096","away":{"mode":"vpn"}}"""))!!
+        assertNull(old.awayVpnAddress)
+        val plain = MediaServerJson.source(obj("""{"id":"jf-1","kind":"jellyfin","address":"http://192.168.1.20:8096","away":{"mode":"vpn","address":"http://jellyfin.example.test"}}"""))!!
+        assertNull(plain.awayVpnAddress, "only HTTPS")
+        val direct = MediaServerJson.source(obj("""{"id":"jf-1","kind":"jellyfin","address":"http://192.168.1.20:8096","away":{"mode":"direct","address":"https://jellyfin.example.test"}}"""))!!
+        assertNull(direct.awayVpnAddress)
+        assertEquals("https://jellyfin.example.test", direct.awayAddress)
+    }
+
+    @Test
     fun `the secret and the revocation`() {
         val s = MediaServerJson.secret(obj("""{"ok":true,"v":1,"user":"medien-lesen","password":" pw ","rev":4}"""))!!
         assertEquals(" pw ", s.password, "a password is taken as it is")

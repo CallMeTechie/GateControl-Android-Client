@@ -41,6 +41,7 @@
     <string name="media_filter_genre">Genre</string>
     <string name="media_filter_all_genres">All genres</string>
     <string name="media_problem_offline">The media server cannot be reached. At home check the Wi-Fi, away the tunnel.</string>
+    <string name="media_problem_no_route">Away, media need a route for the server – admin: update the Medien plugin.</string>
     <string name="media_problem_failed">The media could not be loaded.</string>
     <string name="media_problem_signed_out">The sign-in to the media server has expired.</string>
     <string name="media_sign_in_again">Sign in again</string>

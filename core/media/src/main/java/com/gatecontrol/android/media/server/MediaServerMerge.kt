@@ -85,6 +85,7 @@ object MediaServerMerge {
                         linkedUserId = r.userId,
                         linkedUserName = r.userName,
                         awayAddress = r.awayAddress,
+                        awayVpnAddress = r.awayVpnAddress,
                         downloads = r.downloads,
                         problem = r.problem,
                     )
@@ -108,6 +109,7 @@ object MediaServerMerge {
                             managed = true,
                             remoteId = r.id,
                             awayAddress = if (kind == MediaSourceKind.WEBDAV) r.awayAddress else null,
+                            awayVpnAddress = if (kind == MediaSourceKind.WEBDAV) r.awayVpnAddress else null,
                             certSha256 = if (kind == MediaSourceKind.WEBDAV) r.certSha256 else null,
                             secretRev = if (keep && old?.managed == true) old.secretRev else 0,
                             downloads = r.downloads,

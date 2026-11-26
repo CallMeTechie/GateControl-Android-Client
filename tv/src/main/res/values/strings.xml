@@ -350,6 +350,7 @@
     <string name="tv_media_away">Away</string>
     <string name="tv_media_away_bw">Away · %1$s</string>
     <string name="tv_media_offline">The media server cannot be reached. At home check the Wi-Fi, away the tunnel.</string>
+    <string name="tv_media_no_route">Away, media need a route for the server – admin: update the Medien plugin.</string>
     <string name="tv_media_failed">The media could not be loaded.</string>
     <string name="tv_media_signed_out">The sign-in at the media server has expired.</string>
     <string name="tv_media_signed_out_short">sign in again</string>

@@ -219,6 +219,7 @@ private fun Rows(screen: TvMediaScreen, actions: TvMediaActions, onSources: () -
                             MediaProblem.SIGNED_OUT -> R.string.tv_media_signed_out
                             MediaProblem.FAILED -> R.string.tv_media_failed
                             MediaProblem.VPN -> R.string.tv_media_vpn_blocked
+                            MediaProblem.NO_ROUTE -> R.string.tv_media_no_route
                         },
                     ),
                     style = MaterialTheme.typography.bodyLarge,
@@ -244,6 +245,7 @@ private fun Rows(screen: TvMediaScreen, actions: TvMediaActions, onSources: () -
                                     MediaProblem.OFFLINE -> R.string.tv_media_offline
                                     MediaProblem.SIGNED_OUT -> R.string.tv_media_signed_out
                                     MediaProblem.VPN -> R.string.tv_media_vpn_blocked
+                                    MediaProblem.NO_ROUTE -> R.string.tv_media_no_route
                                     MediaProblem.FAILED -> R.string.tv_media_failed
                                 },
                             ),

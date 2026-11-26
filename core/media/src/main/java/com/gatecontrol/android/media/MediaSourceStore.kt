@@ -293,6 +293,7 @@ class MediaSourceStore internal constructor(private val secrets: MediaSecrets) :
                                 s.linkedUserId?.let { addProperty("linkedUserId", it) }
                                 s.linkedUserName?.let { addProperty("linkedUserName", it) }
                                 s.awayAddress?.let { addProperty("awayAddress", it) }
+                                s.awayVpnAddress?.let { addProperty("awayVpnAddress", it) }
                                 s.certSha256?.let { addProperty("certSha256", it) }
                                 if (s.secretRev != 0) addProperty("secretRev", s.secretRev)
                                 if (!s.downloads) addProperty("downloads", false)
@@ -330,6 +331,7 @@ class MediaSourceStore internal constructor(private val secrets: MediaSecrets) :
                     linkedUserId = s.str("linkedUserId"),
                     linkedUserName = s.str("linkedUserName"),
                     awayAddress = s.str("awayAddress")?.takeIf { it.startsWith("https://") },
+                    awayVpnAddress = s.str("awayVpnAddress")?.takeIf { it.startsWith("https://") },
                     certSha256 = s.str("certSha256"),
                     secretRev = s.get("secretRev")?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isNumber }?.asInt ?: 0,
                     downloads = s.bool("downloads") != false,
