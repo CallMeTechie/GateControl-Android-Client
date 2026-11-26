@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.158.1] - 2026-11-26
+
+### Fixes
+- keep secrets on transient Keystore errors and restore a lost server address (#306)
+
+---
+
 ## [1.158.0] - 2026-11-26
 
 ### Features
