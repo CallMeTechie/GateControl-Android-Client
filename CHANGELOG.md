@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.160.1] - 2026-11-26
+
+### Fixes
+- Medien-Player – H.264 10-Bit u. a. nicht mehr endlos laden, Bilder der nächsten Folgen, keine Server-Adresse (#311)
+
+---
+
 ## [1.160.0] - 2026-11-26
 
 ### Features
