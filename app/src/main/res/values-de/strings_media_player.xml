@@ -40,7 +40,7 @@
     <string name="media_player_line_audio">Ton umgerechnet · %1$s</string>
     <string name="media_player_line_share">Original · %1$s</string>
     <string name="media_player_resumed">Weiter ab %1$s</string>
-    <string name="media_player_fell_back">Direkt ging nicht – der NAS wandelt jetzt um</string>
+    <string name="media_player_fell_back">Direkt ging nicht – die NAS wandelt um</string>
     <string name="media_player_unplayable">Dieses Video kann dein Gerät nicht direkt abspielen und der Jellyfin-Server kann es nicht umwandeln.</string>
     <string name="media_player_unplayable_video">Dieses Video ist %1$s. Dein Gerät kann das nicht abspielen und der Server schafft die Umwandlung nicht schnell genug.</string>
     <string name="media_player_unplayable_tip">Tipp: Wandle die Datei einmalig um (z. B. in H.264 mit 8 Bit), dann spielt sie überall direkt.</string>

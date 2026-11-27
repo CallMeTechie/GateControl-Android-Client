@@ -58,6 +58,11 @@ class PhoneMediaVideos(
     private val awayOriginal: () -> MediaAwayOriginal = { MediaAwayOriginal.ASK },
     /** The space for loading ahead in this playback (bytes); 0: off, nothing is asked. */
     private val aheadBytes: () -> Long = { 0L },
+    /**
+     * A picture this phone showed nothing of when played as it is, in this run of the app ([MediaPlayerLogic.deepKind]):
+     * converted at once, as one [JellyfinProfile.videoProblem] knows.
+     */
+    private val blind: (MediaStream?) -> Boolean = { false },
 ) {
     val source: MediaSource? = hub.store.source(queue.sourceId)
 
@@ -142,10 +147,15 @@ class PhoneMediaVideos(
         // the picture is one the phone's decoders do not take (H.264 10-Bit, say): converted at once, never copied
         // (packing it anew would hang the same); the waiting in the player stays as the net for what is not seen here
         if (!fallbacks.containsKey(i) && src.kind.canConvert) {
-            com.gatecontrol.android.media.jellyfin.JellyfinProfile.videoProblem(version?.video, hub.caps())?.let { why ->
+            val why = com.gatecontrol.android.media.jellyfin.JellyfinProfile.videoProblem(version?.video, hub.caps())
+            if (why != null) {
                 fallbacks[i] = MediaFallback.CONVERT
                 problems[i] = why
                 timber.log.Timber.i("Medien: the phone does not play %s itself: converted at once", why)
+            } else if (blind(version?.video)) {
+                // the decoders say they take it, but a video of the same kind showed no picture here: not waited for again
+                fallbacks[i] = MediaFallback.CONVERT
+                timber.log.Timber.i("Medien: %s showed no picture here before: converted at once", MediaPlayerLogic.deepKind(version?.video))
             }
         }
         val tracks = title.seriesId?.let { hub.store.trackChoice(it) }
@@ -171,6 +181,9 @@ class PhoneMediaVideos(
         }
         val base = MediaQuality.cap(setting, link.atHome == true, link.bps, version?.bitrate, src.alwaysOriginal, src.kind.canConvert)
         val cap = MediaPlayerLogic.capped(base, limit)
+        // what the NAS still converts for the way before ends first (else two ffmpeg run side by side)
+        leaving?.let { kotlinx.coroutines.withTimeoutOrNull(LEAVE_WAIT_MS) { it.await() } }
+        leaving = null
         val plan = when (val p = lib.play(MediaPlay(title.id, version?.id, startMs = 0, audioIndex = a, subtitleIndex = MediaPlayerLogic.subtitleFor(version, s, fallback(i)), maxBitrate = cap, fallback = fallback(i)))) {
             is MediaResult.Ok -> p.value
             MediaResult.Unauthorized -> return PhoneOpen.SignedOut
@@ -264,6 +277,32 @@ class PhoneMediaVideos(
             textOff = subtitle == MediaPlay.SUBTITLES_OFF,
             offline = true,
         )
+    }
+
+    /** The end of what the NAS converted for the way left last ([leave]); awaited a moment before the next is asked. */
+    private var leaving: kotlinx.coroutines.CompletableDeferred<Unit>? = null
+
+    /** The plans already ended ([leave]): each once. */
+    private val ended = java.util.Collections.newSetFromMap(java.util.IdentityHashMap<MediaPlan, Boolean>())
+
+    /**
+     * Video [i] is left as it was asked last (another way, the next title, closed), started or not: what the NAS
+     * converts for it ends ([MediaLibrary.ended]). The file itself and a download have nothing to end.
+     */
+    fun leave(i: Int) {
+        if (local.containsKey(i)) return
+        val plan = plans[i] ?: return
+        if (plan.method == PlayMethod.DIRECT_PLAY || plan.playSessionId == null || !ended.add(plan)) return
+        val lib = library ?: return
+        val done = kotlinx.coroutines.CompletableDeferred<Unit>()
+        leaving = done
+        hub.later {
+            try {
+                lib.ended(plan)
+            } finally {
+                done.complete(Unit)
+            }
+        }
     }
 
     /** How video [i] is asked after it did not start (per index: a new sound or quality keeps it). */
@@ -388,5 +427,10 @@ class PhoneMediaVideos(
                 PlaybackEvent.STOP -> lib.stopped(p)
             }
         }
+    }
+
+    private companion object {
+        /** At most this long the next way waits for the end of the one before ([leave]). */
+        const val LEAVE_WAIT_MS = 3_000L
     }
 }

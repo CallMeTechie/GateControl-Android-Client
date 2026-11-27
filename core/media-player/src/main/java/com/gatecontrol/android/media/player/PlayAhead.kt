@@ -83,7 +83,7 @@ class PlayAhead(
     private val cache: SimpleCache = run {
         synchronized(active) {
             // what an earlier run left (the app was stopped during a playback): it goes, it cannot be read anyway
-            root.listFiles()?.filter { it.isDirectory && it !in active }?.forEach { it.deleteRecursively() }
+            sweepLocked(root)
             active += dir
         }
         dir.mkdirs()
@@ -373,6 +373,19 @@ class PlayAhead(
 
         /** The folder of the spaces (in the app's cache: Android may clear it, nothing is lost). */
         fun root(cacheDir: File): File = File(cacheDir, "media-ahead")
+
+        /**
+         * Deletes what earlier runs left in [root] (the process ended during a playback: its key went with it, so
+         * the pieces cannot be read anyway); the spaces of playbacks running now stay. At the app's start and before
+         * each new space. Returns how many spaces went.
+         */
+        fun sweep(root: File): Int = synchronized(active) { sweepLocked(root) }
+
+        private fun sweepLocked(root: File): Int {
+            val left = root.listFiles()?.filter { it !in active }.orEmpty()
+            left.forEach { it.deleteRecursively() }
+            return left.size
+        }
     }
 }
 

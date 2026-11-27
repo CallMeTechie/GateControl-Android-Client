@@ -399,11 +399,16 @@ private fun BoxScope.VideoArea(ui: MediaPlayerUi, player: Player?, landscape: Bo
     ui.trouble?.let { Trouble(it, actions, consent = ui.vpnConsent, codecs = ui.codecs, problem = ui.problem, ui = ui) }
     ui.countdown?.let { Countdown(ui, it, actions) }
     if (ui.fellBack && ui.trouble == null) {
+        // below the bar's buttons (close, Ton & Untertitel, Cast, PiP, lock), never over them
         Text(
             stringResource(R.string.media_player_fell_back),
             color = Color.White,
             style = MaterialTheme.typography.labelMedium,
-            modifier = Modifier.align(Alignment.TopCenter).padding(12.dp).clip(RoundedCornerShape(8.dp)).background(Color.Black.copy(alpha = 0.6f)).padding(horizontal = 10.dp, vertical = 6.dp).testTag(FELL_BACK_TAG),
+            textAlign = TextAlign.Center,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.align(Alignment.TopCenter).padding(top = fellBackTop(landscape), start = 16.dp, end = 16.dp)
+                .clip(RoundedCornerShape(8.dp)).background(Color.Black.copy(alpha = 0.6f)).padding(horizontal = 10.dp, vertical = 6.dp).testTag(FELL_BACK_TAG),
         )
     }
     if (ui.aheadWait && ui.trouble == null) AheadWaiting(ui, actions)
@@ -418,6 +423,9 @@ private fun BoxScope.VideoArea(ui: MediaPlayerUi, player: Player?, landscape: Bo
         }
     }
 }
+
+/** Where the note „Direkt ging nicht“ starts: below the top bar of [Controls] (its padding twice and a button). */
+internal fun fellBackTop(landscape: Boolean): androidx.compose.ui.unit.Dp = (if (landscape) 16.dp else 8.dp) * 2 + 44.dp + 4.dp
 
 /** The bars over the picture: top (close, title upright only in full screen, the sheet, PiP, lock), the middle, the bottom. */
 @Composable
@@ -850,39 +858,52 @@ internal fun AheadCard(state: MediaPlayAheadState, bitrate: Long?) {
             GcChip(
                 text = stringResource(
                     when {
+                        state.stopped -> R.string.media_ahead_stopped
                         state.complete -> R.string.media_ahead_complete
                         state.full -> R.string.media_ahead_full
                         else -> R.string.media_ahead_running
                     },
                 ),
-                tone = GcTone.Ok,
+                tone = if (state.stopped) GcTone.Neutral else GcTone.Ok,
             )
         }
-        if (state.totalBytes > 0) {
-            val seen = (state.headBytes.toFloat() / state.totalBytes).coerceIn(0f, 1f)
-            val ahead = (state.aheadBytes.toFloat() / state.totalBytes).coerceIn(0f, 1f - seen)
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                Row(Modifier.weight(1f).height(8.dp).clip(RoundedCornerShape(4.dp)).background(x.panel2)) {
-                    if (seen > 0f) Box(Modifier.fillMaxHeight().weight(seen).background(MaterialTheme.colorScheme.primary))
-                    if (ahead > 0f) Box(Modifier.fillMaxHeight().weight(ahead).background(x.faint.copy(alpha = 0.55f)))
-                    val rest = 1f - seen - ahead
-                    if (rest > 0f) Spacer(Modifier.weight(rest))
-                }
-                Text(stringResource(R.string.media_ahead_amount, MediaOfflineLogic.sizeText(state.aheadBytes)), style = MaterialTheme.typography.bodyMedium, color = x.muted)
-            }
-            Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                Legend(MaterialTheme.colorScheme.primary, stringResource(R.string.media_ahead_seen))
-                Legend(x.faint.copy(alpha = 0.55f), stringResource(R.string.media_ahead_on_device))
-                Legend(x.panel2, stringResource(R.string.media_ahead_missing))
-            }
+        if (state.stopped) {
+            // fell back to converting: nothing more to load, what was loaded went already
+            Text(stringResource(R.string.media_ahead_stopped_note), style = MaterialTheme.typography.bodyMedium, color = x.muted)
+        } else {
+            AheadProgress(state, bitrate)
         }
-        val parts = buildList {
-            if (state.rateBps > 0 && !state.complete) add(stringResource(R.string.media_ahead_rate, MediaQuality.label(state.rateBps)))
-            MediaPlayAhead.aheadMs(state.aheadBytes, bitrate)?.takeIf { it >= 60_000 }?.let { add(stringResource(R.string.media_ahead_lasts, MediaPlayAhead.minutes(it))) }
-            add(stringResource(R.string.media_ahead_deleted))
-        }
-        Text(parts.joinToString(" · "), style = MaterialTheme.typography.bodyMedium, color = x.muted)
     }
+}
+
+/** The bar seen / on the device / still missing and the line under it of [AheadCard]. */
+@Composable
+private fun AheadProgress(state: MediaPlayAheadState, bitrate: Long?) {
+    val x = GateControlTheme.extraColors
+    if (state.totalBytes > 0) {
+        val seen = (state.headBytes.toFloat() / state.totalBytes).coerceIn(0f, 1f)
+        val ahead = (state.aheadBytes.toFloat() / state.totalBytes).coerceIn(0f, 1f - seen)
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Row(Modifier.weight(1f).height(8.dp).clip(RoundedCornerShape(4.dp)).background(x.panel2)) {
+                if (seen > 0f) Box(Modifier.fillMaxHeight().weight(seen).background(MaterialTheme.colorScheme.primary))
+                if (ahead > 0f) Box(Modifier.fillMaxHeight().weight(ahead).background(x.faint.copy(alpha = 0.55f)))
+                val rest = 1f - seen - ahead
+                if (rest > 0f) Spacer(Modifier.weight(rest))
+            }
+            Text(stringResource(R.string.media_ahead_amount, MediaOfflineLogic.sizeText(state.aheadBytes)), style = MaterialTheme.typography.bodyMedium, color = x.muted)
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+            Legend(MaterialTheme.colorScheme.primary, stringResource(R.string.media_ahead_seen))
+            Legend(x.faint.copy(alpha = 0.55f), stringResource(R.string.media_ahead_on_device))
+            Legend(x.panel2, stringResource(R.string.media_ahead_missing))
+        }
+    }
+    val parts = buildList {
+        if (state.rateBps > 0 && !state.complete) add(stringResource(R.string.media_ahead_rate, MediaQuality.label(state.rateBps)))
+        MediaPlayAhead.aheadMs(state.aheadBytes, bitrate)?.takeIf { it >= 60_000 }?.let { add(stringResource(R.string.media_ahead_lasts, MediaPlayAhead.minutes(it))) }
+        add(stringResource(R.string.media_ahead_deleted))
+    }
+    Text(parts.joinToString(" · "), style = MaterialTheme.typography.bodyMedium, color = x.muted)
 }
 
 @Composable

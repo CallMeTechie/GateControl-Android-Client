@@ -225,6 +225,8 @@
     <string name="media_ahead_rate">lädt mit %1$s</string>
     <string name="media_ahead_lasts">reicht für ca. %1$d Min.</string>
     <string name="media_ahead_deleted">wird nach dem Ansehen gelöscht</string>
+    <string name="media_ahead_stopped">beendet</string>
+    <string name="media_ahead_stopped_note">Die NAS rechnet jetzt um, Mitladen ist nicht mehr nötig · der geladene Teil ist gelöscht</string>
     <string name="media_ahead_waiting">Lädt mit … Start in ca. %1$d Min.</string>
     <string name="media_ahead_waiting_plain">Lädt mit …</string>
     <string name="media_ahead_waiting_note">Dann läuft das Original ohne Ruckeln.</string>

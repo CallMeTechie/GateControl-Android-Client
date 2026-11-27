@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.163.1] - 2026-11-27
+
+### Fixes
+- Rückfall auf Umrechnen beendet die NAS-Umwandlung, Mitladen räumt auf, Hinweis unter der Leiste (#317)
+
+---
+
 ## [1.163.0] - 2026-11-27
 
 ### Features
