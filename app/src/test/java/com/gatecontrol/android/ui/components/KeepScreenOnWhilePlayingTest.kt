@@ -49,6 +49,8 @@ class KeepScreenOnWhilePlayingTest {
 
         override fun getState(): State = State.Builder()
             .setAvailableCommands(Player.Commands.Builder().addAllCommands().build())
+            // one video: a state other than idle needs an item
+            .setPlaylist(listOf(MediaItemData.Builder("video").build()))
             .setPlayWhenReady(wanted, Player.PLAY_WHEN_READY_CHANGE_REASON_USER_REQUEST)
             .setPlaybackState(if (error != null) Player.STATE_IDLE else stage)
             .setPlayerError(error)
