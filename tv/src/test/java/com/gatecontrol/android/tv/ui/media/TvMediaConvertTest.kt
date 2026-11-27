@@ -90,17 +90,38 @@ class TvMediaConvertTest {
     }
 
     @Test
-    fun `tonight with place and start, playing stays first`() {
+    fun `tonight with place and start - the focus on Andere Folge, playing still below`() {
         val played = mutableListOf<String>()
-        show(MediaConvertHint.Queued(2, null), TvMediaActions(onPlay = { t, _ -> played += t.id }))
+        var others = 0
+        show(MediaConvertHint.Queued(2, null), TvMediaActions(onPlay = { t, _ -> played += t.id }, onOther = { others++ }))
         rule.onNodeWithTag(TV_CONVERT_TAG).assertExists()
         rule.onNodeWithText("Wird heute Nacht umgewandelt").assertExists()
         rule.onNodeWithText("Platz 2. Danach läuft es hier flüssig.").assertExists()
         rule.onNodeWithTag(TV_CONVERT_REQUEST_TAG).assertDoesNotExist()
+        // OK never starts a stuttering playback: the focus is on „Andere Folge“
+        rule.onNodeWithText("Andere Folge").assertIsFocused()
+        shot("tv-nacht-dunkel")
+        rule.onRoot().performKeyInput { pressKey(Key.DirectionCenter) }
+        assertEquals(1, others)
+        rule.onRoot().performKeyInput { pressKey(Key.DirectionDown) }
         rule.onNodeWithText("Abspielen").assertIsFocused()
         rule.onRoot().performKeyInput { pressKey(Key.DirectionCenter) }
         assertEquals(listOf(werft.id), played)
-        shot("tv-nacht-dunkel")
+    }
+
+    @Test
+    fun `a film - Anderer Film`() {
+        rule.setContent {
+            Frame {
+                val film = werft.copy(kind = MediaTitle.Kind.MOVIE, seriesId = null, seriesName = null, season = null, episode = null)
+                TvMediaPage(
+                    TvMediaScreen(TvMediaUi(sources = listOf(source), source = source), detail = detail(MediaConvertHint.Running(10)).copy(title = film), link = MediaLink(atHome = true)),
+                    TvMediaActions(),
+                )
+            }
+        }
+        rule.waitForIdle()
+        rule.onNodeWithText("Anderer Film").assertIsFocused()
     }
 
     @Test
@@ -116,12 +137,12 @@ class TvMediaConvertTest {
         show(MediaConvertHint.Offer, TvMediaActions(onConvertRequest = { asked++ }))
         rule.onNodeWithText("Wird beim Abspielen umgewandelt").assertExists()
         rule.onNodeWithText("Der Fernseher kann dieses Video (H.264 10-Bit (High 10)) nicht selbst abspielen. Jetzt kann es ruckeln. Über Nacht dauerhaft umwandeln?").assertExists()
-        rule.onNodeWithText("Abspielen").assertIsFocused()
-        rule.onRoot().performKeyInput { pressKey(Key.DirectionUp) }
+        rule.onNodeWithText("Andere Folge").assertIsFocused()
+        shot("tv-vormerken-dunkel")
+        rule.onRoot().performKeyInput { pressKey(Key.DirectionRight) }
         rule.onNodeWithText("Für heute Nacht vormerken").assertIsFocused()
         rule.onRoot().performKeyInput { pressKey(Key.DirectionCenter) }
         assertEquals(1, asked)
-        shot("tv-vormerken-dunkel")
     }
 
     @Test

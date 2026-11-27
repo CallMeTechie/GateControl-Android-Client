@@ -228,6 +228,28 @@ class TvMediaViewModelTest {
         assertEquals(MediaConvertHint.Requested, vm.details.value.single().convert)
     }
 
+    @Test
+    fun `Andere Folge - an episode opens its series on its season, a film goes back to the overview`() = runTest(dispatcher) {
+        val ep = tenBit.copy(seriesId = "se1", seasonId = "sea2")
+        coEvery { lib.detail(tenBitId) } returns MediaResult.Ok(MediaDetail(ep, listOf(tenBitVersion)))
+        coEvery { lib.detail("se1") } returns MediaResult.Ok(MediaDetail(MediaTitle("se1", "s1", MediaTitle.Kind.SERIES, "Sternenhafen"), emptyList()))
+        coEvery { lib.seasons(any()) } returns MediaResult.Ok(listOf(MediaTitle("sea1", "s1", MediaTitle.Kind.SEASON, "Staffel 1", unplayed = 3), MediaTitle("sea2", "s1", MediaTitle.Kind.SEASON, "Staffel 2")))
+        coEvery { lib.episodes(any(), any()) } returns MediaResult.Ok(emptyList())
+        val vm = TvMediaViewModel(media, selection, servers, rowsCache, noConvert)
+        vm.open(ep)
+        advanceUntilIdle()
+        vm.other()
+        advanceUntilIdle()
+        val top = vm.details.value.single()
+        assertEquals("se1", top.title.id)
+        assertEquals("sea2", top.seasonId)
+        coEvery { lib.detail("m1") } returns MediaResult.Ok(MediaDetail(kobalt, emptyList()))
+        vm.open(kobalt)
+        advanceUntilIdle()
+        vm.other()
+        assertTrue(vm.details.value.isEmpty())
+    }
+
     private val share = MediaSource("smb1", MediaSourceKind.SMB, "\\\\nas\\filme", "smb://nas/filme", userName = "kino", password = "pw")
     private val shareLib = mockk<MediaLibrary>(relaxed = true)
 

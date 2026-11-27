@@ -49,7 +49,17 @@ internal fun convertTexts(hint: MediaConvertHint, problem: String?): Pair<String
  * stays possible: the buttons below are untouched.
  */
 @Composable
-internal fun MediaConvertCard(hint: MediaConvertHint, problem: String?, busy: Boolean, failed: Boolean, onRequest: () -> Unit, modifier: Modifier = Modifier) {
+internal fun MediaConvertCard(
+    hint: MediaConvertHint,
+    problem: String?,
+    busy: Boolean,
+    failed: Boolean,
+    onRequest: () -> Unit,
+    modifier: Modifier = Modifier,
+    /** „Andere Folge“ (an episode) or „Anderer Film“; null: not offered. */
+    onOther: (() -> Unit)? = null,
+    episode: Boolean = true,
+) {
     val x = GateControlTheme.extraColors
     val (title, text) = convertTexts(hint, problem)
     GcBanner(
@@ -64,16 +74,30 @@ internal fun MediaConvertCard(hint: MediaConvertHint, problem: String?, busy: Bo
             if (percent != null) {
                 MediaProgressBar(percent / 100f, Modifier.padding(top = 2.dp))
             }
-            if (hint == MediaConvertHint.Offer) {
-                GcOutlineButton(
-                    stringResource(R.string.media_convert_request),
-                    onClick = onRequest,
-                    loading = busy,
-                    enabled = !busy,
-                    icon = GcIcons.Moon,
-                    minHeight = 40.dp,
-                    modifier = Modifier.padding(top = 2.dp).testTag(CONVERT_REQUEST_TAG),
-                )
+            // „Andere Folge“ beside „Für heute Nacht vormerken“ (mockup picture 5): another title instead of a stuttering one
+            if (hint == MediaConvertHint.Offer || onOther != null) {
+                // one under the other: side by side the long label would break into three lines on a phone
+                Column(Modifier.padding(top = 2.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    if (onOther != null) {
+                        GcOutlineButton(
+                            stringResource(if (episode) R.string.media_convert_other_episode else R.string.media_convert_other_film),
+                            onClick = onOther,
+                            minHeight = 40.dp,
+                            modifier = Modifier.testTag(CONVERT_OTHER_TAG),
+                        )
+                    }
+                    if (hint == MediaConvertHint.Offer) {
+                        GcOutlineButton(
+                            stringResource(R.string.media_convert_request),
+                            onClick = onRequest,
+                            loading = busy,
+                            enabled = !busy,
+                            icon = GcIcons.Moon,
+                            minHeight = 40.dp,
+                            modifier = Modifier.testTag(CONVERT_REQUEST_TAG),
+                        )
+                    }
+                }
             }
             if (failed) Text(stringResource(R.string.media_convert_failed), style = MaterialTheme.typography.bodySmall, color = x.warn)
         }
@@ -82,3 +106,4 @@ internal fun MediaConvertCard(hint: MediaConvertHint, problem: String?, busy: Bo
 
 internal const val CONVERT_TAG = "media-convert"
 internal const val CONVERT_REQUEST_TAG = "media-convert-request"
+internal const val CONVERT_OTHER_TAG = "media-convert-other"

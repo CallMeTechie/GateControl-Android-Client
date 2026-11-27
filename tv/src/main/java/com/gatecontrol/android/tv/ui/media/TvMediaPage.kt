@@ -104,6 +104,8 @@ class TvMediaActions(
     val onFavorite: () -> Unit = {},
     /** „Für heute Nacht vormerken“ of the detail page (plugin Medien 1.6.0). */
     val onConvertRequest: () -> Unit = {},
+    /** „Andere Folge“ of the hint: the season's episodes, a film back to the overview. */
+    val onOther: () -> Unit = {},
     val onSelect: (MediaSource) -> Unit = {},
     val onAlwaysOriginal: (MediaSource, Boolean) -> Unit = { _, _ -> },
     /** „Neu laden“ of Medien › Quellen. */

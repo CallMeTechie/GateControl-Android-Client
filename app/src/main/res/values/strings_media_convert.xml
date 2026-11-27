@@ -14,4 +14,6 @@
     <string name="media_convert_running_title_percent">Being converted now – %1$d %%</string>
     <string name="media_convert_running_text">After that it plays smoothly here.</string>
     <string name="media_convert_failed">That did not work. Please try again later.</string>
+    <string name="media_convert_other_episode">Other episode</string>
+    <string name="media_convert_other_film">Other film</string>
 </resources>

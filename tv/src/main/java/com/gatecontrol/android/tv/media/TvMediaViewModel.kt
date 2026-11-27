@@ -369,7 +369,7 @@ class TvMediaViewModel @Inject constructor(
             if (detail.title.kind == MediaTitle.Kind.SERIES) {
                 val seasons = browse.seasons(page.title)
                 replaceTop(id) { it.copy(seasons = seasons) }
-                val first = seasons.firstOrNull { (it.unplayed ?: 0) > 0 } ?: seasons.firstOrNull()
+                val first = page.seasonId?.let { sid -> seasons.firstOrNull { it.id == sid } } ?: seasons.firstOrNull { (it.unplayed ?: 0) > 0 } ?: seasons.firstOrNull()
                 first?.let { season(id, it.id) }
             }
         }
@@ -385,6 +385,29 @@ class TvMediaViewModel @Inject constructor(
         val problem = com.gatecontrol.android.media.jellyfin.JellyfinProfile.videoProblem(page.detail?.version?.video, media.caps()) ?: return
         val hint = convert.hint(id, problem)
         replaceTop(id) { it.copy(convert = hint, convertProblem = problem) }
+    }
+
+    /**
+     * „Andere Folge“ of the hint (mockup picture 7): an episode back to its series' episodes on its season (the series'
+     * page when it lies below, else opened), a film back to the overview.
+     */
+    fun other() {
+        val t = _details.value.lastOrNull()?.title ?: return
+        val seriesId = t.seriesId
+        if (t.kind != MediaTitle.Kind.EPISODE || seriesId == null) {
+            closeDetails()
+            return
+        }
+        val below = _details.value.dropLast(1).lastOrNull()
+        if (below?.title?.id == seriesId) {
+            back()
+            t.seasonId?.let { if (below.seasonId != it) season(seriesId, it) }
+            return
+        }
+        _details.update { it.dropLast(1) }
+        val page = TvDetailUi(MediaTitle(seriesId, t.sourceId, MediaTitle.Kind.SERIES, t.seriesName.orEmpty()), seasonId = t.seasonId)
+        _details.update { it + page }
+        load(page)
     }
 
     /** „Für heute Nacht vormerken“ on the open page: onto the plugin's list (the admin queues it). */

@@ -102,7 +102,7 @@ class MediaDetailViewModel @Inject constructor(
         name = savedState.get<String>(ARG_NAME).orEmpty(),
     )
 
-    private val _ui = MutableStateFlow(MediaDetailUi(start, source = hub.store.source(start.sourceId)))
+    private val _ui = MutableStateFlow(MediaDetailUi(start, source = hub.store.source(start.sourceId), seasonId = savedState.get<String>(ARG_SEASON)))
     val ui: StateFlow<MediaDetailUi> = _ui.asStateFlow()
 
     val link: StateFlow<MediaLink> = hub.link
@@ -220,6 +220,17 @@ class MediaDetailViewModel @Inject constructor(
         _ui.update { if (it.title.id == u.title.id) it.copy(convert = hint, convertProblem = problem) else it }
     }
 
+    /**
+     * „Andere Folge“ of the hint (mockup picture 5): an episode leads to its series on its season, a film (or an
+     * episode without its series) back to where it was opened from. The series' page, or null for „back“.
+     */
+    fun otherTitle(): MediaTitle? {
+        val t = _ui.value.title
+        val seriesId = t.seriesId ?: return null
+        if (t.kind != MediaTitle.Kind.EPISODE) return null
+        return MediaTitle(seriesId, t.sourceId, MediaTitle.Kind.SERIES, t.seriesName.orEmpty(), seasonId = t.seasonId)
+    }
+
     /** „Für heute Nacht vormerken“: onto the plugin's list (the admin queues it); playing stays possible. */
     fun requestConvert() {
         val u = _ui.value
@@ -322,5 +333,8 @@ class MediaDetailViewModel @Inject constructor(
         const val ARG_SOURCE = "source"
         const val ARG_ID = "id"
         const val ARG_NAME = "name"
+
+        /** A series opened on this season (optional). */
+        const val ARG_SEASON = "season"
     }
 }

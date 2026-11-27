@@ -13,4 +13,6 @@
     <string name="tv_media_convert_running_title_percent">Wird gerade umgewandelt – %1$d %%</string>
     <string name="tv_media_convert_running_text">Danach läuft es hier flüssig.</string>
     <string name="tv_media_convert_failed">Das hat nicht geklappt. Bitte später noch einmal versuchen.</string>
+    <string name="tv_media_convert_other_episode">Andere Folge</string>
+    <string name="tv_media_convert_other_film">Anderer Film</string>
 </resources>

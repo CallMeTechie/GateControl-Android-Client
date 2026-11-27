@@ -90,6 +90,8 @@ fun TvMediaDetailPage(
     LaunchedEffect(t.id, hasBackdrop) { if (hasBackdrop) actions.onPicture(t, true) }
     val backdrop = pictures[actions.pictureKey(t, true)]
     val first = remember { FocusRequester() }
+    // „Andere Folge“ of the hint „Videos umwandeln“: the focus starts there (mockup picture 7), OK never stutters
+    val other = remember { FocusRequester() }
     var picking by remember(t.id) { mutableStateOf<MediaStream.Type?>(null) }
 
     Box(modifier.fillMaxSize()) {
@@ -129,7 +131,7 @@ fun TvMediaDetailPage(
                     ), style = MaterialTheme.typography.bodyMedium, color = colors.warn)
             }
             if (t.playable) {
-                detail.convert?.let { ConvertHint(detail, it, actions) }
+                detail.convert?.let { ConvertHint(detail, it, actions, other) }
                 if (t.resumable) Progress(t)
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
                     if (t.resumable) {
@@ -176,7 +178,9 @@ fun TvMediaDetailPage(
             Spacer(Modifier.height(20.dp))
         }
     }
-    LaunchedEffect(t.id, detail.loading, detail.seasons.isNotEmpty()) { first.requestSoon() }
+    val hinted = detail.convert != null && t.playable
+    LaunchedEffect(t.id, detail.loading, detail.seasons.isNotEmpty()) { if (!hinted) first.requestSoon() }
+    LaunchedEffect(t.id, hinted) { if (hinted) other.requestSoon() }
 
     val version = detail.detail?.version
     when (picking) {
@@ -258,7 +262,7 @@ private fun MetaLine(detail: TvDetailUi) {
  * stays possible with the buttons below.
  */
 @Composable
-private fun ConvertHint(detail: TvDetailUi, hint: MediaConvertHint, actions: TvMediaActions) {
+private fun ConvertHint(detail: TvDetailUi, hint: MediaConvertHint, actions: TvMediaActions, other: FocusRequester) {
     val colors = GateControlTvTheme.colors
     @Suppress("DEPRECATION")
     val locale = LocalConfiguration.current.locale
@@ -292,14 +296,22 @@ private fun ConvertHint(detail: TvDetailUi, hint: MediaConvertHint, actions: TvM
                     Box(Modifier.width(maxWidth * (percent / 100f)).height(4.dp).background(colors.accent, RoundedCornerShape(50)))
                 }
             }
-            if (hint == MediaConvertHint.Offer) {
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 TvButton(
-                    stringResource(R.string.tv_media_convert_request),
-                    onClick = actions.onConvertRequest,
-                    enabled = !detail.convertBusy,
-                    icon = TvIcons.Moon,
-                    modifier = Modifier.testTag(TV_CONVERT_REQUEST_TAG),
+                    stringResource(if (detail.title.kind == MediaTitle.Kind.EPISODE) R.string.tv_media_convert_other_episode else R.string.tv_media_convert_other_film),
+                    onClick = actions.onOther,
+                    style = TvButtonStyle.Primary,
+                    modifier = Modifier.focusRequester(other).testTag(TV_CONVERT_OTHER_TAG),
                 )
+                if (hint == MediaConvertHint.Offer) {
+                    TvButton(
+                        stringResource(R.string.tv_media_convert_request),
+                        onClick = actions.onConvertRequest,
+                        enabled = !detail.convertBusy,
+                        icon = TvIcons.Moon,
+                        modifier = Modifier.testTag(TV_CONVERT_REQUEST_TAG),
+                    )
+                }
             }
             if (detail.convertFailed) Text(stringResource(R.string.tv_media_convert_failed), style = MaterialTheme.typography.bodySmall, color = colors.warn)
         }
@@ -308,6 +320,7 @@ private fun ConvertHint(detail: TvDetailUi, hint: MediaConvertHint, actions: TvM
 
 internal const val TV_CONVERT_TAG = "tv-media-convert"
 internal const val TV_CONVERT_REQUEST_TAG = "tv-media-convert-request"
+internal const val TV_CONVERT_OTHER_TAG = "tv-media-convert-other"
 
 @Composable
 private fun Progress(t: MediaTitle) {

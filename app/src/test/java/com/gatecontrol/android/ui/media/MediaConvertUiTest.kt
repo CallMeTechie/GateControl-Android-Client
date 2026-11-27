@@ -71,7 +71,7 @@ class MediaConvertUiTest {
     private val id = "0123456789abcdef0123456789abcdef"
     private val werft = MediaTitle(
         id, "jf", MediaTitle.Kind.EPISODE, "Die stille Werft",
-        seriesId = "s1", seriesName = "Sternenhafen", season = 1, episode = 5, runtimeMs = 1_320_000, year = 2026,
+        seriesId = "s1", seriesName = "Sternenhafen", seasonId = "sea1", season = 1, episode = 5, runtimeMs = 1_320_000, year = 2026,
     )
     private val tenBit = MediaVersion(
         "v1",
@@ -113,9 +113,9 @@ class MediaConvertUiTest {
         }
     }
 
-    private fun detail(api: FakeConvertApi, version: MediaVersion = tenBit): MediaDetailViewModel {
+    private fun detail(api: FakeConvertApi, version: MediaVersion = tenBit, title: MediaTitle = werft): MediaDetailViewModel {
         val lib = FakeLibrary(jellyfin)
-        lib.details = mapOf(id to MediaDetail(werft, listOf(version)))
+        lib.details = mapOf(id to MediaDetail(title, listOf(version)))
         val hub = hub(lib)
         val offline = fakeOffline()
         return MediaDetailViewModel(
@@ -134,11 +134,11 @@ class MediaConvertUiTest {
         )
     }
 
-    private fun show(vm: MediaDetailViewModel, dark: Boolean = false) {
+    private fun show(vm: MediaDetailViewModel, dark: Boolean = false, onBack: () -> Unit = {}, onOpen: (MediaTitle) -> Unit = {}) {
         rule.setContent {
             GateControlTheme(darkTheme = dark) {
                 androidx.compose.material3.Surface(Modifier.fillMaxSize().testTag("shot"), color = androidx.compose.material3.MaterialTheme.colorScheme.background) {
-                    MediaDetailScreen(onBack = {}, onOpen = {}, viewModel = vm)
+                    MediaDetailScreen(onBack = onBack, onOpen = onOpen, viewModel = vm)
                 }
             }
         }
@@ -205,6 +205,26 @@ class MediaConvertUiTest {
 
     @Test
     fun `Fuer heute Nacht vormerken - dark`() = offer(true)
+
+    @Test
+    fun `Andere Folge - the series on the episode's season`() {
+        val opened = mutableListOf<MediaTitle>()
+        show(detail(FakeConvertApi(status(MediaConvertItem(id, MediaConvertState.QUEUED, position = 1, level = "convert")))), onOpen = { opened += it })
+        rule.onNodeWithTag(CONVERT_OTHER_TAG).assertIsDisplayed()
+        rule.onNodeWithText("Andere Folge").performClick()
+        assertEquals(listOf("s1"), opened.map { it.id })
+        assertEquals(MediaTitle.Kind.SERIES, opened.single().kind)
+        assertEquals("sea1", opened.single().seasonId)
+    }
+
+    @Test
+    fun `Anderer Film - back to where it was opened from`() {
+        var back = 0
+        val film = werft.copy(kind = MediaTitle.Kind.MOVIE, seriesId = null, seriesName = null, seasonId = null, season = null, episode = null)
+        show(detail(FakeConvertApi(status(MediaConvertItem(id, MediaConvertState.RUNNING, percent = 5, level = "convert"))), title = film), onBack = { back++ })
+        rule.onNodeWithText("Anderer Film").performClick()
+        assertEquals(1, back)
+    }
 
     @Test
     fun `refused (too many at once) - a short line, the button stays`() {
