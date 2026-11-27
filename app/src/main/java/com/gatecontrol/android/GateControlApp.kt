@@ -101,6 +101,15 @@ class GateControlApp : Application() {
                 Timber.w(e, "Medien offline: not ensured")
             }
         }
+        // Medien „Unterwegs mitladen“: what a playback left when the app was ended during it goes (it is unreadable anyway).
+        kotlin.concurrent.thread(name = "media-ahead-sweep") {
+            try {
+                val gone = com.gatecontrol.android.media.player.PlayAhead.sweep(com.gatecontrol.android.media.player.PlayAhead.root(cacheDir))
+                if (gone > 0) Timber.i("Medien: %d spaces of loading ahead left by an earlier run deleted", gone)
+            } catch (e: Throwable) {
+                Timber.w(e, "Medien: loading ahead not swept")
+            }
+        }
         // Drive folder backup: the same for the phone folders backed up.
         try {
             com.gatecontrol.android.drive.backup.DriveFolderBackupWork.ensure(this)

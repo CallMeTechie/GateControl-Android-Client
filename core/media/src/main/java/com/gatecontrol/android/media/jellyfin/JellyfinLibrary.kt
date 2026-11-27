@@ -402,6 +402,24 @@ class JellyfinLibrary(
 
     override suspend fun stopped(p: MediaProgress) = report("Sessions/Playing/Stopped", progressBody(p, stopped = true))
 
+    /**
+     * The NAS stops converting [plan] (`DELETE /Videos/ActiveEncodings` with this device and its play session): a
+     * playback left before its start sends no `Stopped`, and its ffmpeg would run on beside the next video's (a NAS
+     * that converts one video at most then manages neither). The file itself has nothing to end.
+     */
+    override suspend fun ended(plan: MediaPlan) {
+        val session = plan.playSessionId ?: return
+        if (plan.method == PlayMethod.DIRECT_PLAY) return
+        try {
+            val r = client.delete("Videos/ActiveEncodings", mapOf("deviceId" to info.deviceId, "playSessionId" to session))
+            if (r !is MediaResult.Ok) Timber.d("Jellyfin: encoding not ended (%s)", r.javaClass.simpleName)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Timber.d("Jellyfin: encoding not ended (%s)", e.javaClass.simpleName)
+        }
+    }
+
     private suspend fun report(path: String, body: JsonObject) {
         try {
             val r = client.post(path, body = body)

@@ -86,7 +86,7 @@ object MediaPlayerLogic {
     fun firstPictureMs(net: MediaNet?, last: Boolean = false): Long =
         (if (net == MediaNet.HOME) FIRST_PICTURE_HOME_MS else FIRST_PICTURE_AWAY_MS) * (if (last) LAST_WAY_FACTOR else 1)
 
-    /** The note "Direkt ging nicht – der NAS wandelt jetzt um" stays this long. */
+    /** The note "Direkt ging nicht – die NAS wandelt um" stays this long. */
     const val FELL_BACK_NOTE_MS = 6_000L
 
     /**
@@ -120,6 +120,21 @@ object MediaPlayerLogic {
         val sound = (version.audio.firstOrNull { it.index == audioIndex } ?: version.audio.firstOrNull { it.index == version.defaultAudio } ?: version.audio.firstOrNull())
             ?.let { MediaTracks.audioLabel(it) }
         return listOfNotNull(v, sound, version.container?.uppercase(java.util.Locale.ROOT)).joinToString(" · ").ifEmpty { null }
+    }
+
+    /**
+     * The kind of a picture deeper than 8 bits or 4:2:0 ("h264 high 10 10"), the only kind remembered when it showed
+     * no picture played as it is (a decoder that says it takes it and does not); null for any other picture, so a file
+     * that hung for another reason never makes all the others convert.
+     */
+    fun deepKind(video: MediaStream?): String? {
+        val v = video ?: return null
+        val codec = v.codec?.lowercase(java.util.Locale.ROOT)?.ifBlank { null } ?: return null
+        val profile = v.profile?.lowercase(java.util.Locale.ROOT)?.trim()?.ifBlank { null }
+        val bits = v.bitDepth
+        val deep = (bits != null && bits > 8) || profile != null && (profile.contains("10") || profile.contains("4:2:2") || profile.contains("4:4:4"))
+        if (!deep) return null
+        return listOfNotNull(codec, profile, bits?.toString()).joinToString(" ")
     }
 
     /** A player fault worth another way (the file, its codec or the server's answer); a lost connection is not. */

@@ -415,6 +415,13 @@ interface MediaLibrary {
     suspend fun started(p: MediaProgress)
     suspend fun progress(p: MediaProgress)
     suspend fun stopped(p: MediaProgress)
+
+    /**
+     * [plan] is left (another way after it did not start, the next title, closed), also before it ever started: what
+     * the server converts for it ends now instead of running on (Jellyfin: its encoding). Nothing for the file itself.
+     */
+    suspend fun ended(plan: MediaPlan) {}
+
     suspend fun setPlayed(itemId: String, played: Boolean): MediaResult<Unit>
 
     /** The bit/s from the server to this device just now; null when it could not be measured. */

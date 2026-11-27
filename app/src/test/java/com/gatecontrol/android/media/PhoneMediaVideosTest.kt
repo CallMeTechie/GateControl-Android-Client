@@ -359,4 +359,63 @@ class PhoneMediaVideosTest {
         awayVideos().open(0, ask = { error("not asked") })
         assertEquals(3_000_000, jfLib.plays.last().maxBitrate)
     }
+
+    @Test
+    fun `a way left - what the NAS converts for it ends once, also before it started, the file itself has nothing`() = runTest {
+        // on mobile data with the limit: converted
+        val v = videos(series)
+        v.open(0)
+        assertTrue(jfLib.plays.isNotEmpty())
+        v.leave(0)
+        assertEquals(listOf<String?>("ps"), jfLib.ended)
+        // left twice (fallen back, then closed): ended once
+        v.leave(0)
+        assertEquals(1, jfLib.ended.size)
+        // asked again (another way): the new one ends on its own
+        v.open(0, from = 60_000)
+        v.leave(0)
+        assertEquals(2, jfLib.ended.size)
+        // at home the file itself: no encoding to end
+        cellular = false
+        link.value = MediaLink(atHome = true)
+        v.open(1)
+        v.leave(1)
+        assertEquals(2, jfLib.ended.size)
+        // nothing asked yet: nothing to end
+        v.leave(2)
+        assertEquals(2, jfLib.ended.size)
+    }
+
+    @Test
+    fun `a deep picture that showed nothing here before - the next of that kind converts at once, others play as they are`() = runTest {
+        cellular = false
+        link.value = MediaLink(atHome = true)
+        // the decoder says it takes AVC High 10 (so the profile does not catch it)
+        every { hub.caps() } returns MediaDeviceCaps.fromCodecs(
+            listOf(
+                MediaDecoder("video/avc", listOf(android.media.MediaCodecInfo.CodecProfileLevel.AVCProfileHigh10 to android.media.MediaCodecInfo.CodecProfileLevel.AVCLevel52), maxWidth = 4096, maxHeight = 2304),
+                MediaDecoder("audio/mp4a-latm"),
+            ),
+            hdrScreen = false,
+            name = "GateControl",
+        )
+        val high10 = MediaStream(0, MediaStream.Type.VIDEO, codec = "h264", profile = "High 10", level = 41, bitDepth = 10, width = 1920, height = 1080)
+        val high = high10.copy(profile = "High", bitDepth = 8)
+        jfLib.details = mapOf(
+            "e4" to MediaDetail(episode(4), listOf(MediaVersion("v1", container = "mkv", bitrate = 3_200_000, streams = listOf(high10, enAac)))),
+            "e5" to MediaDetail(episode(5), listOf(MediaVersion("v1", container = "mkv", bitrate = 3_200_000, streams = listOf(high10, enAac)))),
+            "e6" to MediaDetail(episode(6), listOf(MediaVersion("v1", container = "mkv", bitrate = 3_200_000, streams = listOf(high, enAac)))),
+        )
+        val blind = mutableSetOf<String>()
+        val v = PhoneMediaVideos(series, hub, { quality }, { quality = it }, { cap }, { cellular }, blind = { s -> MediaPlayerLogic.deepKind(s) in blind })
+        v.open(0)
+        assertEquals(MediaFallback.NONE, jfLib.plays.last().fallback, "not known yet: the file itself first")
+        // it showed nothing directly and a picture converted (the player remembers the kind)
+        blind += MediaPlayerLogic.deepKind(high10)!!
+        v.open(1)
+        assertEquals(MediaFallback.CONVERT, jfLib.plays.last().fallback)
+        // an 8-bit picture is not touched by it
+        v.open(2)
+        assertEquals(MediaFallback.NONE, jfLib.plays.last().fallback)
+    }
 }

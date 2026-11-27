@@ -219,4 +219,18 @@ class MediaPlayerLogicTest {
         assertEquals("HEVC Main 10 10 Bit · DTS 5.1 · MKV", MediaPlayerLogic.codecs(v, null))
         assertEquals("HEVC Main 10 10 Bit · AAC Stereo · MKV", MediaPlayerLogic.codecs(v, 2))
     }
+
+    @Test
+    fun `the kind remembered when a picture showed nothing - only one deeper than 8 bits or 4-2-0`() {
+        val high10 = MediaStream(0, MediaStream.Type.VIDEO, codec = "h264", profile = "High 10", bitDepth = 10)
+        assertEquals("h264 high 10 10", MediaPlayerLogic.deepKind(high10))
+        assertEquals("h264 high 10", MediaPlayerLogic.deepKind(high10.copy(bitDepth = null)))
+        assertEquals("hevc 10", MediaPlayerLogic.deepKind(MediaStream(0, MediaStream.Type.VIDEO, codec = "HEVC", bitDepth = 10)))
+        assertEquals("h264 high 4:2:2", MediaPlayerLogic.deepKind(high10.copy(profile = "High 4:2:2", bitDepth = null)))
+        // a usual picture never: one that hung for another reason must not make all the others convert
+        assertNull(MediaPlayerLogic.deepKind(high10.copy(profile = "High", bitDepth = 8)))
+        assertNull(MediaPlayerLogic.deepKind(high10.copy(profile = null, bitDepth = null)))
+        assertNull(MediaPlayerLogic.deepKind(high10.copy(codec = null)))
+        assertNull(MediaPlayerLogic.deepKind(null))
+    }
 }

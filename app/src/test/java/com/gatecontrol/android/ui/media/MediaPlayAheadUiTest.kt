@@ -33,6 +33,7 @@ import com.gatecontrol.android.media.MediaTitle
 import com.gatecontrol.android.ui.components.GcCard
 import com.gatecontrol.android.ui.theme.GateControlTheme
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -162,6 +163,82 @@ class MediaPlayAheadUiTest {
         shot("handy-player-wartet-hell")
         rule.onNodeWithText("Jetzt abspielen").performClick()
         assertEquals(1, now)
+    }
+
+    /** As on the phone: H.264 10-Bit, 1080p, 20 min, 40 MB ahead at 29 Mbit/s. */
+    private val episodeUi = ui.copy(
+        queue = MediaQueue("jf", listOf(MediaTitle("e1", "jf", MediaTitle.Kind.EPISODE, "Folge 1", seriesName = "Kobaltnacht", season = 1, episode = 1, runtimeMs = 20 * 60_000L)), 0),
+        loading = true,
+        line = MediaPlayLine(MediaNet.AWAY, video = "1080p", measuredBps = 29_000_000),
+        ahead = MediaPlayAheadState(aheadBytes = 40_000_000, totalBytes = 420_000_000, headBytes = 0, rateBps = 29_000_000),
+        aheadBitrate = 2_700_000,
+    )
+
+    private fun player(u: MediaPlayerUi, dark: Boolean = false, landscape: Boolean = false) {
+        rule.setContent {
+            GateControlTheme(darkTheme = dark) {
+                Box(Modifier.testTag("shot")) {
+                    MediaPlayerScreen(u, player = null, landscape = landscape, pip = false, mobileCap = null, actions = MediaPlayerActions(onCast = {}))
+                }
+            }
+        }
+    }
+
+    @Test
+    fun `loading ahead while it starts directly - the card runs`() {
+        player(episodeUi)
+        rule.onNodeWithTag(AHEAD_CARD_TAG).performScrollTo().assertIsDisplayed()
+        rule.onNodeWithText("läuft").assertIsDisplayed()
+        rule.onNodeWithText("lädt mit 29 Mbit/s · reicht für ca. 2 Min. · wird nach dem Ansehen gelöscht").assertIsDisplayed()
+        shot("1-direkt-mitladen-laeuft-hell")
+    }
+
+    @Test
+    fun `fell back to converting - the note sits below the bar's buttons, the card says loading ahead stopped`() {
+        val fell = episodeUi.copy(
+            fellBack = true,
+            line = MediaPlayLine(MediaNet.AWAY, measuredBps = 29_000_000, converted = true, convertedBps = 8_000_000),
+            ahead = MediaPlayAheadState(stopped = true),
+        )
+        player(fell)
+        val note = rule.onNodeWithTag(FELL_BACK_TAG).assertIsDisplayed().fetchSemanticsNode().boundsInRoot
+        rule.onNodeWithText("Direkt ging nicht – die NAS wandelt um").assertIsDisplayed()
+        // never over Ton & Untertitel or Cast
+        for (tag in listOf(TRACKS_TAG, PLAYER_CAST_TAG)) {
+            val button = rule.onNodeWithTag(tag).assertIsDisplayed().fetchSemanticsNode().boundsInRoot
+            assertTrue("$tag overlapped", note.top >= button.bottom)
+        }
+        rule.onNodeWithTag(AHEAD_CARD_TAG).performScrollTo().assertIsDisplayed()
+        rule.onNodeWithText("beendet").assertIsDisplayed()
+        rule.onNodeWithText("Die NAS rechnet jetzt um, Mitladen ist nicht mehr nötig · der geladene Teil ist gelöscht").assertIsDisplayed()
+        rule.onNodeWithText("lädt mit 29 Mbit/s", substring = true).assertDoesNotExist()
+        shot("2-rueckfall-nas-rechnet-um-hell")
+    }
+
+    @Test
+    fun `fell back to converting - dark`() {
+        player(episodeUi.copy(fellBack = true, line = MediaPlayLine(MediaNet.AWAY, converted = true, convertedBps = 8_000_000), ahead = MediaPlayAheadState(stopped = true)), dark = true)
+        rule.onNodeWithTag(FELL_BACK_TAG).assertIsDisplayed()
+        rule.onNodeWithTag(AHEAD_CARD_TAG).performScrollTo().assertIsDisplayed()
+        shot("3-rueckfall-nas-rechnet-um-dunkel")
+    }
+
+    @Test
+    fun `fell back to converting - full screen, the note below the bar too`() {
+        player(episodeUi.copy(fellBack = true, line = MediaPlayLine(MediaNet.AWAY, converted = true, convertedBps = 8_000_000), ahead = MediaPlayAheadState(stopped = true)), landscape = true)
+        val note = rule.onNodeWithTag(FELL_BACK_TAG).assertIsDisplayed().fetchSemanticsNode().boundsInRoot
+        val button = rule.onNodeWithTag(TRACKS_TAG).assertIsDisplayed().fetchSemanticsNode().boundsInRoot
+        assertTrue(note.top >= button.bottom)
+        shot("4-rueckfall-vollbild-hell")
+    }
+
+    @Test
+    fun `the card after the fall back alone`() {
+        rule.setContent { Frame(false) { Column { AheadCard(MediaPlayAheadState(stopped = true), bitrate = 2_700_000) } } }
+        rule.onNodeWithText("Auf dem Gerät mitgeladen").assertIsDisplayed()
+        rule.onNodeWithText("beendet").assertIsDisplayed()
+        rule.onNodeWithText("fehlt noch").assertDoesNotExist()
+        shot("5-karte-beendet-hell")
     }
 
     @Test
