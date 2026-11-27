@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.163.0] - 2026-11-27
+
+### Features
+- Hinweis vor dem Abspielen – Video für die Nacht zum Umwandeln vormerken (#315)
+
+---
+
 ## [1.162.0] - 2026-11-27
 
 ### Features
