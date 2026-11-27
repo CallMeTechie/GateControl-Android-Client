@@ -227,6 +227,14 @@ class MailEventEditViewModel @Inject constructor(
         val cal = saved.get<String>(Screen.MailEventEdit.ARG_CAL)?.toLongOrNull() ?: defaultCalendar(cals)
         val to = saved.get<String>(Screen.MailEventEdit.ARG_TO)?.let { MailLogic.parseRecipients(it).addresses }.orEmpty()
         val prefs = cals?.prefs
+        // Notizen 1.9.0 „Mehr Angaben …“: what the quick entry understood (the reminder its chip showed)
+        val rem = saved.get<String>(Screen.MailEventEdit.ARG_REM)
+        val reminders = when {
+            rem == "none" -> emptyList()
+            rem?.toIntOrNull() != null -> listOf(rem.toInt().coerceIn(0, 40320))
+            else -> listOfNotNull(if (allDay) prefs?.allDayReminder else prefs?.defaultReminder ?: 15)
+        }
+        val rep = com.gatecontrol.android.notizen.NotizenEvents.parseRepeatArg(saved.get<String>(Screen.MailEventEdit.ARG_REP))
         _state.update {
             it.copy(
                 form = EventForm(
@@ -237,8 +245,17 @@ class MailEventEditViewModel @Inject constructor(
                     endDay = e.toLocalDate(),
                     endTime = e.toLocalTime(),
                     zone = deviceZone.id,
-                    reminders = listOfNotNull(if (allDay) prefs?.allDayReminder else prefs?.defaultReminder ?: 15),
+                    reminders = reminders,
                     attendees = to.map { a -> MAttendeeInput(a.email, a.name) },
+                    title = saved.get<String>(Screen.MailEventEdit.ARG_TITLE)?.take(255).orEmpty(),
+                    location = saved.get<String>(Screen.MailEventEdit.ARG_LOC)?.take(255).orEmpty(),
+                    ruleKind = when (rep?.first) {
+                        null -> MailPimLogic.RULE_NONE
+                        "monthly" -> MailPimLogic.RULE_MONTHLY_DAY
+                        else -> rep.first
+                    },
+                    interval = rep?.second ?: 1,
+                    byDay = rep?.third.orEmpty(),
                 ),
             )
         }

@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Notizen & Aufgaben: Termine des Kalenders in „Schnell hinzufügen“ und auf der Übersicht (Plugin gatecontrol-notizen 1.9.0, `calendarEvents`). -->
+<resources>
+    <string name="notizen_quick_event">Termin</string>
+    <string name="notizen_new_event">Neuer Termin</string>
+    <string name="notizen_ev_ask_head">Das sieht wie ein Termin aus.</string>
+    <string name="notizen_ev_ask">Als Termin steht es im Kalender und nicht in der Aufgabenliste.</string>
+    <string name="notizen_ev_ask_yes">Als Termin anlegen</string>
+    <string name="notizen_ev_ask_no">Aufgabe lassen</string>
+    <string name="notizen_ev_all_day">Ganztägig</string>
+    <string name="notizen_ev_place">Ort: %1$s</string>
+    <string name="notizen_ev_place_ask">Ort: %1$s?</string>
+    <string name="notizen_ev_place_title">Ort des Termins</string>
+    <string name="notizen_ev_place_field">Ort oder Adresse</string>
+    <string name="notizen_ev_place_hint">Nur ein Text. Er steht im Kalendereintrag. Es gibt keine Erinnerung beim Ankommen und keine Standort-Abfrage.</string>
+    <string name="notizen_ev_place_take">Übernehmen</string>
+    <string name="notizen_ev_place_remove">Ort entfernen</string>
+    <string name="notizen_ev_calendar_pick">Kalender für den Termin</string>
+    <string name="notizen_ev_remind_pick">Erinnerung</string>
+    <string name="notizen_ev_remind_none">Keine Erinnerung</string>
+    <string name="notizen_ev_more">Mehr Angaben …</string>
+    <string name="notizen_ev_title_is">Titel: „%1$s“.</string>
+    <string name="notizen_ev_title_place_hint">Ein Tipp auf den gestrichelten Baustein übernimmt den Text auch als Ort.</string>
+    <string name="notizen_ev_all_day_hint">Ohne Uhrzeit gilt der Termin für den ganzen Tag.</string>
+    <string name="notizen_ev_help">Nach „im“, „in“, „bei“ oder „beim“ wird der Rest als Ort gelesen. „14 bis 16 Uhr“ wird als Dauer erkannt.</string>
+    <string name="notizen_ev_none_title">Kein Kalender vorhanden</string>
+    <string name="notizen_ev_why_mail">Termine brauchen den Kalender aus dem Plugin „Mail“. Es ist nicht eingerichtet. Frag die Person, die den Server verwaltet.</string>
+    <string name="notizen_ev_why_off">Der Kalender ist für dich nicht eingeschaltet. Frag die Person, die den Server verwaltet.</string>
+    <string name="notizen_ev_why_none">Du hast keinen Kalender, in den du schreiben kannst. Lege in Mail einen Kalender an.</string>
+    <string name="notizen_ev_why_unreachable">Der Kalender antwortet gerade nicht. Der Termin wird gesendet, sobald er wieder antwortet.</string>
+    <string name="notizen_ev_as_task">Als Aufgabe mit Datum speichern</string>
+    <string name="notizen_ev_as_task_hint">Der Text geht nicht verloren. Er wird eine Aufgabe mit Datum, Uhrzeit und Erinnerung.</string>
+    <string name="notizen_ev_waiting">wartet auf Verbindung</string>
+    <string name="notizen_ev_cd">Termin im Kalender %1$s</string>
+    <string name="notizen_msg_event_saved">Termin im Kalender gespeichert</string>
+    <string name="notizen_set_events">Termine aus dem Kalender</string>
+    <string name="notizen_set_events_hint">Hier wählst du, welche Kalender auf „Mein Tag“ und „Geplant“ erscheinen.</string>
+    <string name="notizen_set_events_none">Noch keine Kalender.</string>
+    <string name="notizen_cal_kind_default">Standard für neue Termine</string>
+    <string name="notizen_cal_kind_own">eigener Kalender</string>
+    <string name="notizen_cal_kind_shared">geteilter Kalender</string>
+    <string name="notizen_cal_kind_family">Familienkalender</string>
+    <string name="notizen_cal_kind_subscribed">abonniert</string>
+    <string name="notizen_cal_kind_tasks">stehen schon als Aufgabe da</string>
+</resources>

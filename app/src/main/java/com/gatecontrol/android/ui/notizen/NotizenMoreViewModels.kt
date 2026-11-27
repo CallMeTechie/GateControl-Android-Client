@@ -53,7 +53,34 @@ class NotizenSourcesViewModel @Inject constructor(
         val offline: Boolean = false,
         /** Plugin 1.5.0 (`places`): „Meine Orte“, the places of the family, what is remembered for which kind. */
         val places: com.gatecontrol.android.notizen.NPlaces = com.gatecontrol.android.notizen.NPlaces(),
+        /** Plugin 1.9.0 (`calendarEvents`): the calendars whose events show on the overview (Bild 8). */
+        val calendars: List<com.gatecontrol.android.notizen.NEventCalendar> = emptyList(),
     )
+
+    // ── Termine aus dem Kalender (plugin 1.9.0) ─────────────
+
+    private fun loadCalendars() {
+        viewModelScope.launch {
+            if (_ui.value.me?.calendarEvents != true) return@launch
+            repo.eventCalendars().valueOrNull()?.value?.let { c -> _ui.update { it.copy(calendars = c.calendars) } }
+        }
+    }
+
+    /** A calendar's events on „Mein Tag“ and „Geplant“ — or not (`prefs.groups['gatecontrol-mail|<key>']`). */
+    fun setCalendarShown(cal: com.gatecontrol.android.notizen.NEventCalendar, on: Boolean) {
+        _ui.update { u -> u.copy(calendars = u.calendars.map { if (it.key == cal.key) it.copy(shown = on) else it }) }
+        viewModelScope.launch {
+            val r = repo.api.putPrefs(NotizenJson.prefsBody(groups = mapOf("gatecontrol-mail|" + cal.key to if (on) "show" else "hide")))
+            if (r is NResult.Ok) {
+                _ui.update { it.copy(prefs = r.value) }
+                repo.setPrefs(r.value)
+                repo.touched("items")
+            } else {
+                _message.value = r.code()
+            }
+            loadCalendars()
+        }
+    }
 
     // ── Orte (plugin 1.5.0) ─────────────────────────────────
 
@@ -189,6 +216,7 @@ class NotizenSourcesViewModel @Inject constructor(
             val s = repo.api.sources()
             _ui.update { it.copy(me = me?.value, prefs = me?.value?.prefs ?: it.prefs, sources = s.valueOrNull() ?: it.sources, loading = false, offline = s is NResult.Offline) }
             loadPlaces()
+            loadCalendars()
             if (s is NResult.Failed) _message.value = s.code()
         }
     }

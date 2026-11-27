@@ -198,7 +198,7 @@ sealed class Screen(val route: String) {
      * A new event (`cal`, `start`/`end` of the tapped time, `allDay`, `to`: attendees) or the event `id` to change
      * (`occ` + `scope`: only this occurrence or the whole series).
      */
-    data object MailEventEdit : Screen("mail/event-edit?id={id}&occ={occ}&scope={scope}&cal={cal}&start={start}&end={end}&allDay={allDay}&to={to}") {
+    data object MailEventEdit : Screen("mail/event-edit?id={id}&occ={occ}&scope={scope}&cal={cal}&start={start}&end={end}&allDay={allDay}&to={to}&title={title}&loc={loc}&rem={rem}&rep={rep}") {
         const val ARG_ID = "id"
         const val ARG_OCC = "occ"
         const val ARG_SCOPE = "scope"
@@ -207,6 +207,11 @@ sealed class Screen(val route: String) {
         const val ARG_END = "end"
         const val ARG_ALL_DAY = "allDay"
         const val ARG_TO = "to"
+        /** „Mehr Angaben …“ of the quick entry (Notizen 1.9.0): title, place, reminder (`none` | minutes), rule. */
+        const val ARG_TITLE = "title"
+        const val ARG_LOC = "loc"
+        const val ARG_REM = "rem"
+        const val ARG_REP = "rep"
         fun create(
             id: Long? = null,
             occurrence: String? = null,
@@ -216,10 +221,15 @@ sealed class Screen(val route: String) {
             end: Long? = null,
             allDay: Boolean = false,
             to: String? = null,
+            title: String? = null,
+            location: String? = null,
+            reminder: String? = null,
+            repeat: String? = null,
         ): String = MailRoutes.build(
             "mail/event-edit",
             "id" to id?.toString(), "occ" to occurrence, "scope" to scope, "cal" to calendar?.toString(),
             "start" to start?.toString(), "end" to end?.toString(), "allDay" to (if (allDay) "1" else null), "to" to to,
+            "title" to title?.take(255), "loc" to location?.take(255), "rem" to reminder, "rep" to repeat,
         )
     }
     /** An invitation (a push of a GateControl person's invitation). */

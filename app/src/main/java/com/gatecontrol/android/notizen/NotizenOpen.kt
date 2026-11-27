@@ -10,6 +10,8 @@ object NotizenOpen {
     sealed interface Target
     /** A mail of the Mail tab. */
     data class MailMessage(val id: Long) : Target
+    /** An event's page in Mail's calendar (plugin 1.9.0: `event/<id>[/<occurrence>]`). */
+    data class MailEvent(val id: Long, val occurrence: String?) : Target
     /** A file's page in Drive (a deadline's document). */
     data class DriveFile(val id: Long) : Target
     /** A screen of the Familie tab ([com.gatecontrol.android.familie.FamilieDest] key). */
@@ -51,6 +53,9 @@ object NotizenOpen {
             MAIL -> when {
                 !have.mail -> null
                 parts[0] == "message" && id != null -> MailMessage(id)
+                // an event of the calendar on the overview (the occurrence of a series as its third part)
+                parts[0] == "event" && parts.size in 2..3 && parts[1].toLongOrNull()?.takeIf { it > 0 } != null ->
+                    MailEvent(parts[1].toLong(), parts.getOrNull(2)?.takeIf { it.isNotEmpty() })
                 else -> Tab(MAIL)
             }
             DRIVE -> when {

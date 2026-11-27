@@ -281,6 +281,11 @@ internal fun NEntryRow(
     showAssignee: Boolean = false,
     onAssignee: (() -> Unit)? = null,
 ) {
+    // plugin 1.9.0: an event of the calendar — its own row, no tick (Bild 7)
+    if (entry is NItem && entry.event != null) {
+        NEventRow(entry, ctx, onOpen, divider)
+        return
+    }
     val x = GateControlTheme.extraColors
     val scheme = MaterialTheme.colorScheme
     val item = entry as? NItem
@@ -532,6 +537,7 @@ internal fun messageText(code: String): String = when (code) {
     "line_task" -> stringResource(R.string.notizen_msg_line_task)
     "save_first" -> stringResource(R.string.notizen_msg_save_first)
     "task_saved" -> stringResource(R.string.notizen_msg_task_saved)
+    "event_saved" -> stringResource(R.string.notizen_msg_event_saved)
     "note_saved" -> stringResource(R.string.notizen_msg_note_saved)
     "list_created" -> stringResource(R.string.notizen_msg_list_created)
     "list_later" -> stringResource(R.string.notizen_msg_list_later)

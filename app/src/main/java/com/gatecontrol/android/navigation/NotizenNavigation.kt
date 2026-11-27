@@ -78,12 +78,26 @@ private fun notizenNav(navController: NavHostController, have: () -> NotizenOpen
         openSource = { open ->
             when (val t = NotizenOpen.target(open, have())) {
                 is NotizenOpen.MailMessage -> { go(Screen.MailMessage.create(t.id)); true }
+                is NotizenOpen.MailEvent -> { go(Screen.MailEvent.create(t.id, t.occurrence)); true }
                 is NotizenOpen.DriveFile -> { go(Screen.DriveFile.create(t.id)); true }
                 is NotizenOpen.Familie -> { go(Screen.FamiliePage.create(t.dest)); true }
                 is NotizenOpen.Note -> { go(NotizenRoutes.note(t.id)); true }
                 is NotizenOpen.Task -> { go(NotizenRoutes.task(t.id)); true }
                 is NotizenOpen.Tab -> NotizenRoutes.tabOf(t.plugin)?.let { go(it); true } ?: false
                 null -> false
+            }
+        },
+        eventForm = { a ->
+            if (!have().mail) {
+                false
+            } else {
+                go(
+                    Screen.MailEventEdit.create(
+                        calendar = a.calendarId, start = a.start, end = a.end, allDay = a.allDay,
+                        title = a.title, location = a.location, reminder = a.reminder, repeat = a.repeat,
+                    ),
+                )
+                true
             }
         },
         back = { navController.popBackStack() },
