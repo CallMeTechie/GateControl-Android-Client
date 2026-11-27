@@ -93,6 +93,7 @@ import kotlinx.coroutines.withContext
 import timber.log.Timber
 import java.io.File
 import javax.inject.Inject
+import com.gatecontrol.android.ui.components.KeepScreenOnWhilePlaying
 
 /*
  * The viewer of pictures and videos (Drive 1.21): the pages of PhotoViewer (DrivePhotosUi.kt) — a picture that zooms
@@ -328,6 +329,7 @@ internal fun DriveVideoSurface(
     modifier: Modifier = Modifier,
     secure: Boolean = false,
 ) {
+    KeepScreenOnWhilePlaying(player)
     AndroidView(
         factory = { ctx ->
             PlayerView(ctx).apply {

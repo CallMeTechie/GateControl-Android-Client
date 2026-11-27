@@ -95,6 +95,7 @@ import kotlinx.coroutines.delay
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+import com.gatecontrol.android.ui.components.KeepScreenOnWhilePlaying
 
 private val PictureBackground = Color(0xFF1E252C)
 private val PillDark = Color(0x73000000)
@@ -563,6 +564,8 @@ private fun ClipPlayerDialog(playing: HomeCameraViewModel.PlayingClip, viewModel
     }
     Dialog(onDismissRequest = onClose, properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
         Box(Modifier.fillMaxSize().background(Color.Black)) {
+            // in the dialog: its window is the one shown
+            KeepScreenOnWhilePlaying(player)
             if (player != null) {
                 AndroidView(
                     factory = { ctx ->

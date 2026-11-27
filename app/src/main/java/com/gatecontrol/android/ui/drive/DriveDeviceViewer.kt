@@ -42,6 +42,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import timber.log.Timber
 import java.io.File
+import com.gatecontrol.android.ui.components.KeepScreenOnWhilePlaying
 
 /** What the app shows itself: pictures, videos, PDFs, texts and Markdown (as Drive's own viewers). */
 internal enum class DeviceView { IMAGE, VIDEO, PDF, TEXT, MARKDOWN }
@@ -158,6 +159,7 @@ private fun DeviceVideo(file: File) {
         player.playWhenReady = true
         onDispose { player.release() }
     }
+    KeepScreenOnWhilePlaying(player)
     AndroidView(
         factory = { ctx ->
             PlayerView(ctx).apply {
