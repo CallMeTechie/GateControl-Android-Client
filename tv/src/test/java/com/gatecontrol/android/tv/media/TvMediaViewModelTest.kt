@@ -4,6 +4,14 @@ import com.gatecontrol.android.media.MediaDetail
 import com.gatecontrol.android.media.MediaGate
 import com.gatecontrol.android.media.MediaHub
 import com.gatecontrol.android.media.MediaRoute
+import com.gatecontrol.android.media.server.MediaConvert
+import com.gatecontrol.android.media.server.MediaConvertApi
+import com.gatecontrol.android.media.server.MediaConvertHint
+import com.gatecontrol.android.media.server.MediaConvertItem
+import com.gatecontrol.android.media.server.MediaConvertState
+import com.gatecontrol.android.media.server.MediaConvertStatus
+import com.gatecontrol.android.media.server.MediaServerError
+import com.gatecontrol.android.media.server.MediaServerResult
 import com.gatecontrol.android.media.server.MediaServerSources
 import com.gatecontrol.android.media.server.MediaServerState
 import com.gatecontrol.android.media.server.MediaSignIn
@@ -73,6 +81,23 @@ class TvMediaViewModelTest {
     private val rowsCache = MediaRowsCache(null, now = { clock })
     private val servers = mockk<MediaServerSources>(relaxed = true) { every { state } returns MutableStateFlow(MediaServerState(known = true, tab = true)) }
 
+    /** „Videos umwandeln“ of the plugin: [convertStatus] null is a plugin before 1.6.0 (404). */
+    private var convertStatus: MediaConvertStatus? = null
+    private val convertAsked = mutableListOf<List<String>>()
+    private val convertRequested = mutableListOf<String>()
+    private val convertApi = object : MediaConvertApi {
+        override suspend fun convertStatus(itemIds: List<String>): MediaServerResult<MediaConvertStatus> {
+            convertAsked += itemIds
+            return convertStatus?.let { MediaServerResult.Ok(it) } ?: MediaServerResult.Refused(MediaServerError(404, "not_found"))
+        }
+
+        override suspend fun convertRequest(itemId: String): MediaServerResult<MediaConvertItem> {
+            convertRequested += itemId
+            return MediaServerResult.Ok(MediaConvertItem(itemId, requested = true))
+        }
+    }
+    private val noConvert = MediaConvert(convertApi)
+
     private val kobalt = MediaTitle("m1", "s1", MediaTitle.Kind.MOVIE, "Kobaltnacht", runtimeMs = 6_480_000, positionMs = 2_530_000, seriesId = null)
     private val sternwarte = MediaTitle("m9", "s1", MediaTitle.Kind.MOVIE, "Sternwarte 9")
 
@@ -100,7 +125,7 @@ class TvMediaViewModelTest {
         coEvery { lib.movies(0, any()) } returns MediaResult.Ok(MediaPage(listOf(kobalt, sternwarte), total = 412, start = 0))
         coEvery { lib.series(0, any()) } returns MediaResult.Ok(MediaPage(emptyList(), total = 0, start = 0))
         coEvery { lib.movies(2, any()) } returns MediaResult.Ok(MediaPage(listOf(MediaTitle("m3", "s1", MediaTitle.Kind.MOVIE, "Moorlicht")), total = 412, start = 2))
-        val vm = TvMediaViewModel(media, selection, servers, rowsCache)
+        val vm = TvMediaViewModel(media, selection, servers, rowsCache, noConvert)
         vm.refresh()
         advanceUntilIdle()
         val ui = vm.ui.value
@@ -118,7 +143,7 @@ class TvMediaViewModelTest {
     @Test
     fun `signed out by the server - the access is dropped`() = runTest(dispatcher) {
         coEvery { lib.resume(any()) } returns MediaResult.Unauthorized
-        val vm = TvMediaViewModel(media, selection, servers, rowsCache)
+        val vm = TvMediaViewModel(media, selection, servers, rowsCache, noConvert)
         vm.refresh()
         advanceUntilIdle()
         assertEquals(MediaProblem.SIGNED_OUT, vm.ui.value.problem)
@@ -128,7 +153,7 @@ class TvMediaViewModelTest {
     @Test
     fun `the detail page away suggests the adapted quality, play hands the queue over`() = runTest(dispatcher) {
         coEvery { lib.detail("m1") } returns MediaResult.Ok(MediaDetail(kobalt, listOf(MediaVersion("v1", bitrate = 52_000_000))))
-        val vm = TvMediaViewModel(media, selection, servers, rowsCache)
+        val vm = TvMediaViewModel(media, selection, servers, rowsCache, noConvert)
         vm.open(kobalt)
         advanceUntilIdle()
         val d = vm.details.value.single()
@@ -145,6 +170,84 @@ class TvMediaViewModelTest {
         assertNull(q.startMs)
         assertTrue(vm.back())
         assertFalse(vm.back())
+    }
+
+    private val tenBitId = "0123456789abcdef0123456789abcdef"
+    private val tenBit = MediaTitle(tenBitId, "s1", MediaTitle.Kind.EPISODE, "Die stille Werft", seriesName = "Sternenhafen", season = 1, episode = 5)
+    private val tenBitVersion = MediaVersion(
+        "v1",
+        streams = listOf(com.gatecontrol.android.media.MediaStream(0, com.gatecontrol.android.media.MediaStream.Type.VIDEO, codec = "h264", profile = "High 10", bitDepth = 10)),
+    )
+
+    @Test
+    fun `an H264 10-bit episode shows the plugin's night queue, a second opening asks nothing`() = runTest(dispatcher) {
+        every { media.caps() } returns com.gatecontrol.android.media.jellyfin.JellyfinDeviceCaps()
+        coEvery { lib.detail(tenBitId) } returns MediaResult.Ok(MediaDetail(tenBit, listOf(tenBitVersion)))
+        convertStatus = MediaConvertStatus(true, mapOf(tenBitId to MediaConvertItem(tenBitId, MediaConvertState.QUEUED, position = 2, startsAt = 1_000L, level = "convert")))
+        val vm = TvMediaViewModel(media, selection, servers, rowsCache, noConvert)
+        vm.open(tenBit)
+        advanceUntilIdle()
+        assertEquals(MediaConvertHint.Queued(2, 1_000L), vm.details.value.single().convert)
+        assertTrue(vm.back())
+        vm.open(tenBit)
+        advanceUntilIdle()
+        assertEquals(MediaConvertHint.Queued(2, 1_000L), vm.details.value.single().convert)
+        assertEquals(1, convertAsked.size)
+    }
+
+    @Test
+    fun `without the plugin route no hint, a file that plays never asks`() = runTest(dispatcher) {
+        every { media.caps() } returns com.gatecontrol.android.media.jellyfin.JellyfinDeviceCaps()
+        coEvery { lib.detail(tenBitId) } returns MediaResult.Ok(MediaDetail(tenBit, listOf(tenBitVersion)))
+        val vm = TvMediaViewModel(media, selection, servers, rowsCache, noConvert)
+        vm.open(tenBit)
+        advanceUntilIdle()
+        assertNull(vm.details.value.single().convert)
+        val eight = tenBitVersion.copy(streams = listOf(com.gatecontrol.android.media.MediaStream(0, com.gatecontrol.android.media.MediaStream.Type.VIDEO, codec = "h264", profile = "High", bitDepth = 8)))
+        val other = "fedcba9876543210fedcba9876543210"
+        coEvery { lib.detail(other) } returns MediaResult.Ok(MediaDetail(tenBit.copy(id = other), listOf(eight)))
+        convertStatus = MediaConvertStatus(true, emptyMap())
+        vm.open(tenBit.copy(id = other))
+        advanceUntilIdle()
+        assertNull(vm.details.value.last().convert)
+        assertEquals(1, convertAsked.size)
+    }
+
+    @Test
+    fun `Fuer heute Nacht vormerken puts the file on the list`() = runTest(dispatcher) {
+        every { media.caps() } returns com.gatecontrol.android.media.jellyfin.JellyfinDeviceCaps()
+        coEvery { lib.detail(tenBitId) } returns MediaResult.Ok(MediaDetail(tenBit, listOf(tenBitVersion)))
+        convertStatus = MediaConvertStatus(true, mapOf(tenBitId to MediaConvertItem(tenBitId, level = "convert")))
+        val vm = TvMediaViewModel(media, selection, servers, rowsCache, noConvert)
+        vm.open(tenBit)
+        advanceUntilIdle()
+        assertEquals(MediaConvertHint.Offer, vm.details.value.single().convert)
+        vm.requestConvert()
+        advanceUntilIdle()
+        assertEquals(listOf(tenBitId), convertRequested)
+        assertEquals(MediaConvertHint.Requested, vm.details.value.single().convert)
+    }
+
+    @Test
+    fun `Andere Folge - an episode opens its series on its season, a film goes back to the overview`() = runTest(dispatcher) {
+        val ep = tenBit.copy(seriesId = "se1", seasonId = "sea2")
+        coEvery { lib.detail(tenBitId) } returns MediaResult.Ok(MediaDetail(ep, listOf(tenBitVersion)))
+        coEvery { lib.detail("se1") } returns MediaResult.Ok(MediaDetail(MediaTitle("se1", "s1", MediaTitle.Kind.SERIES, "Sternenhafen"), emptyList()))
+        coEvery { lib.seasons(any()) } returns MediaResult.Ok(listOf(MediaTitle("sea1", "s1", MediaTitle.Kind.SEASON, "Staffel 1", unplayed = 3), MediaTitle("sea2", "s1", MediaTitle.Kind.SEASON, "Staffel 2")))
+        coEvery { lib.episodes(any(), any()) } returns MediaResult.Ok(emptyList())
+        val vm = TvMediaViewModel(media, selection, servers, rowsCache, noConvert)
+        vm.open(ep)
+        advanceUntilIdle()
+        vm.other()
+        advanceUntilIdle()
+        val top = vm.details.value.single()
+        assertEquals("se1", top.title.id)
+        assertEquals("sea2", top.seasonId)
+        coEvery { lib.detail("m1") } returns MediaResult.Ok(MediaDetail(kobalt, emptyList()))
+        vm.open(kobalt)
+        advanceUntilIdle()
+        vm.other()
+        assertTrue(vm.details.value.isEmpty())
     }
 
     private val share = MediaSource("smb1", MediaSourceKind.SMB, "\\\\nas\\filme", "smb://nas/filme", userName = "kino", password = "pw")
@@ -166,7 +269,7 @@ class TvMediaViewModelTest {
         coEvery { shareLib.latestMovies(any()) } returns MediaResult.Ok(listOf(kupfer))
         coEvery { shareLib.movies(0, any()) } returns MediaResult.Ok(MediaPage(listOf(achter, kupfer), total = 2, start = 0))
         coEvery { shareLib.series(0, any()) } returns MediaResult.Ok(MediaPage(emptyList(), total = 0, start = 0))
-        val vm = TvMediaViewModel(media, selection, servers, rowsCache)
+        val vm = TvMediaViewModel(media, selection, servers, rowsCache, noConvert)
         vm.refresh()
         advanceUntilIdle()
         val ui = vm.ui.value
@@ -193,7 +296,7 @@ class TvMediaViewModelTest {
         every { media.library(share) } returns shareLib
         val lindqvist = MediaTitle("f:l.mkv", "smb1", MediaTitle.Kind.MOVIE, "Die Lindqvist-Akten", positionMs = 60_000, fromShare = true)
         coEvery { shareLib.resume(any()) } returns MediaResult.Ok(listOf(lindqvist))
-        val vm = TvMediaViewModel(media, selection, servers, rowsCache)
+        val vm = TvMediaViewModel(media, selection, servers, rowsCache, noConvert)
         vm.refreshResume()
         advanceUntilIdle()
         assertEquals(listOf("f:l.mkv"), vm.ui.value.resume.map { it.id })
@@ -206,7 +309,7 @@ class TvMediaViewModelTest {
         coEvery { lib.latest(any()) } returns MediaResult.Ok(emptyList())
         coEvery { lib.movies(0, any()) } returns MediaResult.Ok(MediaPage(emptyList(), total = 0, start = 0))
         coEvery { lib.series(0, any()) } returns MediaResult.Ok(MediaPage(emptyList(), total = 0, start = 0))
-        val vm = TvMediaViewModel(media, selection, servers, rowsCache)
+        val vm = TvMediaViewModel(media, selection, servers, rowsCache, noConvert)
         vm.refresh()
         advanceUntilIdle()
         verify { servers.refreshSoon() }
@@ -248,7 +351,7 @@ class TvMediaViewModelTest {
         signedOut()
         val answer = CompletableDeferred<MediaSignIn>()
         coEvery { servers.signIn("s1") } coAnswers { answer.await() }
-        val vm = TvMediaViewModel(media, selection, servers, rowsCache)
+        val vm = TvMediaViewModel(media, selection, servers, rowsCache, noConvert)
         vm.refresh()
         advanceUntilIdle()
         assertEquals(MediaProblem.SIGNED_OUT, vm.ui.value.problem)
@@ -270,7 +373,7 @@ class TvMediaViewModelTest {
     fun `Neu anmelden - it fails, the reason is shown, a source by hand opens Quellen`() = runTest(dispatcher) {
         signedOut()
         coEvery { servers.signIn("s1") } returns MediaSignIn.Problem("no_mapping")
-        val vm = TvMediaViewModel(media, selection, servers, rowsCache)
+        val vm = TvMediaViewModel(media, selection, servers, rowsCache, noConvert)
         vm.refresh()
         advanceUntilIdle()
         vm.repair()
@@ -291,7 +394,7 @@ class TvMediaViewModelTest {
     fun `signed in again in the background (after a revocation) - the rows load by themselves`() = runTest(dispatcher) {
         emptyLibrary()
         signedOut()
-        val vm = TvMediaViewModel(media, selection, servers, rowsCache)
+        val vm = TvMediaViewModel(media, selection, servers, rowsCache, noConvert)
         vm.refresh()
         advanceUntilIdle()
         assertEquals(MediaProblem.SIGNED_OUT, vm.ui.value.problem)
@@ -307,7 +410,7 @@ class TvMediaViewModelTest {
         every { media.gate } returns MutableStateFlow(MediaGate.BLOCKED)
         every { media.route(any()) } returns MediaRoute.BLOCKED
         coEvery { lib.resume(any()) } returns MediaResult.Offline
-        val vm = TvMediaViewModel(media, selection, servers, rowsCache)
+        val vm = TvMediaViewModel(media, selection, servers, rowsCache, noConvert)
         vm.refresh()
         advanceUntilIdle()
         assertEquals(MediaProblem.VPN, vm.ui.value.problem)
@@ -322,7 +425,7 @@ class TvMediaViewModelTest {
         coEvery { lib.resume(any()) } coAnswers { answer.await() }
         coEvery { lib.movies(0, any()) } returns MediaResult.Ok(MediaPage(listOf(kobalt), total = 412, start = 0))
         coEvery { lib.series(0, any()) } returns MediaResult.Ok(MediaPage(emptyList(), total = 0, start = 0))
-        val vm = TvMediaViewModel(media, selection, servers, rowsCache)
+        val vm = TvMediaViewModel(media, selection, servers, rowsCache, noConvert)
         vm.show()
         advanceUntilIdle()
         // the cache's rows, without the spinner, while the server is asked
@@ -337,7 +440,7 @@ class TvMediaViewModelTest {
     @Test
     fun `shown again within a minute - nothing is asked, Erneut versuchen asks`() = runTest(dispatcher) {
         rowsCache.put(source, MediaRows(resume = listOf(sternwarte)))
-        val vm = TvMediaViewModel(media, selection, servers, rowsCache)
+        val vm = TvMediaViewModel(media, selection, servers, rowsCache, noConvert)
         vm.show()
         advanceUntilIdle()
         assertEquals(listOf("m9"), vm.ui.value.resume.map { it.id })
@@ -353,7 +456,7 @@ class TvMediaViewModelTest {
         rowsCache.put(source, MediaRows(resume = listOf(sternwarte)))
         coEvery { lib.detail("m1") } returns MediaResult.Ok(MediaDetail(kobalt, listOf(MediaVersion("v1"))))
         coEvery { lib.setFavorite("m1", true) } returns MediaResult.Ok(Unit)
-        val vm = TvMediaViewModel(media, selection, servers, rowsCache)
+        val vm = TvMediaViewModel(media, selection, servers, rowsCache, noConvert)
         vm.open(kobalt)
         advanceUntilIdle()
         assertTrue(rowsCache.fresh(source))

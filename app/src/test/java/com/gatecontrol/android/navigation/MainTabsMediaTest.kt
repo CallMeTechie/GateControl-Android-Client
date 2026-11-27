@@ -41,5 +41,9 @@ class MainTabsMediaTest {
     fun `the routes of the detail page and of adding a source`() {
         val t = com.gatecontrol.android.media.MediaTitle("m1", "jf", com.gatecontrol.android.media.MediaTitle.Kind.MOVIE, "Blaue Stunde & Söhne")
         assertEquals("media/title?source=jf&id=m1&name=Blaue%20Stunde%20%26%20S%C3%B6hne", MediaRoutes.detail(t))
+        // „Andere Folge“: a series on the episode's season; a film never carries a season
+        val series = com.gatecontrol.android.media.MediaTitle("s1", "jf", com.gatecontrol.android.media.MediaTitle.Kind.SERIES, "Sternenhafen", seasonId = "sea2")
+        assertEquals("media/title?source=jf&id=s1&name=Sternenhafen&season=sea2", MediaRoutes.detail(series))
+        assertEquals("media/title?source=jf&id=m1&name=Blaue%20Stunde%20%26%20S%C3%B6hne", MediaRoutes.detail(t.copy(seasonId = "x")))
     }
 }

@@ -66,7 +66,7 @@ interface MediaCastApi {
 class MediaServerHttpApi @Inject constructor(
     private val setupRepository: SetupRepository,
     private val apiClientProvider: ApiClientProvider,
-) : MediaServerApi, MediaCastApi {
+) : MediaServerApi, MediaCastApi, MediaConvertApi {
 
     private fun enc(v: String) = URLEncoder.encode(v, "UTF-8").replace("+", "%20")
 
@@ -154,6 +154,17 @@ class MediaServerHttpApi @Inject constructor(
         }
         val body = com.gatecontrol.android.media.cast.CastEnvelopes.request(to, message)
         return call({ pluginPost(MEDIA_PLUGIN, "v1/cast/${message.session}/message", body) }, unit)
+    }
+
+    override suspend fun convertStatus(itemIds: List<String>): MediaServerResult<MediaConvertStatus> {
+        val ids = itemIds.mapNotNull(MediaConvertLogic::itemId).distinct()
+        if (ids.isEmpty() || ids.size > MediaConvertLogic.MAX_IDS) return MediaServerResult.Refused(MediaServerError(0, "invalid"))
+        return call({ pluginGet(MEDIA_PLUGIN, "v1/convert/status", mapOf("items" to ids.joinToString(","))) }, MediaConvertLogic::status)
+    }
+
+    override suspend fun convertRequest(itemId: String): MediaServerResult<MediaConvertItem> {
+        val id = MediaConvertLogic.itemId(itemId) ?: return MediaServerResult.Refused(MediaServerError(0, "invalid"))
+        return call({ pluginPost(MEDIA_PLUGIN, "v1/convert/request", JsonObject().apply { addProperty("itemId", id) }) }) { MediaConvertLogic.requested(id, it) }
     }
 
     override suspend fun tab(): Boolean? {

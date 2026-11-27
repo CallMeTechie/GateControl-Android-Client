@@ -127,6 +127,20 @@ fun MediaDetailScreen(
                 else -> {
                     item(key = "facts") { Facts(ui, link) }
                     if (ui.title.playable) {
+                        ui.convert?.let { hint ->
+                            item(key = "convert") {
+                                MediaConvertCard(
+                                    hint,
+                                    ui.convertProblem,
+                                    busy = ui.convertBusy,
+                                    failed = ui.convertFailed,
+                                    onRequest = viewModel::requestConvert,
+                                    onOther = { viewModel.otherTitle()?.let(onOpen) ?: onBack() },
+                                    episode = ui.title.kind == MediaTitle.Kind.EPISODE,
+                                    modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 10.dp),
+                                )
+                            }
+                        }
                         item(key = "actions") {
                             Actions(
                                 ui,

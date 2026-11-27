@@ -148,6 +148,7 @@ class MediaPlayerActivity : ComponentActivity() {
                         onPlayAt = session::playAt,
                         onCancelCountdown = session::cancelCountdown,
                         onRetry = session::retry,
+                        onConvertRequest = session::requestConvert,
                         onVpnConsent = session::vpnConsent,
                         onMobileHintRead = session::mobileHintRead,
                         onAway = session::answerAway,

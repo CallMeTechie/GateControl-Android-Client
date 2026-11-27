@@ -61,6 +61,11 @@ internal object TvIcons {
     val Check = icon("M5 12.5l4.5 4.5L19 7.5", strokeWidth = 3f)
     val Plus = icon("M12 5v14M5 12h14")
     val Mic = icon("M9 5a3 3 0 0 1 6 0v6a3 3 0 0 1-6 0z", "M5 11a7 7 0 0 0 14 0M12 18v3")
+    /** „Videos umwandeln“: converted tonight. */
+    val Moon = icon("M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z")
+
+    /** „Videos umwandeln“: being converted now. */
+    val Clock = icon("M12 3a9 9 0 1 0 0 18a9 9 0 1 0 0-18z", "M12 7v5l3.5 2")
     /** „Am Handy weiterschreiben“: a phone. */
     val Phone = icon("M9 2h6a2 2 0 0 1 2 2v16a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2z", "M11 18h2")
 

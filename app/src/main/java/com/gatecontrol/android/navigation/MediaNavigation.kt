@@ -23,7 +23,7 @@ import com.gatecontrol.android.ui.media.MediaSourcesScreen
  */
 internal object MediaRoutes {
     const val TAB = "media"
-    const val DETAIL = "media/title?source={source}&id={id}&name={name}"
+    const val DETAIL = "media/title?source={source}&id={id}&name={name}&season={season}"
     const val SEARCH = "media/search"
     const val SOURCES = "media/sources"
 
@@ -31,7 +31,14 @@ internal object MediaRoutes {
     const val SOURCES_ROUTE = "media/sources?source={source}"
     const val OFFLINE = "media/offline"
 
-    fun detail(t: MediaTitle) = MailRoutes.build("media/title", "source" to t.sourceId, "id" to t.id, "name" to t.name.take(200))
+    /** A series with [MediaTitle.seasonId] opens on that season („Andere Folge“ of the hint „Videos umwandeln“). */
+    fun detail(t: MediaTitle) = MailRoutes.build(
+        "media/title",
+        "source" to t.sourceId,
+        "id" to t.id,
+        "name" to t.name.take(200),
+        "season" to t.seasonId?.takeIf { t.kind == MediaTitle.Kind.SERIES },
+    )
 
     fun source(id: String) = MailRoutes.build(SOURCES, "source" to id)
 }
@@ -60,7 +67,7 @@ internal fun NavGraphBuilder.mediaRoutes(navController: NavHostController, navig
     val back: () -> Unit = { if (!navController.popBackStack()) navigateToTab(MediaRoutes.TAB) }
     val str = { name: String -> navArgument(name) { type = NavType.StringType; nullable = true; defaultValue = null } }
     composable(MediaRoutes.TAB) { home() }
-    composable(MediaRoutes.DETAIL, arguments = listOf(str(MediaDetailViewModel.ARG_SOURCE), str(MediaDetailViewModel.ARG_ID), str(MediaDetailViewModel.ARG_NAME))) {
+    composable(MediaRoutes.DETAIL, arguments = listOf(str(MediaDetailViewModel.ARG_SOURCE), str(MediaDetailViewModel.ARG_ID), str(MediaDetailViewModel.ARG_NAME), str(MediaDetailViewModel.ARG_SEASON))) {
         GcContentWidth(maxWidth = 840.dp) { MediaDetailScreen(onBack = back, onOpen = nav.detail, castViewModel = androidx.hilt.navigation.compose.hiltViewModel()) }
     }
     composable(MediaRoutes.SEARCH) { GcContentWidth(maxWidth = 960.dp) { MediaSearchScreen(onBack = back, onOpen = nav.detail) } }

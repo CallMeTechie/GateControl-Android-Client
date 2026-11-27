@@ -169,7 +169,7 @@ class MediaViewModelsTest {
             every { offlineQuality } returns MutableStateFlow(com.gatecontrol.android.media.offline.OfflineQuality.P1080)
         }
         val network = mockk<MediaNetwork> { every { cellular() } returns false }
-        val vm = MediaDetailViewModel(SavedStateHandle(mapOf("source" to "jf", "id" to "m1", "name" to "Kobaltnacht")), hub, requests, settings, network, pictures, offline, com.gatecontrol.android.media.MediaRowsCache(null))
+        val vm = MediaDetailViewModel(SavedStateHandle(mapOf("source" to "jf", "id" to "m1", "name" to "Kobaltnacht")), hub, requests, settings, network, pictures, offline, com.gatecontrol.android.media.MediaRowsCache(null), noConvert())
             .also { models += it }
         advanceUntilIdle()
         val ui = vm.ui.value
@@ -405,6 +405,7 @@ class MediaViewModelsTest {
         pictures,
         offline,
         rowsCache,
+        noConvert(),
     ).also { models += it }
 
     private fun fullLibrary() {

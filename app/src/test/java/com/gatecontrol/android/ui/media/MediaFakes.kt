@@ -102,3 +102,30 @@ internal class FakeLibrary(
     override fun imageUrl(title: MediaTitle, backdrop: Boolean, maxHeight: Int): String? = null
     override fun headers(): Map<String, String> = emptyMap()
 }
+
+/**
+ * The plugin's „Videos umwandeln“ in memory: [status] answers `v1/convert/status` (null: the route is missing, as
+ * before gatecontrol-medien 1.6.0), [request] answers `v1/convert/request`; what was asked is kept.
+ */
+internal class FakeConvertApi(
+    var status: com.gatecontrol.android.media.server.MediaConvertStatus? = null,
+    var request: com.gatecontrol.android.media.server.MediaConvertItem? = null,
+) : com.gatecontrol.android.media.server.MediaConvertApi {
+    val asked = mutableListOf<List<String>>()
+    val requested = mutableListOf<String>()
+
+    override suspend fun convertStatus(itemIds: List<String>): com.gatecontrol.android.media.server.MediaServerResult<com.gatecontrol.android.media.server.MediaConvertStatus> {
+        asked += itemIds
+        val s = status ?: return com.gatecontrol.android.media.server.MediaServerResult.Refused(com.gatecontrol.android.media.server.MediaServerError(404, "not_found"))
+        return com.gatecontrol.android.media.server.MediaServerResult.Ok(s.copy(items = s.items.filterKeys { it in itemIds }))
+    }
+
+    override suspend fun convertRequest(itemId: String): com.gatecontrol.android.media.server.MediaServerResult<com.gatecontrol.android.media.server.MediaConvertItem> {
+        requested += itemId
+        val r = request ?: return com.gatecontrol.android.media.server.MediaServerResult.Refused(com.gatecontrol.android.media.server.MediaServerError(429, "rate_limited"))
+        return com.gatecontrol.android.media.server.MediaServerResult.Ok(r)
+    }
+}
+
+/** „Videos umwandeln“ without the plugin route: no hint anywhere (the pages as before). */
+internal fun noConvert() = com.gatecontrol.android.media.server.MediaConvert(FakeConvertApi())
