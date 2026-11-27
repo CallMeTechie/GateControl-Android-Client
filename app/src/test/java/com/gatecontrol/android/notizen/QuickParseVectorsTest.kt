@@ -12,8 +12,9 @@ import org.junit.jupiter.api.Test
 
 /**
  * The quick entry and the repeat rules against the plugin's own vectors — copied unchanged from gatecontrol-plugins
- * `plugins/gatecontrol-notizen/test/vectors/{quickparse,repeat}.json` of gatecontrol-notizen **1.0.0** (commit
- * af53ac1 of main). Never edit them here: a new plugin version brings new files.
+ * `plugins/gatecontrol-notizen/test/vectors/{quickparse,repeat}.json`: `quickparse.json` of gatecontrol-notizen
+ * **1.8.1** (commit 1c51b68 of main; a weekday next to a calendar date belongs to it, with the optional `marks` of a
+ * case), `repeat.json` of **1.0.0** (commit af53ac1). Never edit them here: a new plugin version brings new files.
  */
 class QuickParseVectorsTest {
 
@@ -51,26 +52,37 @@ class QuickParseVectorsTest {
         add("repeat", p.repeat?.let { NRepeat.toJson(it) } ?: JsonNull.INSTANCE)
     }
 
+    private fun marks(a: JsonArray): List<QuickParse.Mark> = a.map { m ->
+        val o = m.asJsonObject
+        QuickParse.Mark(o.get("start").asInt, o.get("end").asInt, o.get("kind").asString)
+    }
+
     @Test
     fun `quick entry - every vector`() {
         val cases = qv.getAsJsonArray("cases")
-        assertTrue(cases.size() >= 50)
+        assertTrue(cases.size() >= 73)
         val failed = cases.mapNotNull { c ->
             val o = c.asJsonObject
             val input = o.get("input").asString
-            val got = asJson(QuickParse.parse(input, ctx))
-            if (got != o.getAsJsonObject("expect")) "$input\n  want ${o.get("expect")}\n  got  $got" else null
+            val p = QuickParse.parse(input, ctx)
+            val got = asJson(p)
+            // the marks of a case are optional: where they are given, they are what the parser must mark
+            val wantMarks = o.getAsJsonArray("marks")?.let { marks(it) }
+            when {
+                got != o.getAsJsonObject("expect") -> "$input\n  want ${o.get("expect")}\n  got  $got"
+                wantMarks != null && wantMarks != p.marks -> "$input (marks)\n  want $wantMarks\n  got  ${p.marks}"
+                else -> null
+            }
         }
         assertEquals(emptyList<String>(), failed)
+        // a weekday next to a calendar date belongs to it (the cases with marks): there are enough of them
+        assertTrue(cases.count { it.asJsonObject.has("marks") } >= 20)
     }
 
     @Test
     fun `quick entry - marks of the first case`() {
         val first = qv.getAsJsonArray("cases")[0].asJsonObject.get("input").asString
-        val want = qv.getAsJsonArray("marksOfFirst").map { m ->
-            val o = m.asJsonObject
-            QuickParse.Mark(o.get("start").asInt, o.get("end").asInt, o.get("kind").asString)
-        }
+        val want = marks(qv.getAsJsonArray("marksOfFirst"))
         assertEquals(want, QuickParse.parse(first, ctx).marks)
     }
 

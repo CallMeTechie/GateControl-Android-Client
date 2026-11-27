@@ -7,12 +7,16 @@ import java.util.regex.Pattern
 
 /**
  * Schnell-Eingabe: a line in plain language → a task (title, date, time, repeat, list, person, important) — a 1:1 port
- * of the plugin's `ui/quickparse.js` (gatecontrol-notizen 1.0.0). Deterministic, no AI, no clock of its own: the
+ * of the plugin's `ui/quickparse.js` (gatecontrol-notizen 1.8.1). Deterministic, no AI, no clock of its own: the
  * plugin's `test/vectors/quickparse.json` (copied into the unit tests) is what this port must give, case by case.
  *
  * The JavaScript regular expressions are kept as they are, with three spellings made explicit so the JVM (unit tests)
  * and Android's ICU engine read them the same as V8: `\s` is JavaScript's whitespace set, `\d` is `[0-9]` and `\b`
  * (only in the weekday list) is an ASCII word boundary. Offsets of [Marks][Mark] are UTF-16 code units, as in JS.
+ *
+ * A weekday right before or right after a calendar date belongs to it and goes with it („Freitag, 4.12.“, „am Freitag
+ * den 4. Dezember“, „Fr 4.12.“, „4. Dezember, Freitag“, „Friday, December 4“, „Fri 4 Dec“) — the date counts; a weekday
+ * that is not the date's stays in the title („Samstag 4. Dezember“ when that is a Friday).
  */
 object QuickParse {
 
@@ -115,6 +119,17 @@ object QuickParse {
     private val WD_WORD = "(?:$WD_FULL|(?:$WD_SHORT)(?:\\.|$TIME_AHEAD))"
     private const val PRE = "(?:(?:am|bis|ab|on|by|due|until|für|for)\\s+)?"
 
+
+    // a weekday next to a calendar date (rules with `cal`): right before it — written out or short, the dot optional,
+    // then an optional comma and „den“/„dem“/„the“ — or right after it (an optional comma, then a weekday word).
+    // JavaScript's `$` without the m flag is the very end of the text: `\z` here (Java's `$` also stops before a last
+    // line break)
+    private val WD_BEFORE: Pattern = Pattern.compile(
+        js("$B$PRE($WD_FULL|$WD_SHORT)\\.?\\s*,?\\s*(?:(?:den|dem|the)\\s+)?\\z"),
+        Pattern.CASE_INSENSITIVE or Pattern.UNICODE_CASE,
+    )
+    private val WD_AFTER: Pattern = Pattern.compile(js("^\\s*,?\\s*($WD_WORD)$E"), Pattern.CASE_INSENSITIVE or Pattern.UNICODE_CASE)
+
     private fun lower(s: String) = s.lowercase(Locale.ROOT)
 
     private fun weekdayOf(word: String): Int? {
@@ -184,7 +199,7 @@ object QuickParse {
         val important: Boolean = false,
     )
 
-    private class Rule(val kind: String, re: String, val bare: Boolean = false, val take: (Matcher) -> Got?) {
+    private class Rule(val kind: String, re: String, val bare: Boolean = false, val cal: Boolean = false, val take: (Matcher) -> Got?) {
         val pattern: Pattern = Pattern.compile(
             js((if (bare) "(?<![\\p{L}\\p{N}!])" else B) + "(?:" + re + ")" + (if (bare) "(?![\\p{L}\\p{N}!])" else E)),
             Pattern.CASE_INSENSITIVE or Pattern.UNICODE_CASE,
@@ -251,13 +266,13 @@ object QuickParse {
             Rule("repeat", "monatlich|jeden\\s+monat|monthly|every\\s+month") { Got(repeat = NRepeat.Rule("monthly", 1)) },
             Rule("repeat", "jährlich|jaehrlich|jedes\\s+jahr|yearly|annually|every\\s+year") { Got(repeat = NRepeat.Rule("yearly", 1)) },
             // ── a date ──
-            Rule("date", "$PRE(\\d{4})-(\\d{2})-(\\d{2})") { m ->
+            Rule("date", "$PRE(\\d{4})-(\\d{2})-(\\d{2})", cal = true) { m ->
                 val y = m.g(1)!!.toInt()
                 val mo = m.g(2)!!.toInt()
                 val d = m.g(3)!!.toInt()
                 if (validDate(y, mo, d)) Got(date = m.g(1) + "-" + m.g(2) + "-" + m.g(3)) else null
             },
-            Rule("date", "$PRE(\\d{1,2})\\.(\\d{1,2})\\.(\\d{4}|\\d{2})?") { m ->
+            Rule("date", "$PRE(\\d{1,2})\\.(\\d{1,2})\\.(\\d{4}|\\d{2})?", cal = true) { m ->
                 val d = m.g(1)!!.toInt()
                 val mo = m.g(2)!!.toInt()
                 val ys = m.g(3)
@@ -268,7 +283,7 @@ object QuickParse {
                     upcoming(today, mo, d)?.let { Got(date = it) }
                 }
             },
-            Rule("date", "$PRE(\\d{1,2})(?:\\.|st|nd|rd|th)?\\s+(?:of\\s+)?($MON)\\.?(?:\\s+(\\d{4}))?") { m ->
+            Rule("date", "$PRE(\\d{1,2})(?:\\.|st|nd|rd|th)?\\s+(?:of\\s+)?($MON)\\.?(?:\\s+(\\d{4}))?", cal = true) { m ->
                 val d = m.g(1)!!.toInt()
                 val mo = monthOf(m.g(2)!!) ?: return@Rule null
                 val ys = m.g(3)
@@ -278,7 +293,7 @@ object QuickParse {
                     upcoming(today, mo, d)?.let { Got(date = it) }
                 }
             },
-            Rule("date", "$PRE($MON)\\.?\\s+(\\d{1,2})(?:st|nd|rd|th)?(?:,?\\s+(\\d{4}))?") { m ->
+            Rule("date", "$PRE($MON)\\.?\\s+(\\d{1,2})(?:st|nd|rd|th)?(?:,?\\s+(\\d{4}))?", cal = true) { m ->
                 val mo = monthOf(m.g(1)!!) ?: return@Rule null
                 val d = m.g(2)!!.toInt()
                 val ys = m.g(3)
@@ -454,8 +469,24 @@ object QuickParse {
                     softTime = got.soft || r.kind == "date"
                 }
                 if (got.important) important = true
-                marks.add(Mark(s, e, r.kind))
-                work = blank(work, s, e)
+                var start = s
+                var end = e
+                if (r.cal) {
+                    // the weekday next to the date goes with it when it is that date's weekday and nothing between them
+                    // was taken before (a #list, a repeat); before the date first, else after it
+                    val wd = NRepeat.weekday(got.date)
+                    val before = WD_BEFORE.matcher(work.substring(0, start))
+                    if (before.find() && weekdayOf(before.group(1)) == wd && src.substring(before.start(), start) == work.substring(before.start(), start)) {
+                        start = before.start()
+                    } else {
+                        val after = WD_AFTER.matcher(work.substring(end))
+                        if (after.find() && weekdayOf(after.group(1)) == wd && src.substring(end, end + after.end()) == work.substring(end, end + after.end())) {
+                            end += after.end()
+                        }
+                    }
+                }
+                marks.add(Mark(start, end, r.kind))
+                work = blank(work, start, end)
                 if (r.kind != "important") break
             }
         }
