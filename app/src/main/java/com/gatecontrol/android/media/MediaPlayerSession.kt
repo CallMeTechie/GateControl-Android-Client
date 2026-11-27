@@ -66,7 +66,7 @@ data class MediaPlayerUi(
     val countdown: Int? = null,
     /** "Weiter ab 42:10" for a moment after opening. */
     val resumedAt: Long? = null,
-    /** „Direkt ging nicht – der NAS wandelt jetzt um“ for a moment: the file did not start, asked again converted. */
+    /** „Direkt ging nicht – die NAS wandelt um“ for a moment: the file did not start, asked again converted. */
     val fellBack: Boolean = false,
     /** With [MediaPlayerTrouble.UNPLAYABLE]: the file's codecs ("HEVC Main 10 · DTS 5.1"). */
     val codecs: String? = null,
@@ -176,6 +176,7 @@ class MediaPlayerSession @Inject constructor(
             offline = offline,
             awayOriginal = { settings.awayOriginal.value },
             aheadBytes = { ahead?.limitBytes ?: 0L },
+            blind = { s -> MediaPlayerLogic.deepKind(s)?.let { it in blindKinds } == true },
         )
         videos = v
         val source = v.source
@@ -228,6 +229,16 @@ class MediaPlayerSession @Inject constructor(
 
     /** The current video showed its first picture (else, after [MediaPlayerLogic.firstPictureMs], it falls back). */
     private var pictured = false
+
+    /** The video that fell back because it showed no picture (not a fault, not a hang): converted it may show one. */
+    private var unseenAt: Int? = null
+
+    /**
+     * The deep pictures ([MediaPlayerLogic.deepKind]) that showed nothing played as it is and a picture converted, in
+     * this run of the app: the next of that kind is converted at once ("H.264 10-Bit" on a phone whose decoder says
+     * it takes it). Not kept: a new run tries the file itself again.
+     */
+    private val blindKinds = HashSet<String>()
     private var watchJob: Job? = null
     private var noteJob: Job? = null
 
@@ -241,6 +252,13 @@ class MediaPlayerSession @Inject constructor(
 
         override fun onRenderedFirstFrame() {
             pictured = true
+            val v = videos ?: return
+            if (unseenAt == at && v.fallback(at) == MediaFallback.CONVERT) {
+                MediaPlayerLogic.deepKind(v.plan(at)?.version?.video)?.let { kind ->
+                    if (blindKinds.add(kind)) Timber.i("Medien: %s shows no picture here as it is: converted at once from now on", kind)
+                }
+            }
+            unseenAt = null
         }
 
         override fun onIsPlayingChanged(isPlaying: Boolean) {
@@ -268,6 +286,7 @@ class MediaPlayerSession @Inject constructor(
                 DriveMediaLogic.Trouble.OTHER -> MediaPlayerTrouble.FAILED
             }
             Timber.i("Medien: player fault %s", error.errorCodeName)
+            unseenAt = null
             // the file, its codec or the server's answer: asked again packed anew or converted, at the same place
             if (MediaPlayerLogic.fallsBackOn(trouble) && fallBack(error.errorCodeName)) return
             _ui.update { it?.copy(loading = false, trouble = trouble) }
@@ -298,6 +317,7 @@ class MediaPlayerSession @Inject constructor(
                 val state = p.playbackState
                 val net = _ui.value?.line?.net
                 if (watch.step(MediaPlayerLogic.WATCH_STEP_MS, p.playWhenReady, state == Player.STATE_BUFFERING, state == Player.STATE_READY, pictured, net)) {
+                    unseenAt = if (pictured) null else at
                     fallBack(if (pictured) "hung ${watch.stalls} times" else "no first picture after ${watch.waitedMs / 1_000} s")
                     return@launch
                 }
@@ -337,6 +357,7 @@ class MediaPlayerSession @Inject constructor(
         Timber.i("Medien: no way plays here (%s; %s)", v.codecs(i), v.problem(i) ?: "-")
         _player.value?.let { reporter.stop(it, at) }
         _player.value?.stop()
+        v.leave(i)
         _ui.update { it?.copy(loading = false, trouble = MediaPlayerTrouble.UNPLAYABLE, codecs = v.codecs(i), problem = v.problem(i), fellBack = false) }
         askConvert(v, i)
         return true
@@ -410,6 +431,9 @@ class MediaPlayerSession @Inject constructor(
         reporter.stop(p, at)
         p.stop()
         p.clearMediaItems()
+        // what the NAS converted for the way left ends, also when it never started (no `Stopped` was sent for it)
+        v.leave(at)
+        if (i != at) unseenAt = null
         pending = null
         _ui.update { u -> u?.let { it.copy(at = i, loading = true, trouble = null, countdown = null, ended = false, line = if (from != null) it.line else null, resumedAt = null, vpnConsent = false, silentCodec = null, awayAsk = null, aheadWait = false, aheadWaitMs = null) } }
         openJob = main.launch {
@@ -428,7 +452,7 @@ class MediaPlayerSession @Inject constructor(
                     val start = r.startMs?.takeIf { it > 0 }
                     if (start != null) p.setMediaItem(item, start) else p.setMediaItem(item)
                     val hint = r.line.net == MediaNet.CELLULAR && !settings.mobileHintSeen
-                    val following = follow(r)
+                    val following = follow(r, same = from != null)
                     p.prepare()
                     // the note on the data volume first: it plays once it is read; „Original mit Mitladen“ once enough is ahead
                     p.playWhenReady = play && !hint && !(r.wait && following)
@@ -477,15 +501,20 @@ class MediaPlayerSession @Inject constructor(
 
     /**
      * Loads ahead what [r] plays when it is the file itself (Jellyfin's original, a share's file) away, not converted
-     * and not a download; on mobile data only ten minutes ahead. True when it does.
+     * and not a download; on mobile data only ten minutes ahead. True when it does. [same]: the same video asked again
+     * (another way, sound or quality): when it now converts, the card says loading ahead stopped and its part is gone
+     * ([MediaPlayAheadState.stopped]) instead of vanishing.
      */
-    private fun follow(r: PhoneOpen.Ready): Boolean {
+    private fun follow(r: PhoneOpen.Ready, same: Boolean = false): Boolean {
         val a = ahead ?: return false
         val away = r.line.net == MediaNet.AWAY || r.line.net == MediaNet.CELLULAR
         val file = !r.plan.hls && (r.plan.method == PlayMethod.DIRECT_PLAY || videos?.share == true)
         if (!away || !file || r.offline) {
+            val was = a.following || _ui.value?.ahead?.stopped == true
+            // what was loaded of the file goes now (on the loader's thread), not only after the playback
             a.follow(null)
-            _ui.update { it?.copy(ahead = null) }
+            val stopped = MediaPlayAheadState(stopped = true).takeIf { same && was && away && !r.offline }
+            _ui.update { it?.copy(ahead = stopped) }
             return false
         }
         a.follow(r.plan.url, MediaPlayAhead.aheadLimit(a.limitBytes, r.line.net == MediaNet.CELLULAR, r.plan.version.bitrate))
@@ -642,6 +671,8 @@ class MediaPlayerSession @Inject constructor(
         tickJob?.cancel()
         gateJob?.cancel()
         countdownJob?.cancel()
+        watchJob?.cancel()
+        noteJob?.cancel()
         pending = null
         aheadJob?.cancel()
         asking?.complete(null)
@@ -653,6 +684,9 @@ class MediaPlayerSession @Inject constructor(
             _player.value = null
             p.release()
         }
+        // the NAS stops converting for it, also when it never started
+        videos?.leave(at)
+        unseenAt = null
         // after the player: what was loaded ahead goes with its key (nothing outlives the playback)
         ahead?.release()
         ahead = null

@@ -94,6 +94,10 @@ internal class FakeLibrary(
     override suspend fun started(p: MediaProgress) { reports += "start" to p.positionMs }
     override suspend fun progress(p: MediaProgress) { reports += "progress" to p.positionMs }
     override suspend fun stopped(p: MediaProgress) { reports += "stop" to p.positionMs }
+
+    /** The play sessions whose converting was ended ([MediaLibrary.ended]). */
+    val ended = mutableListOf<String?>()
+    override suspend fun ended(plan: MediaPlan) { ended += plan.playSessionId }
     override suspend fun setPlayed(itemId: String, played: Boolean): MediaResult<Unit> {
         this.played += itemId to played
         return MediaResult.Ok(Unit)

@@ -11,6 +11,7 @@ import com.gatecontrol.android.media.MediaSource
 import com.gatecontrol.android.media.MediaSourceKind
 import com.gatecontrol.android.media.MediaStream
 import com.gatecontrol.android.media.MediaTitle
+import com.gatecontrol.android.media.MediaVersion
 import com.gatecontrol.android.media.PlayMethod
 import com.google.gson.JsonParser
 import kotlinx.coroutines.test.runTest
@@ -313,6 +314,30 @@ class JellyfinLibraryTest {
         val stopped = server.takeRequest()
         assertEquals("/Sessions/Playing/Stopped", stopped.requestUrl!!.encodedPath)
         assertFalse(JsonParser.parseString(stopped.body.readUtf8()).asJsonObject.get("Failed").asBoolean)
+    }
+
+    @Test
+    fun `a converting playback left - the NAS ends its encoding, the file itself sends nothing`() = runTest {
+        val converting = MediaPlan("m1", server.url("/videos/m1/master.m3u8").toString(), PlayMethod.TRANSCODE, MediaVersion("v1", container = "mkv"), "ps7", hls = true, audioIndex = 1, subtitleIndex = null)
+        server.enqueue(MockResponse().setResponseCode(204))
+        library.ended(converting)
+        val req = server.takeRequest()
+        assertEquals("DELETE", req.method)
+        assertEquals("/Videos/ActiveEncodings", req.requestUrl!!.encodedPath)
+        assertEquals("dev-1234", req.requestUrl!!.queryParameter("deviceId"))
+        assertEquals("ps7", req.requestUrl!!.queryParameter("playSessionId"))
+        // packed anew is ffmpeg too
+        server.enqueue(MockResponse().setResponseCode(204))
+        library.ended(converting.copy(method = PlayMethod.DIRECT_STREAM, playSessionId = "ps8"))
+        assertEquals("ps8", server.takeRequest().requestUrl!!.queryParameter("playSessionId"))
+        // the file itself or no session: nothing to end
+        library.ended(converting.copy(method = PlayMethod.DIRECT_PLAY))
+        library.ended(converting.copy(playSessionId = null))
+        // not reached: no fault for the player
+        server.enqueue(MockResponse().setResponseCode(500))
+        library.ended(converting.copy(playSessionId = "ps9"))
+        assertEquals("ps9", server.takeRequest().requestUrl!!.queryParameter("playSessionId"))
+        assertEquals(3, server.requestCount)
     }
 
     @Test

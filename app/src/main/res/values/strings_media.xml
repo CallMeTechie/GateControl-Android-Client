@@ -225,6 +225,8 @@
     <string name="media_ahead_rate">loading at %1$s</string>
     <string name="media_ahead_lasts">lasts about %1$d min</string>
     <string name="media_ahead_deleted">deleted after watching</string>
+    <string name="media_ahead_stopped">stopped</string>
+    <string name="media_ahead_stopped_note">The NAS converts it now, loading ahead is no longer needed · the loaded part is deleted</string>
     <string name="media_ahead_waiting">Loading ahead … starts in about %1$d min</string>
     <string name="media_ahead_waiting_plain">Loading ahead …</string>
     <string name="media_ahead_waiting_note">Then the original plays without stalling.</string>

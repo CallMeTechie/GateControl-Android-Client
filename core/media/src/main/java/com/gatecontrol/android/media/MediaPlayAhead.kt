@@ -47,6 +47,11 @@ data class MediaPlayAheadState(
     val complete: Boolean = false,
     /** Stopped at the limit (the space ahead is full). */
     val full: Boolean = false,
+    /**
+     * Ended for this video: it did not play as it is and the NAS converts it now, so there is nothing to load ahead;
+     * what was loaded is deleted already.
+     */
+    val stopped: Boolean = false,
 )
 
 /**

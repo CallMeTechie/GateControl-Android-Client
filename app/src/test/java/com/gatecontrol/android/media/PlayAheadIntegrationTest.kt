@@ -148,6 +148,44 @@ class PlayAheadIntegrationTest {
     }
 
     @Test
+    fun `fell back to converting - what was loaded of the file goes at once, not only after the playback`() {
+        val ahead = PlayAhead(root, upstream, limitBytes = 64L shl 20)
+        ahead.follow(url)
+        val ds = ahead.factory.createDataSource()
+        ds.open(DataSpec.Builder().setUri(Uri.parse(url)).build())
+        ds.read(ByteArray(1024), 0, 1024)
+        waitFor { ahead.state().aheadBytes > 2L * PlayAhead.PLAYER_PIECE }
+        ds.close()
+        assertTrue(pieces().isNotEmpty())
+        // the NAS converts now: nothing is followed, the pieces of the file go
+        ahead.follow(null)
+        assertFalse(ahead.following)
+        waitFor { pieces().isEmpty() }
+        assertEquals(0L, ahead.state().aheadBytes)
+        ahead.release()
+        waitFor { root.listFiles().isNullOrEmpty() }
+    }
+
+    @Test
+    fun `what an ended run left goes at the next start, a playback running now keeps its space`() {
+        // the process ended during a playback: its space (unreadable without its key) is still there
+        File(root, "0b7c3c1e-run-before").apply { mkdirs() }.resolve("1.0.0.v3.exo").writeBytes(ByteArray(4096))
+        assertEquals(1, PlayAhead.sweep(root))
+        assertTrue(root.listFiles().isNullOrEmpty())
+        val ahead = PlayAhead(root, upstream, limitBytes = 64L shl 20)
+        ahead.follow(url)
+        assertArrayEquals(file, readAll(ahead))
+        // the app starts its sweep while this one plays: it stays
+        assertEquals(0, PlayAhead.sweep(root))
+        assertTrue(pieces().isNotEmpty())
+        ahead.release()
+        waitFor { root.listFiles().isNullOrEmpty() }
+        assertEquals(0, PlayAhead.sweep(File(root, "missing")))
+    }
+
+    private fun pieces(): List<File> = root.walkTopDown().filter { it.isFile && it.name.endsWith(".exo") }.toList()
+
+    @Test
     fun `not followed - straight through`() {
         val ahead = PlayAhead(root, upstream, limitBytes = 64L shl 20)
         assertArrayEquals(file, readAll(ahead))
