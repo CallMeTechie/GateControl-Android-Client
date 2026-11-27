@@ -1,5 +1,5 @@
 {
- "$comment": "Schnell-Eingabe (ui/quickparse.js): every port (Android, Windows) must give exactly these results. ctx is the same for every case; marks of the first case are listed once (offsets in UTF-16 code units).",
+ "$comment": "Schnell-Eingabe (ui/quickparse.js): every port (Android, Windows) must give exactly these results. ctx is the same for every case; marks of the first case are listed once (offsets in UTF-16 code units). A case may carry its own marks (same offsets); a port checks them where they are given.",
  "version": 1,
  "ctx": {
   "today": "2026-11-08",
@@ -952,6 +952,533 @@
     "assigneeName": null,
     "repeat": null
    }
+  },
+  {
+   "input": "Freitag 4. Dezember Fashion Outlet Zweibrücken",
+   "expect": {
+    "title": "Fashion Outlet Zweibrücken",
+    "date": "2026-12-04",
+    "time": null,
+    "remind": null,
+    "important": false,
+    "list": null,
+    "listName": null,
+    "assignee": null,
+    "assigneeName": null,
+    "repeat": null
+   },
+   "marks": [
+    {
+     "start": 0,
+     "end": 19,
+     "kind": "date"
+    }
+   ]
+  },
+  {
+   "input": "Freitag, 4.12. Outlet",
+   "expect": {
+    "title": "Outlet",
+    "date": "2026-12-04",
+    "time": null,
+    "remind": null,
+    "important": false,
+    "list": null,
+    "listName": null,
+    "assignee": null,
+    "assigneeName": null,
+    "repeat": null
+   },
+   "marks": [
+    {
+     "start": 0,
+     "end": 14,
+     "kind": "date"
+    }
+   ]
+  },
+  {
+   "input": "am Freitag den 4. Dezember Outlet",
+   "expect": {
+    "title": "Outlet",
+    "date": "2026-12-04",
+    "time": null,
+    "remind": null,
+    "important": false,
+    "list": null,
+    "listName": null,
+    "assignee": null,
+    "assigneeName": null,
+    "repeat": null
+   },
+   "marks": [
+    {
+     "start": 0,
+     "end": 26,
+     "kind": "date"
+    }
+   ]
+  },
+  {
+   "input": "Fr. 4.12. 14 Uhr Outlet",
+   "expect": {
+    "title": "Outlet",
+    "date": "2026-12-04",
+    "time": "14:00",
+    "remind": {
+     "date": "2026-12-04",
+     "time": "14:00"
+    },
+    "important": false,
+    "list": null,
+    "listName": null,
+    "assignee": null,
+    "assigneeName": null,
+    "repeat": null
+   },
+   "marks": [
+    {
+     "start": 0,
+     "end": 9,
+     "kind": "date"
+    },
+    {
+     "start": 10,
+     "end": 16,
+     "kind": "time"
+    }
+   ]
+  },
+  {
+   "input": "Fr 4.12. Outlet",
+   "expect": {
+    "title": "Outlet",
+    "date": "2026-12-04",
+    "time": null,
+    "remind": null,
+    "important": false,
+    "list": null,
+    "listName": null,
+    "assignee": null,
+    "assigneeName": null,
+    "repeat": null
+   },
+   "marks": [
+    {
+     "start": 0,
+     "end": 8,
+     "kind": "date"
+    }
+   ]
+  },
+  {
+   "input": "bis Freitag, dem 4.12.2026 Angebot abgeben",
+   "expect": {
+    "title": "Angebot abgeben",
+    "date": "2026-12-04",
+    "time": null,
+    "remind": null,
+    "important": false,
+    "list": null,
+    "listName": null,
+    "assignee": null,
+    "assigneeName": null,
+    "repeat": null
+   },
+   "marks": [
+    {
+     "start": 0,
+     "end": 26,
+     "kind": "date"
+    }
+   ]
+  },
+  {
+   "input": "Freitag 2026-12-04 Outlet",
+   "expect": {
+    "title": "Outlet",
+    "date": "2026-12-04",
+    "time": null,
+    "remind": null,
+    "important": false,
+    "list": null,
+    "listName": null,
+    "assignee": null,
+    "assigneeName": null,
+    "repeat": null
+   },
+   "marks": [
+    {
+     "start": 0,
+     "end": 18,
+     "kind": "date"
+    }
+   ]
+  },
+  {
+   "input": "4. Dezember, Freitag Outlet",
+   "expect": {
+    "title": "Outlet",
+    "date": "2026-12-04",
+    "time": null,
+    "remind": null,
+    "important": false,
+    "list": null,
+    "listName": null,
+    "assignee": null,
+    "assigneeName": null,
+    "repeat": null
+   },
+   "marks": [
+    {
+     "start": 0,
+     "end": 20,
+     "kind": "date"
+    }
+   ]
+  },
+  {
+   "input": "Outlet 4.12.2026 Freitag 14 Uhr",
+   "expect": {
+    "title": "Outlet",
+    "date": "2026-12-04",
+    "time": "14:00",
+    "remind": {
+     "date": "2026-12-04",
+     "time": "14:00"
+    },
+    "important": false,
+    "list": null,
+    "listName": null,
+    "assignee": null,
+    "assigneeName": null,
+    "repeat": null
+   },
+   "marks": [
+    {
+     "start": 7,
+     "end": 24,
+     "kind": "date"
+    },
+    {
+     "start": 25,
+     "end": 31,
+     "kind": "time"
+    }
+   ]
+  },
+  {
+   "input": "4.12. Fr. Outlet",
+   "expect": {
+    "title": "Outlet",
+    "date": "2026-12-04",
+    "time": null,
+    "remind": null,
+    "important": false,
+    "list": null,
+    "listName": null,
+    "assignee": null,
+    "assigneeName": null,
+    "repeat": null
+   },
+   "marks": [
+    {
+     "start": 0,
+     "end": 9,
+     "kind": "date"
+    }
+   ]
+  },
+  {
+   "input": "Friday, December 4 outlet",
+   "expect": {
+    "title": "outlet",
+    "date": "2026-12-04",
+    "time": null,
+    "remind": null,
+    "important": false,
+    "list": null,
+    "listName": null,
+    "assignee": null,
+    "assigneeName": null,
+    "repeat": null
+   },
+   "marks": [
+    {
+     "start": 0,
+     "end": 18,
+     "kind": "date"
+    }
+   ]
+  },
+  {
+   "input": "Fri 4 Dec outlet",
+   "expect": {
+    "title": "outlet",
+    "date": "2026-12-04",
+    "time": null,
+    "remind": null,
+    "important": false,
+    "list": null,
+    "listName": null,
+    "assignee": null,
+    "assigneeName": null,
+    "repeat": null
+   },
+   "marks": [
+    {
+     "start": 0,
+     "end": 9,
+     "kind": "date"
+    }
+   ]
+  },
+  {
+   "input": "on Friday the 4th of December at 2 pm outlet",
+   "expect": {
+    "title": "outlet",
+    "date": "2026-12-04",
+    "time": "14:00",
+    "remind": {
+     "date": "2026-12-04",
+     "time": "14:00"
+    },
+    "important": false,
+    "list": null,
+    "listName": null,
+    "assignee": null,
+    "assigneeName": null,
+    "repeat": null
+   },
+   "marks": [
+    {
+     "start": 0,
+     "end": 29,
+     "kind": "date"
+    },
+    {
+     "start": 30,
+     "end": 37,
+     "kind": "time"
+    }
+   ]
+  },
+  {
+   "input": "Samstag 4. Dezember Outlet",
+   "expect": {
+    "title": "Samstag Outlet",
+    "date": "2026-12-04",
+    "time": null,
+    "remind": null,
+    "important": false,
+    "list": null,
+    "listName": null,
+    "assignee": null,
+    "assigneeName": null,
+    "repeat": null
+   },
+   "marks": [
+    {
+     "start": 8,
+     "end": 19,
+     "kind": "date"
+    }
+   ]
+  },
+  {
+   "input": "Sa. 4.12. Outlet",
+   "expect": {
+    "title": "Sa. Outlet",
+    "date": "2026-12-04",
+    "time": null,
+    "remind": null,
+    "important": false,
+    "list": null,
+    "listName": null,
+    "assignee": null,
+    "assigneeName": null,
+    "repeat": null
+   },
+   "marks": [
+    {
+     "start": 4,
+     "end": 9,
+     "kind": "date"
+    }
+   ]
+  },
+  {
+   "input": "Saturday, December 4 outlet",
+   "expect": {
+    "title": "Saturday, outlet",
+    "date": "2026-12-04",
+    "time": null,
+    "remind": null,
+    "important": false,
+    "list": null,
+    "listName": null,
+    "assignee": null,
+    "assigneeName": null,
+    "repeat": null
+   },
+   "marks": [
+    {
+     "start": 10,
+     "end": 20,
+     "kind": "date"
+    }
+   ]
+  },
+  {
+   "input": "Freitag Outlet 4.12.",
+   "expect": {
+    "title": "Freitag Outlet",
+    "date": "2026-12-04",
+    "time": null,
+    "remind": null,
+    "important": false,
+    "list": null,
+    "listName": null,
+    "assignee": null,
+    "assigneeName": null,
+    "repeat": null
+   },
+   "marks": [
+    {
+     "start": 15,
+     "end": 20,
+     "kind": "date"
+    }
+   ]
+  },
+  {
+   "input": "4.12. Outlet am Freitag",
+   "expect": {
+    "title": "Outlet am Freitag",
+    "date": "2026-12-04",
+    "time": null,
+    "remind": null,
+    "important": false,
+    "list": null,
+    "listName": null,
+    "assignee": null,
+    "assigneeName": null,
+    "repeat": null
+   },
+   "marks": [
+    {
+     "start": 0,
+     "end": 5,
+     "kind": "date"
+    }
+   ]
+  },
+  {
+   "input": "Freitag #büro 4.12. Outlet",
+   "expect": {
+    "title": "Freitag Outlet",
+    "date": "2026-12-04",
+    "time": null,
+    "remind": null,
+    "important": false,
+    "list": {
+     "id": 2,
+     "name": "Büro"
+    },
+    "listName": null,
+    "assignee": null,
+    "assigneeName": null,
+    "repeat": null
+   },
+   "marks": [
+    {
+     "start": 8,
+     "end": 13,
+     "kind": "list"
+    },
+    {
+     "start": 14,
+     "end": 19,
+     "kind": "date"
+    }
+   ]
+  },
+  {
+   "input": "15.11. So geht das nicht",
+   "expect": {
+    "title": "So geht das nicht",
+    "date": "2026-11-15",
+    "time": null,
+    "remind": null,
+    "important": false,
+    "list": null,
+    "listName": null,
+    "assignee": null,
+    "assigneeName": null,
+    "repeat": null
+   },
+   "marks": [
+    {
+     "start": 0,
+     "end": 6,
+     "kind": "date"
+    }
+   ]
+  },
+  {
+   "input": "jeden Freitag 4.12. Sport",
+   "expect": {
+    "title": "Sport",
+    "date": "2026-12-04",
+    "time": null,
+    "remind": null,
+    "important": false,
+    "list": null,
+    "listName": null,
+    "assignee": null,
+    "assigneeName": null,
+    "repeat": {
+     "type": "weekly",
+     "interval": 1,
+     "days": [
+      5
+     ]
+    }
+   },
+   "marks": [
+    {
+     "start": 0,
+     "end": 13,
+     "kind": "repeat"
+    },
+    {
+     "start": 14,
+     "end": 19,
+     "kind": "date"
+    }
+   ]
+  },
+  {
+   "input": "Freitag 31.02. Unsinn",
+   "expect": {
+    "title": "31.02. Unsinn",
+    "date": "2026-11-13",
+    "time": null,
+    "remind": null,
+    "important": false,
+    "list": null,
+    "listName": null,
+    "assignee": null,
+    "assigneeName": null,
+    "repeat": null
+   },
+   "marks": [
+    {
+     "start": 0,
+     "end": 7,
+     "kind": "date"
+    }
+   ]
   }
  ]
 }
