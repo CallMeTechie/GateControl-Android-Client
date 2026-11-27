@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.160.2] - 2026-11-27
+
+### Fixes
+- Schnell hinzufügen – Wochentag neben Datum bleibt nicht mehr im Titel (#312)
+
+---
+
 ## [1.160.1] - 2026-11-26
 
 ### Fixes
