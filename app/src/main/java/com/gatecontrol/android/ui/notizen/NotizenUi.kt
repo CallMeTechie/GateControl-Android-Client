@@ -538,6 +538,8 @@ internal fun messageText(code: String): String = when (code) {
     "save_first" -> stringResource(R.string.notizen_msg_save_first)
     "task_saved" -> stringResource(R.string.notizen_msg_task_saved)
     "event_saved" -> stringResource(R.string.notizen_msg_event_saved)
+    "event_undone" -> stringResource(R.string.notizen_msg_event_undone)
+    "event_undo_failed" -> stringResource(R.string.notizen_msg_event_undo_failed)
     "note_saved" -> stringResource(R.string.notizen_msg_note_saved)
     "list_created" -> stringResource(R.string.notizen_msg_list_created)
     "list_later" -> stringResource(R.string.notizen_msg_list_later)

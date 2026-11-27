@@ -137,6 +137,33 @@ object NotizenEvents {
         }
     }
 
+    // ── „Termin angelegt – Rückgängig“ (contract § 3, § 7.2) ──
+
+    /**
+     * The event just made in the quick entry, offered for „Rückgängig“ on the page the entry goes back to: [id] the
+     * server's event number, or — still waiting in the outbox — the outbox's negative one; [at] when it was made.
+     */
+    data class Undo(val id: Long, val queued: Boolean, val at: Long)
+
+    /** As long as the snackbar „Termin angelegt“ may still come (the person is back on the overview by then). */
+    const val UNDO_FRESH_MS = 15_000L
+
+    /** [u] is still worth offering at [now] (an old one, never shown, is not offered later). */
+    fun undoFresh(u: Undo?, now: Long): Boolean = u != null && now - u.at in 0..UNDO_FRESH_MS
+
+    /** The undo for an answer of [NotizenRepository.createEvent] (null: nothing was made). */
+    fun undoOf(id: Long, queued: Boolean, now: Long): Undo? = if (id == 0L) null else Undo(id, queued, now)
+
+    /**
+     * „Rückgängig“ of an event that still waits (contract § 7.2: no server number yet): [ops] without it — also when the
+     * outbox turned it into a task (no calendar for good) or gave it a new clientId; null: it no longer waits.
+     */
+    fun withoutWaiting(ops: List<NotizenOutbox.Op>, id: Long): List<NotizenOutbox.Op>? {
+        if (id >= 0) return null
+        val left = ops.filterNot { it.kind == NotizenOutbox.CREATE && it.id == id && (it.what == NotizenOutbox.EVENT || it.what == NotizenOutbox.TASK) }
+        return if (left.size == ops.size) null else left
+    }
+
     // ── the waiting event (contract § 7) ────────────────────
 
     /**

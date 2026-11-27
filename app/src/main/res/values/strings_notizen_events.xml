@@ -42,4 +42,8 @@
     <string name="notizen_cal_kind_family">family calendar</string>
     <string name="notizen_cal_kind_subscribed">subscribed</string>
     <string name="notizen_cal_kind_tasks">already shown as tasks</string>
+    <string name="notizen_ev_created">Event added</string>
+    <string name="notizen_ev_created_queued">Event added. It is sent as soon as there is a connection.</string>
+    <string name="notizen_msg_event_undone">Event deleted</string>
+    <string name="notizen_msg_event_undo_failed">The event could not be deleted.</string>
 </resources>

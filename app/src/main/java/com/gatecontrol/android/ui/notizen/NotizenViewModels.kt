@@ -170,6 +170,19 @@ class NotizenHomeViewModel @Inject constructor(
 
     fun consumeMessage() { _message.value = null }
 
+    /** „Termin angelegt – Rückgängig“ after the quick entry (plugin 1.9.0). */
+    val eventUndo: StateFlow<com.gatecontrol.android.notizen.NotizenEvents.Undo?> = repo.eventUndo
+
+    fun consumeEventUndo() = repo.consumeEventUndo()
+
+    /** „Rückgängig“: the event is deleted again (one still waiting just leaves the outbox); a failure says so briefly. */
+    fun undoEvent(u: com.gatecontrol.android.notizen.NotizenEvents.Undo) {
+        viewModelScope.launch {
+            _message.value = if (repo.undoEvent(u)) "event_undone" else "event_undo_failed"
+            load(quiet = true)
+        }
+    }
+
     /** „Umzug abgeschlossen“ was read („OK“ or „Ansehen“, plugin 1.6.0): it does not come again. */
     fun familySeen() {
         _ui.update { u -> u.copy(me = u.me?.let { m -> m.copy(familyTasks = m.familyTasks?.let { f -> f.copy(moved = f.moved?.copy(seen = true)) }) }) }
@@ -1013,8 +1026,10 @@ class NotizenQuickViewModel @Inject constructor(
         }
         val r = repo.createEvent(com.gatecontrol.android.notizen.NotizenEvents.body(d, null))
         val refused = (r as? NResult.Failed)?.takeIf { it.http == 503 }?.let { NotizenJson.reason(it.body) ?: "no_calendar" }
+        // made (also waiting): „Termin angelegt – Rückgängig“ on the page the entry goes back to
+        (r as? NResult.Ok)?.value?.let { w -> repo.offerEventUndo(com.gatecontrol.android.notizen.NotizenEvents.undoOf(w.id, w.queued, System.currentTimeMillis())) }
         _ui.update { it.copy(busy = false, done = r is NResult.Ok, eventRefused = refused, keepTask = if (r is NResult.Ok) false else it.keepTask) }
-        if (refused == null) _message.value = r.code() ?: if (r.valueOrNull()?.queued == true) "queued" else "event_saved"
+        if (refused == null) r.code()?.let { _message.value = it }
     }
 
     /** „Wer ist dran?“ was chosen in the quick entry. */

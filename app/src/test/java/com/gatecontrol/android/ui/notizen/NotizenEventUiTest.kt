@@ -6,15 +6,21 @@ import androidx.activity.ComponentActivity
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Snackbar
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.asAndroidBitmap
@@ -367,5 +373,60 @@ class NotizenEventUiTest {
         rule.onNodeWithText("Feiertage").performClick()
         rule.onNodeWithText("Privat").performClick()
         assertEquals(listOf("cal:9:true", "cal:7:false"), calls)
+    }
+
+    @Test
+    fun `Rueckgaengig - Termin angelegt, the undo deletes it`() {
+        val undo = mutableStateOf<NotizenEvents.Undo?>(NotizenEvents.Undo(912, false, 1000))
+        rule.setContent {
+            GateControlTheme(darkTheme = dark.value) {
+                val snack = remember { SnackbarHostState() }
+                Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).testTag("shot")) {
+                    EventUndoSnackbar(undo.value, snack, consume = { undo.value = null }, onUndo = { calls += "undo:${it.id}" }, now = { 2000 })
+                    SnackbarHost(snack, Modifier.align(Alignment.BottomCenter)) { Snackbar(it) }
+                }
+            }
+        }
+        rule.waitForIdle()
+        rule.onNodeWithText("Termin angelegt").assertExists()
+        both("11-termin-angelegt")
+        rule.onNodeWithText("Rückgängig").performClick()
+        rule.waitForIdle()
+        assertEquals(listOf("undo:912"), calls)
+        assertEquals(null, undo.value)
+    }
+
+    @Test
+    fun `Rueckgaengig - a waiting event says it is sent later`() {
+        rule.setContent {
+            GateControlTheme {
+                val snack = remember { SnackbarHostState() }
+                Box(Modifier.fillMaxSize()) {
+                    EventUndoSnackbar(NotizenEvents.Undo(-3, true, 1000), snack, consume = {}, onUndo = { calls += "undo:${it.id}" }, now = { 2000 })
+                    SnackbarHost(snack, Modifier.align(Alignment.BottomCenter)) { Snackbar(it) }
+                }
+            }
+        }
+        rule.waitForIdle()
+        rule.onNodeWithText("Termin angelegt. Er wird gesendet, sobald es eine Verbindung gibt.").assertExists()
+        rule.onNodeWithText("Rückgängig").performClick()
+        rule.waitForIdle()
+        assertEquals(listOf("undo:-3"), calls)
+    }
+
+    @Test
+    fun `Rueckgaengig - an old one is not offered any more`() {
+        rule.setContent {
+            GateControlTheme {
+                val snack = remember { SnackbarHostState() }
+                Box(Modifier.fillMaxSize()) {
+                    EventUndoSnackbar(NotizenEvents.Undo(912, false, 1000), snack, consume = {}, onUndo = { calls += "undo" }, now = { 1001 + NotizenEvents.UNDO_FRESH_MS })
+                    SnackbarHost(snack, Modifier.align(Alignment.BottomCenter)) { Snackbar(it) }
+                }
+            }
+        }
+        rule.waitForIdle()
+        rule.onAllNodesWithText("Termin angelegt").assertCountEquals(0)
+        assertEquals(emptyList<String>(), calls)
     }
 }

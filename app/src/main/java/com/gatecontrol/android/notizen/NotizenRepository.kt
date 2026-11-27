@@ -487,6 +487,48 @@ class NotizenRepository @Inject constructor(
         return r.touch("items")
     }
 
+    private val _eventUndo = MutableStateFlow<NotizenEvents.Undo?>(null)
+    /** „Termin angelegt – Rückgängig“: the event just made in the quick entry (shown on the page it goes back to). */
+    val eventUndo: StateFlow<NotizenEvents.Undo?> = _eventUndo.asStateFlow()
+
+    /** Waiting events sent meanwhile: the outbox's id → the server's event number (for „Rückgängig“ only). */
+    private val sentEvents = java.util.concurrent.ConcurrentHashMap<Long, Long>()
+
+    fun offerEventUndo(u: NotizenEvents.Undo?) { _eventUndo.value = u }
+
+    fun consumeEventUndo() { _eventUndo.value = null }
+
+    /**
+     * „Rückgängig“ of [u]: `DELETE events/<id>` (gone already: done); one still waiting leaves the outbox (contract
+     * § 7.2) — sent meanwhile: deleted by the number of the answer (made as a task instead: that task). False: not deleted.
+     */
+    suspend fun undoEvent(u: NotizenEvents.Undo): Boolean {
+        ensureLoaded()
+        var id = u.id
+        if (id < 0) {
+            // after a send that is under way: its answer says whether it still waits
+            val taken = flushLock.withLock {
+                outboxLock.withLock {
+                    val s = _state.value
+                    NotizenEvents.withoutWaiting(s.ops, id)?.let { save(s.copy(ops = it)); true } ?: false
+                }
+            }
+            if (taken) {
+                _changed.tryEmit(setOf("tasks", "items"))
+                return true
+            }
+            val task = _state.value.ids[id]
+            id = sentEvents.remove(id) ?: run {
+                if (task == null) return true
+                return api.deleteTask(task).goneOk().let { r -> (r is NResult.Ok).also { if (it) _changed.tryEmit(setOf("tasks", "items")) } }
+            }
+        }
+        val r = api.deleteEvent(id)
+        val ok = r is NResult.Ok || (r is NResult.Failed && r.http == 404)
+        if (ok) _changed.tryEmit(setOf("items"))
+        return ok
+    }
+
     /** `PATCH tasks/<id>`: [fields] with `base` — the values of [seen] (plugin 1.1.0: a field changed elsewhere meanwhile → 409). */
     suspend fun patchTask(id: Long, fields: JsonObject, seen: NTaskDetail?): NResult<NWritten<NTaskDetail>> {
         val b = fields.deepCopy()
@@ -596,8 +638,8 @@ class NotizenRepository @Inject constructor(
             NotizenOutbox.TASK -> api.createTask(body).map { it.id }
             NotizenOutbox.LIST -> api.createListBody(body).map { it.id }
             NotizenOutbox.NOTEBOOK -> api.createNotebookBody(body).map { it.id }
-            // an event is never named by anything else: no id to map
-            NotizenOutbox.EVENT -> api.createEvent(body).map { 0L }
+            // an event is never named by anything else: its number is kept for „Rückgängig“ only (see flush)
+            NotizenOutbox.EVENT -> api.createEvent(body).map { it.eventId }
             else -> api.createNote(body).map { revs[it.summary.id] = it.summary.rev; it.summary.id }
         }
         NotizenOutbox.ACTION -> when (op.what) {
@@ -647,7 +689,11 @@ class NotizenRepository @Inject constructor(
                 when {
                     r is NResult.Ok -> {
                         s = s.copy(ops = s.ops.filterNot { it.uid == op.uid })
-                        if (op.kind == NotizenOutbox.CREATE && r.value > 0) s = NotizenOutbox.mapped(s, op.id, r.value)
+                        if (op.kind == NotizenOutbox.CREATE && op.what == NotizenOutbox.EVENT) {
+                            if (r.value > 0) sentEvents[op.id] = r.value
+                        } else if (op.kind == NotizenOutbox.CREATE && r.value > 0) {
+                            s = NotizenOutbox.mapped(s, op.id, r.value)
+                        }
                     }
                     r is NResult.Failed && NotizenOutbox.conflictOf(op, r.http, r.code) -> {
                         s = s.copy(ops = s.ops.map { if (it.uid == op.uid) it.copy(conflict = true) else it })
