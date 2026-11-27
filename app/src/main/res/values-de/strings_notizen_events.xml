@@ -42,4 +42,8 @@
     <string name="notizen_cal_kind_family">Familienkalender</string>
     <string name="notizen_cal_kind_subscribed">abonniert</string>
     <string name="notizen_cal_kind_tasks">stehen schon als Aufgabe da</string>
+    <string name="notizen_ev_created">Termin angelegt</string>
+    <string name="notizen_ev_created_queued">Termin angelegt. Er wird gesendet, sobald es eine Verbindung gibt.</string>
+    <string name="notizen_msg_event_undone">Termin gelöscht</string>
+    <string name="notizen_msg_event_undo_failed">Der Termin konnte nicht gelöscht werden.</string>
 </resources>

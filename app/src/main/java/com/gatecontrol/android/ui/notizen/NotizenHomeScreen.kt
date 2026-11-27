@@ -131,6 +131,8 @@ fun NotizenHomeScreen(nav: NotizenNav, vm: NotizenHomeViewModel = hiltViewModel(
             vm.consumeMessage()
         }
     }
+    val eventUndo by vm.eventUndo.collectAsStateWithLifecycle()
+    EventUndoSnackbar(eventUndo, snack, consume = vm::consumeEventUndo, onUndo = vm::undoEvent)
     var askNotebook by rememberSaveable { mutableStateOf(false) }
     var askShopping by rememberSaveable { mutableStateOf(false) }
     val shopping by vm.shopping.collectAsStateWithLifecycle()

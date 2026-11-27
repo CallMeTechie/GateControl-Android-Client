@@ -20,6 +20,9 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -53,6 +56,7 @@ import com.gatecontrol.android.mail.MailPimLogic
 import com.gatecontrol.android.ui.components.GcIcons
 import com.gatecontrol.android.ui.components.GcOutlineButton
 import com.gatecontrol.android.ui.components.GcPrimaryButton
+import com.gatecontrol.android.ui.components.GcShowOnce
 import com.gatecontrol.android.ui.mail.calendar.reminderText
 import com.gatecontrol.android.ui.theme.GateControlTheme
 
@@ -296,5 +300,29 @@ internal fun EventPlaceForm(text: String, onText: (String) -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         OutlinedTextField(text, { onText(it.take(255)) }, label = { Text(stringResource(R.string.notizen_ev_place_field)) }, singleLine = true, modifier = Modifier.fillMaxWidth())
         Text(stringResource(R.string.notizen_ev_place_hint), style = MaterialTheme.typography.bodySmall, color = GateControlTheme.extraColors.muted)
+    }
+}
+
+/**
+ * „Termin angelegt – Rückgängig“ after the quick entry (contract § 3: `DELETE events/<id>`; one still waiting just
+ * leaves the outbox), like the other „Rückgängig“ snackbars of the app: long, with a close button. An old one that was
+ * never shown is not offered any more ([NotizenEvents.undoFresh]).
+ */
+@Composable
+internal fun EventUndoSnackbar(
+    undo: NotizenEvents.Undo?,
+    snack: SnackbarHostState,
+    consume: () -> Unit,
+    onUndo: (NotizenEvents.Undo) -> Unit,
+    now: () -> Long = System::currentTimeMillis,
+) {
+    val made = stringResource(R.string.notizen_ev_created)
+    val waits = stringResource(R.string.notizen_ev_created_queued)
+    val label = stringResource(R.string.notizen_undo)
+    // the snackbar runs in the caller's scope (GcShowOnce): taking the undo restarts an effect keyed by it
+    GcShowOnce(undo, consume = consume) { u ->
+        if (!NotizenEvents.undoFresh(u, now())) return@GcShowOnce
+        val r = snack.showSnackbar(if (u.queued) waits else made, actionLabel = label, withDismissAction = true, duration = SnackbarDuration.Long)
+        if (r == SnackbarResult.ActionPerformed) onUndo(u)
     }
 }

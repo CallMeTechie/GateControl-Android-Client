@@ -258,4 +258,35 @@ class NotizenEventsTest {
         assertEquals(NotizenOpen.Tab("gatecontrol-mail"), NotizenOpen.target(NOpen("gatecontrol-mail", "event/x"), have))
         assertNull(NotizenOpen.target(NOpen("gatecontrol-mail", "event/912"), have.copy(mail = false)))
     }
+
+    // ── „Termin angelegt – Rückgängig“ ──────────────────────
+
+    @Test
+    fun `undo - offered for what was made, fresh for a short while only`() {
+        assertNull(NotizenEvents.undoOf(0, queued = false, now = 1000))
+        val made = NotizenEvents.undoOf(912, queued = false, now = 1000)!!
+        assertEquals(NotizenEvents.Undo(912, false, 1000), made)
+        assertEquals(NotizenEvents.Undo(-4, true, 1000), NotizenEvents.undoOf(-4, queued = true, now = 1000))
+        assertTrue(NotizenEvents.undoFresh(made, 1000))
+        assertTrue(NotizenEvents.undoFresh(made, 1000 + NotizenEvents.UNDO_FRESH_MS))
+        assertFalse(NotizenEvents.undoFresh(made, 1001 + NotizenEvents.UNDO_FRESH_MS))
+        assertFalse(NotizenEvents.undoFresh(made, 999))
+        assertFalse(NotizenEvents.undoFresh(null, 1000))
+    }
+
+    @Test
+    fun `undo - a waiting event just leaves the outbox`() {
+        val b = obj("""{ "title": "Flohmarkt", "date": "2026-11-14", "clientId": "0b6c1f0e-7c1d" }""")
+        val ev = eventOp(b, id = -3)
+        val other = eventOp(b, id = -5).copy(uid = "u2")
+        val task = NotizenOutbox.Op(NotizenOutbox.CREATE, -6, false, 1000, NotizenOutbox.TASK, obj("""{ "title": "Müll" }"""), null, uid = "u3")
+        val tick = NotizenOutbox.Op(NotizenOutbox.TASK, 42, true, 1000, uid = "u4")
+        assertEquals(listOf(other, task, tick), NotizenEvents.withoutWaiting(listOf(ev, other, task, tick), -3))
+        // no longer waiting, or a number of the server: nothing to take out
+        assertNull(NotizenEvents.withoutWaiting(listOf(other, task, tick), -3))
+        assertNull(NotizenEvents.withoutWaiting(listOf(ev), 912))
+        // made a task meanwhile (no calendar for good): that one goes
+        val asTask = ev.copy(what = NotizenOutbox.TASK)
+        assertEquals(listOf(tick), NotizenEvents.withoutWaiting(listOf(asTask, tick), -3))
+    }
 }
