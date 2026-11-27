@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.163.2] - 2026-11-27
+
+### Fixes
+- Bildschirm bleibt beim Abspielen von Videos an (#316)
+
+---
+
 ## [1.163.1] - 2026-11-27
 
 ### Fixes
