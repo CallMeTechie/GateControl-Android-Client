@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.161.0] - 2026-11-27
+
+### Features
+- Termine in „Schnell hinzufügen“ – Umschalter, Bausteine, Übersicht (#313)
+
+---
+
 ## [1.160.2] - 2026-11-27
 
 ### Fixes
