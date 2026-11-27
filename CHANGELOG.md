@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.162.0] - 2026-11-27
+
+### Features
+- Schnell hinzufügen – „Rückgängig“ nach dem Anlegen eines Termins (#314)
+
+---
+
 ## [1.161.0] - 2026-11-27
 
 ### Features
