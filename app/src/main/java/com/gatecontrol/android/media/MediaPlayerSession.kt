@@ -72,6 +72,13 @@ data class MediaPlayerUi(
     val codecs: String? = null,
     /** With [MediaPlayerTrouble.UNPLAYABLE]: the picture the phone does not decode ("H.264 10-Bit (High 10)"). */
     val problem: String? = null,
+    /**
+     * With [MediaPlayerTrouble.UNPLAYABLE]: what the plugin Medien knows of converting the file (from 1.6.0):
+     * „Für heute Nacht vormerken“, already asked for, tonight or being converted; null: nothing to say.
+     */
+    val convert: com.gatecontrol.android.media.server.MediaConvertHint? = null,
+    val convertBusy: Boolean = false,
+    val convertFailed: Boolean = false,
     /** The note on the data volume, once, before the first playback on mobile data (question 28). */
     val mobileHint: Boolean = false,
     /** The video has ended (and nothing follows). */
@@ -115,6 +122,8 @@ class MediaPlayerSession @Inject constructor(
     private val settings: MediaPhoneSettings,
     private val network: MediaNetwork,
     private val offline: MediaOffline,
+    /** „Videos umwandeln“ of the plugin Medien: offered when every way failed. */
+    private val convert: com.gatecontrol.android.media.server.MediaConvert,
 ) : MediaPlayback {
 
     private val main = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
@@ -329,7 +338,33 @@ class MediaPlayerSession @Inject constructor(
         _player.value?.let { reporter.stop(it, at) }
         _player.value?.stop()
         _ui.update { it?.copy(loading = false, trouble = MediaPlayerTrouble.UNPLAYABLE, codecs = v.codecs(i), problem = v.problem(i), fellBack = false) }
+        askConvert(v, i)
         return true
+    }
+
+    /**
+     * Every way failed for video [i]: whether the plugin can convert it overnight (a Jellyfin file only), shown with
+     * the message instead of the bare tip. Without the plugin's answer nothing changes.
+     */
+    private fun askConvert(v: PhoneMediaVideos, i: Int) {
+        val t = v.items.getOrNull(i) ?: return
+        if (v.isLocal(i) || hub.store.source(t.sourceId)?.kind != MediaSourceKind.JELLYFIN) return
+        main.launch {
+            val hint = convert.hint(t.id, v.problem(i) ?: t.name)
+            _ui.update { u -> if (u != null && u.at == i && u.trouble == MediaPlayerTrouble.UNPLAYABLE) u.copy(convert = hint, convertFailed = false) else u }
+        }
+    }
+
+    /** „Für heute Nacht vormerken“ in the message: the file onto the plugin's list (the admin queues it). */
+    fun requestConvert() {
+        val u = _ui.value ?: return
+        if (u.convertBusy || u.convert != com.gatecontrol.android.media.server.MediaConvertHint.Offer) return
+        val t = u.queue.items.getOrNull(u.at) ?: return
+        _ui.update { it?.copy(convertBusy = true, convertFailed = false) }
+        main.launch {
+            val hint = convert.request(t.id)
+            _ui.update { it?.copy(convertBusy = false, convert = hint ?: it.convert, convertFailed = hint == null) }
+        }
     }
 
     /** The end of a video: "Nächste Folge in 10 s" for an episode, else the next video of the queue, else the end. */
@@ -416,6 +451,7 @@ class MediaPlayerSession @Inject constructor(
                 // asked again another way and refused (the server cannot convert it): the next way, else said clearly
                 PhoneOpen.Failed -> if (v.fallback(i) == MediaFallback.NONE || !fallBack("the server refused ${v.fallback(i).name.lowercase(java.util.Locale.ROOT)}", from)) {
                     _ui.update { it?.copy(loading = false, trouble = if (v.fallback(i) == MediaFallback.NONE) MediaPlayerTrouble.FAILED else MediaPlayerTrouble.UNPLAYABLE, codecs = v.codecs(i), problem = v.problem(i)) }
+                    if (v.fallback(i) != MediaFallback.NONE) askConvert(v, i)
                 }
             }
         }
@@ -515,6 +551,7 @@ class MediaPlayerSession @Inject constructor(
         val ui = _ui.value ?: return
         // „Nochmal“ after every way failed: from the file itself again (the server may convert by now)
         if (ui.trouble == MediaPlayerTrouble.UNPLAYABLE) videos?.resetFallback(ui.at)
+        _ui.update { it?.copy(convert = null, convertBusy = false, convertFailed = false) }
         if (_player.value == null) {
             start(ui.queue.copy(at = ui.at))
             return

@@ -132,7 +132,7 @@ class MediaOfflineUiTest {
         val offline = fakeOffline(items, allowed)
         val requests = MediaPlayRequests(hub, mockk<MediaPlayback>(relaxed = true), offline)
         val network = mockk<MediaNetwork> { every { cellular() } returns false }
-        val vm = MediaDetailViewModel(SavedStateHandle(mapOf("source" to "jf", "id" to "m1", "name" to "Kobaltnacht")), hub, requests, settings(), network, mockk(relaxed = true), offline, com.gatecontrol.android.media.MediaRowsCache(null))
+        val vm = MediaDetailViewModel(SavedStateHandle(mapOf("source" to "jf", "id" to "m1", "name" to "Kobaltnacht")), hub, requests, settings(), network, mockk(relaxed = true), offline, com.gatecontrol.android.media.MediaRowsCache(null), noConvert())
         return vm to offline
     }
 

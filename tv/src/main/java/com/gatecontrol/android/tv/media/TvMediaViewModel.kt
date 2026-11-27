@@ -94,6 +94,14 @@ data class TvDetailUi(
     val offer: MediaQualityOffer? = null,
     /** A collection's titles ("Sammlungen"). */
     val items: List<MediaTitle> = emptyList(),
+    /**
+     * „Videos umwandeln“ (plugin Medien 1.6.0): the hint before playing a file the TV does not play directly
+     * ([convertProblem]); null: none.
+     */
+    val convert: com.gatecontrol.android.media.server.MediaConvertHint? = null,
+    val convertProblem: String? = null,
+    val convertBusy: Boolean = false,
+    val convertFailed: Boolean = false,
 )
 
 /**
@@ -109,6 +117,8 @@ class TvMediaViewModel @Inject constructor(
     private val servers: MediaServerSources,
     /** The rows last loaded, per source (as on the phone): shown at once, then checked again in the background. */
     private val rowsCache: MediaRowsCache,
+    /** „Videos umwandeln“ of the plugin Medien: the states asked together and kept a few minutes. */
+    private val convert: com.gatecontrol.android.media.server.MediaConvert,
 ) : ViewModel() {
 
     private val browse = MediaBrowse(media) { publish() }
@@ -351,6 +361,7 @@ class TvMediaViewModel @Inject constructor(
                     offer = loaded.offer,
                 )
             }
+            if (detail.title.playable) launch { convertHint(id) }
             if (detail.title.kind == MediaTitle.Kind.COLLECTION) {
                 val items = browse.collection(page.title)
                 replaceTop(id) { it.copy(items = items) }
@@ -364,6 +375,30 @@ class TvMediaViewModel @Inject constructor(
         }
     }
 
+    /**
+     * „Videos umwandeln“: when the TV does not play the picture of page [id]'s file itself (its device profile's rule),
+     * what the plugin knows of it. Jellyfin only; without the plugin's answer nothing shows.
+     */
+    private suspend fun convertHint(id: String) {
+        val page = _details.value.lastOrNull { it.title.id == id } ?: return
+        if (media.store.source(page.title.sourceId)?.kind != com.gatecontrol.android.media.MediaSourceKind.JELLYFIN) return
+        val problem = com.gatecontrol.android.media.jellyfin.JellyfinProfile.videoProblem(page.detail?.version?.video, media.caps()) ?: return
+        val hint = convert.hint(id, problem)
+        replaceTop(id) { it.copy(convert = hint, convertProblem = problem) }
+    }
+
+    /** „Für heute Nacht vormerken“ on the open page: onto the plugin's list (the admin queues it). */
+    fun requestConvert() {
+        val t = _details.value.lastOrNull() ?: return
+        if (t.convertBusy || t.convert != com.gatecontrol.android.media.server.MediaConvertHint.Offer) return
+        val id = t.title.id
+        replaceTop(id) { it.copy(convertBusy = true, convertFailed = false) }
+        viewModelScope.launch {
+            val hint = convert.request(id)
+            replaceTop(id) { it.copy(convertBusy = false, convert = hint ?: it.convert, convertFailed = hint == null) }
+        }
+    }
+
     /** A season of the open series. */
     fun season(seriesId: String, seasonId: String) {
         val top = _details.value.lastOrNull { it.title.id == seriesId } ?: return
@@ -372,6 +407,8 @@ class TvMediaViewModel @Inject constructor(
         viewModelScope.launch {
             val episodes = browse.episodes(top.title, seasonId)
             replaceTop(seriesId) { if (it.seasonId == seasonId) it.copy(episodes = episodes) else it }
+            // the season's states in one question: an episode opened next shows its hint at once
+            if (media.store.source(top.title.sourceId)?.kind == com.gatecontrol.android.media.MediaSourceKind.JELLYFIN) convert.prefetch(episodes.map { it.id })
         }
     }
 

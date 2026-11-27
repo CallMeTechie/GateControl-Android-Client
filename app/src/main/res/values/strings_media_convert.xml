@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- „Videos umwandeln“: the hint before playing a file this device does not play directly -->
+    <string name="media_convert_offer_title">Converted while playing</string>
+    <string name="media_convert_offer_text">Your device cannot play this video (%1$s) itself. It may stutter now. Convert it for good overnight?</string>
+    <string name="media_convert_request">Mark for tonight</string>
+    <string name="media_convert_requested_title">Marked for converting</string>
+    <string name="media_convert_requested_text">Whoever looks after the media starts the converting. You can still play it now.</string>
+    <string name="media_convert_queued_title">Converted tonight</string>
+    <string name="media_convert_queued_place">Position %1$d</string>
+    <string name="media_convert_queued_from">from %1$s</string>
+    <string name="media_convert_queued_after">After that it plays smoothly here.</string>
+    <string name="media_convert_running_title">Being converted now</string>
+    <string name="media_convert_running_title_percent">Being converted now – %1$d %%</string>
+    <string name="media_convert_running_text">After that it plays smoothly here.</string>
+    <string name="media_convert_failed">That did not work. Please try again later.</string>
+</resources>

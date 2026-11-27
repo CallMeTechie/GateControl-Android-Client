@@ -18,6 +18,9 @@ import com.gatecontrol.android.media.MediaRowsCache
 import com.gatecontrol.android.media.MediaSource
 import com.gatecontrol.android.media.MediaTitle
 import com.gatecontrol.android.media.jellyfin.JellyfinDeviceCaps
+import com.gatecontrol.android.media.jellyfin.JellyfinProfile
+import com.gatecontrol.android.media.server.MediaConvert
+import com.gatecontrol.android.media.server.MediaConvertHint
 import com.gatecontrol.android.media.offline.MediaOffline
 import com.gatecontrol.android.media.offline.OfflineAllowed
 import com.gatecontrol.android.media.offline.OfflineItem
@@ -57,6 +60,16 @@ data class MediaDetailUi(
     val fromPhone: Boolean = false,
     /** A collection's titles ("Sammlungen"). */
     val items: List<MediaTitle> = emptyList(),
+    /**
+     * „Videos umwandeln“ (plugin Medien 1.6.0): the hint before playing a file this phone does not play directly
+     * ([convertProblem], e.g. „H.264 10-Bit (High 10)“); null: none (plays here, converted, or the plugin without it).
+     */
+    val convert: MediaConvertHint? = null,
+    val convertProblem: String? = null,
+    /** „Für heute Nacht vormerken“ is being sent. */
+    val convertBusy: Boolean = false,
+    /** „Für heute Nacht vormerken“ was refused (no connection, too many at once). */
+    val convertFailed: Boolean = false,
 ) {
     /** The heart is offered: a Jellyfin source, not from the download (a share has no favourites, decision 74). */
     val canFavorite: Boolean get() = source?.kind == com.gatecontrol.android.media.MediaSourceKind.JELLYFIN && !fromPhone && detail != null
@@ -76,6 +89,8 @@ class MediaDetailViewModel @Inject constructor(
     private val offline: MediaOffline,
     /** The overview's rows: asked again at the next opening after a heart or "Gesehen" here. */
     private val rowsCache: MediaRowsCache,
+    /** „Videos umwandeln“ of the plugin Medien: the states asked together and kept a few minutes. */
+    private val convert: MediaConvert,
 ) : ViewModel() {
 
     private val browse = MediaBrowse(hub) {}
@@ -163,6 +178,7 @@ class MediaDetailViewModel @Inject constructor(
                 )
             }
             _ui.value.source?.let { s -> launch { val a = offline.canDownload(s); _ui.update { it.copy(allowed = a) } } }
+            launch { convertHint() }
             if (detail.title.kind == MediaTitle.Kind.COLLECTION) {
                 val items = browse.collection(detail.title)
                 _ui.update { it.copy(items = items) }
@@ -182,6 +198,36 @@ class MediaDetailViewModel @Inject constructor(
         viewModelScope.launch {
             val episodes = browse.episodes(series, seasonId)
             _ui.update { if (it.seasonId == seasonId) offlineInto(it.copy(episodes = episodes), offline.items.value) else it }
+            // the season's states in one question: an episode opened next shows its hint at once
+            if (jellyfin()) convert.prefetch(episodes.map { it.id })
+        }
+    }
+
+    private fun jellyfin(): Boolean = _ui.value.source?.kind == com.gatecontrol.android.media.MediaSourceKind.JELLYFIN && !_ui.value.fromPhone
+
+    /**
+     * „Videos umwandeln“: when this phone does not play the file's picture itself (the same rule as its device
+     * profile), what the plugin knows of it (tonight, being converted, or „Für heute Nacht vormerken“).
+     */
+    private suspend fun convertHint() {
+        val u = _ui.value
+        if (!jellyfin() || !u.title.playable) return
+        val problem = JellyfinProfile.videoProblem(u.detail?.version?.video, u.caps) ?: run {
+            _ui.update { it.copy(convert = null, convertProblem = null) }
+            return
+        }
+        val hint = convert.hint(u.title.id, problem)
+        _ui.update { if (it.title.id == u.title.id) it.copy(convert = hint, convertProblem = problem) else it }
+    }
+
+    /** „Für heute Nacht vormerken“: onto the plugin's list (the admin queues it); playing stays possible. */
+    fun requestConvert() {
+        val u = _ui.value
+        if (u.convertBusy || u.convert != MediaConvertHint.Offer) return
+        _ui.update { it.copy(convertBusy = true, convertFailed = false) }
+        viewModelScope.launch {
+            val hint = convert.request(u.title.id)
+            _ui.update { it.copy(convertBusy = false, convert = hint ?: it.convert, convertFailed = hint == null) }
         }
     }
 

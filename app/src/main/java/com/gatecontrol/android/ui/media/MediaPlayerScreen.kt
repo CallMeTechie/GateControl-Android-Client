@@ -149,6 +149,8 @@ class MediaPlayerActions(
     val onAway: (MediaAwayOriginal?) -> Unit = {},
     /** „Jetzt abspielen“ while it loads ahead. */
     val onStartNow: () -> Unit = {},
+    /** „Für heute Nacht vormerken“ in the message when nothing plays (plugin Medien 1.6.0). */
+    val onConvertRequest: () -> Unit = {},
 )
 
 /** The parts of the info line with their tone: the network, what the NAS does, the sound. */
@@ -394,7 +396,7 @@ private fun BoxScope.VideoArea(ui: MediaPlayerUi, player: Player?, landscape: Bo
             actions = actions,
         )
     }
-    ui.trouble?.let { Trouble(it, actions, consent = ui.vpnConsent, codecs = ui.codecs, problem = ui.problem) }
+    ui.trouble?.let { Trouble(it, actions, consent = ui.vpnConsent, codecs = ui.codecs, problem = ui.problem, ui = ui) }
     ui.countdown?.let { Countdown(ui, it, actions) }
     if (ui.fellBack && ui.trouble == null) {
         Text(
@@ -624,7 +626,7 @@ private fun BoxScope.Countdown(ui: MediaPlayerUi, seconds: Int, actions: MediaPl
 }
 
 @Composable
-private fun BoxScope.Trouble(trouble: MediaPlayerTrouble, actions: MediaPlayerActions, consent: Boolean = false, codecs: String? = null, problem: String? = null) {
+private fun BoxScope.Trouble(trouble: MediaPlayerTrouble, actions: MediaPlayerActions, consent: Boolean = false, codecs: String? = null, problem: String? = null, ui: MediaPlayerUi? = null) {
     if (trouble == MediaPlayerTrouble.VPN) {
         VpnTrouble(actions, consent)
         return
@@ -646,11 +648,34 @@ private fun BoxScope.Trouble(trouble: MediaPlayerTrouble, actions: MediaPlayerAc
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         Text(text, color = Color.White, textAlign = TextAlign.Center, style = MaterialTheme.typography.bodyMedium)
-        if (trouble == MediaPlayerTrouble.UNPLAYABLE && problem != null) {
+        val convert = ui?.convert?.takeIf { trouble == MediaPlayerTrouble.UNPLAYABLE }
+        if (convert != null) {
+            // „Videos umwandeln“ (plugin Medien): instead of the bare tip, what the NAS does or „Für heute Nacht vormerken“
+            val (title, line) = convertTexts(convert, problem)
+            Column(Modifier.testTag(PLAYER_CONVERT_TAG), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(title, color = Color.White, textAlign = TextAlign.Center, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                if (convert != com.gatecontrol.android.media.server.MediaConvertHint.Offer) {
+                    Text(line, color = Color.White.copy(alpha = 0.8f), textAlign = TextAlign.Center, style = MaterialTheme.typography.bodySmall)
+                }
+                if (ui?.convertFailed == true) Text(stringResource(R.string.media_convert_failed), color = Color.White.copy(alpha = 0.8f), textAlign = TextAlign.Center, style = MaterialTheme.typography.bodySmall)
+            }
+        } else if (trouble == MediaPlayerTrouble.UNPLAYABLE && problem != null) {
             Text(stringResource(R.string.media_player_unplayable_tip), color = Color.White.copy(alpha = 0.8f), textAlign = TextAlign.Center, style = MaterialTheme.typography.bodySmall)
         }
         if (trouble == MediaPlayerTrouble.UNPLAYABLE && codecs != null) {
             Text(codecs, color = Color.White.copy(alpha = 0.7f), textAlign = TextAlign.Center, style = MaterialTheme.typography.bodySmall, modifier = Modifier.testTag(UNPLAYABLE_TAG))
+        }
+        if (convert == com.gatecontrol.android.media.server.MediaConvertHint.Offer) {
+            com.gatecontrol.android.ui.components.GcPrimaryButton(
+                stringResource(R.string.media_convert_request),
+                onClick = actions.onConvertRequest,
+                loading = ui?.convertBusy == true,
+                enabled = ui?.convertBusy != true,
+                icon = GcIcons.Moon,
+                fillWidth = false,
+                minHeight = 40.dp,
+                modifier = Modifier.testTag(PLAYER_CONVERT_REQUEST_TAG),
+            )
         }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             if (trouble != MediaPlayerTrouble.SIGNED_OUT) TextButton(onClick = actions.onRetry) { Text(stringResource(R.string.media_player_retry), color = Color.White) }
@@ -1019,6 +1044,8 @@ internal const val QUALITY_TAG = "media-player-quality"
 internal const val COUNTDOWN_TAG = "media-player-countdown"
 internal const val FELL_BACK_TAG = "media-player-fell-back"
 internal const val UNPLAYABLE_TAG = "media-player-unplayable"
+internal const val PLAYER_CONVERT_TAG = "media-player-convert"
+internal const val PLAYER_CONVERT_REQUEST_TAG = "media-player-convert-request"
 internal const val MOBILE_HINT_TAG = "media-player-mobile-hint"
 internal const val VPN_TROUBLE_TAG = "media-player-vpn"
 internal const val VPN_ON_PLAYER_TAG = "media-player-vpn-on"

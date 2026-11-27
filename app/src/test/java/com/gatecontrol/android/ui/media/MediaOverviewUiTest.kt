@@ -242,6 +242,7 @@ class MediaOverviewUiTest {
             pictures,
             offline,
             MediaRowsCache(null),
+            noConvert(),
         )
         rule.setContent { GateControlTheme(darkTheme = false) { androidx.compose.material3.Surface(Modifier.fillMaxSize().testTag("shot")) { MediaDetailScreen(onBack = {}, onOpen = {}, viewModel = vm) } } }
         rule.waitForIdle()

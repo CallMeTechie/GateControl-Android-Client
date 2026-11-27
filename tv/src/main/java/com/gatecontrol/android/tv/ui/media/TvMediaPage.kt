@@ -102,6 +102,8 @@ class TvMediaActions(
     val onPlayed: () -> Unit = {},
     /** The heart of the detail page (Jellyfin). */
     val onFavorite: () -> Unit = {},
+    /** „Für heute Nacht vormerken“ of the detail page (plugin Medien 1.6.0). */
+    val onConvertRequest: () -> Unit = {},
     val onSelect: (MediaSource) -> Unit = {},
     val onAlwaysOriginal: (MediaSource, Boolean) -> Unit = { _, _ -> },
     /** „Neu laden“ of Medien › Quellen. */

@@ -356,6 +356,7 @@ class TvActivity : ComponentActivity() {
         onOriginal = mediaVm::chooseOriginal,
         onPlayed = mediaVm::togglePlayed,
         onFavorite = mediaVm::toggleFavorite,
+        onConvertRequest = mediaVm::requestConvert,
         onSelect = mediaVm::select,
         onAlwaysOriginal = mediaVm::setAlwaysOriginal,
         onReload = mediaVm::reload,

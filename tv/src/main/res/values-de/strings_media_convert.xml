@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="tv_media_convert_offer_title">Wird beim Abspielen umgewandelt</string>
+    <string name="tv_media_convert_offer_text">Der Fernseher kann dieses Video (%1$s) nicht selbst abspielen. Jetzt kann es ruckeln. Über Nacht dauerhaft umwandeln?</string>
+    <string name="tv_media_convert_request">Für heute Nacht vormerken</string>
+    <string name="tv_media_convert_requested_title">Zum Umwandeln vorgemerkt</string>
+    <string name="tv_media_convert_requested_text">Wer die Medien verwaltet, startet das Umwandeln. Abspielen geht trotzdem.</string>
+    <string name="tv_media_convert_queued_title">Wird heute Nacht umgewandelt</string>
+    <string name="tv_media_convert_queued_place">Platz %1$d</string>
+    <string name="tv_media_convert_queued_from">ab %1$s Uhr</string>
+    <string name="tv_media_convert_queued_after">Danach läuft es hier flüssig.</string>
+    <string name="tv_media_convert_running_title">Wird gerade umgewandelt</string>
+    <string name="tv_media_convert_running_title_percent">Wird gerade umgewandelt – %1$d %%</string>
+    <string name="tv_media_convert_running_text">Danach läuft es hier flüssig.</string>
+    <string name="tv_media_convert_failed">Das hat nicht geklappt. Bitte später noch einmal versuchen.</string>
+</resources>
