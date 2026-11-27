@@ -7,7 +7,7 @@ import java.util.regex.Pattern
 
 /**
  * Schnell-Eingabe: a line in plain language → a task (title, date, time, repeat, list, person, important) — a 1:1 port
- * of the plugin's `ui/quickparse.js` (gatecontrol-notizen 1.8.1). Deterministic, no AI, no clock of its own: the
+ * of the plugin's `ui/quickparse.js` (gatecontrol-notizen 1.9.0). Deterministic, no AI, no clock of its own: the
  * plugin's `test/vectors/quickparse.json` (copied into the unit tests) is what this port must give, case by case.
  *
  * The JavaScript regular expressions are kept as they are, with three spellings made explicit so the JVM (unit tests)
@@ -17,6 +17,11 @@ import java.util.regex.Pattern
  * A weekday right before or right after a calendar date belongs to it and goes with it („Freitag, 4.12.“, „am Freitag
  * den 4. Dezember“, „Fr 4.12.“, „4. Dezember, Freitag“, „Friday, December 4“, „Fri 4 Dec“) — the date counts; a weekday
  * that is not the date's stays in the title („Samstag 4. Dezember“ when that is a Friday).
+ *
+ * „Termin“ (1.9.0): with [Ctx.mode] `"event"` the line is read as an event of a calendar. In addition, and only then:
+ * a span of time („14 bis 16 Uhr“, „14:00-15:30“) gives [Parsed.time] and [Parsed.endTime], the rest after „im“, „in“,
+ * „bei“ or „beim“ is the [Parsed.location], „3 Tage nach Erledigung“ stays text. [Parsed.looksLikeEvent] (a date AND
+ * a time) is computed in every mode — the app asks „Als Termin anlegen?“, it never switches by itself.
  */
 object QuickParse {
 
@@ -35,6 +40,8 @@ object QuickParse {
         val people: List<Ref> = emptyList(),
         /** The person's words „früh“, „abends“ … (`prefs.times`). */
         val times: Map<String, String> = emptyMap(),
+        /** `"event"`: read the line as an event (span of time, place); else a task. */
+        val mode: String? = null,
     )
 
     data class Parsed(
@@ -49,6 +56,14 @@ object QuickParse {
         val assigneeName: String?,
         val repeat: NRepeat.Rule?,
         val marks: List<Mark>,
+        /** Event mode: the written end, else an hour after [time] (past midnight it wraps); null without a time. */
+        val endTime: String? = null,
+        /** Event mode: no time was found. */
+        val allDay: Boolean = false,
+        /** Event mode: the place after „im“, „in“, „bei“, „beim“. */
+        val location: String? = null,
+        /** A date mark and a time: the line may be an event. */
+        val looksLikeEvent: Boolean = false,
     )
 
     val DEFAULT_TIMES: Map<String, String> = linkedMapOf("morning" to "09:00", "noon" to "12:00", "afternoon" to "15:00", "evening" to "19:00", "night" to "21:00")
@@ -197,9 +212,10 @@ object QuickParse {
         val time: String? = null,
         val soft: Boolean = false,
         val important: Boolean = false,
+        val endTime: String? = null,
     )
 
-    private class Rule(val kind: String, re: String, val bare: Boolean = false, val cal: Boolean = false, val take: (Matcher) -> Got?) {
+    private class Rule(val kind: String, re: String, val bare: Boolean = false, val cal: Boolean = false, val event: Boolean = false, val take: (Matcher) -> Got?) {
         val pattern: Pattern = Pattern.compile(
             js((if (bare) "(?<![\\p{L}\\p{N}!])" else B) + "(?:" + re + ")" + (if (bare) "(?![\\p{L}\\p{N}!])" else E)),
             Pattern.CASE_INSENSITIVE or Pattern.UNICODE_CASE,
@@ -339,6 +355,16 @@ object QuickParse {
                 weekdayOf(m.g(1)!!)?.let { Got(date = nextWeekday(today, it)) }
             },
             // ── a time ──
+            // (event mode only) a span: „14 bis 16 Uhr“, „14–16 Uhr“, „von 9:30 bis 11 Uhr“, „14:00-15:30“
+            Rule("time", "(?:von\\s+|from\\s+|um\\s+|at\\s+)?(\\d{1,2})(?:([:.])(\\d{2}))?(?:\\s*uhr)?\\s*(?:bis|to|-|–|—)\\s*(\\d{1,2})(?:([:.])(\\d{2}))?(?:\\s*(uhr|h|o'clock))?", event = true) { m ->
+                val h1 = m.g(1)!!.toInt()
+                val m1 = m.g(3)?.toInt() ?: 0
+                val h2 = m.g(4)!!.toInt()
+                val m2 = m.g(6)?.toInt() ?: 0
+                if (m.g(7) == null && !(m.g(2) == ":" && m.g(5) == ":")) return@Rule null
+                if (h1 > 23 || h2 > 24 || m1 > 59 || m2 > 59 || (h2 == 24 && m2 != 0)) return@Rule null
+                Got(time = hhmm(h1, m1), endTime = hhmm(h2 % 24, m2))
+            },
             Rule("time", "(?:um\\s+|gegen\\s+|ab\\s+)?halb\\s+(\\d{1,2})(?:\\s*uhr)?") { m ->
                 val h = m.g(1)!!.toInt() - 1
                 if (h in 0..23) Got(time = hhmm(h, 30)) else null
@@ -401,6 +427,21 @@ object QuickParse {
     private val T3 = Regex("([,;:])(?=[,;:])")
     private val T4 = Regex(js("^[\\s,;:\\-–—]+|[\\s,;:\\-–—]+\\z"))
     private val T5 = Regex(js("\\s*,\\s*,+"))
+    private val PLACE: Pattern = Pattern.compile(
+        js("$B(?:im|in|beim|bei)\\s+(?:(?:der|die|das|dem|den|the)\\s+)?(?=$L)"),
+        Pattern.CASE_INSENSITIVE or Pattern.UNICODE_CASE,
+    )
+    private val TRAIL = Regex(js("[\\s,;:\\-–—]+\\z"))
+
+    /** What is left of a line as a title (or a place): white space folded, stray commas and dashes at the ends gone. */
+    private fun tidy(s: String): String {
+        var t = T1.replace(s, " ")
+        t = T2.replace(t, "$1")
+        t = T3.replace(t, "")
+        t = T4.replace(t, "")
+        t = T5.replace(t, ",")
+        return t.trim()
+    }
 
     /** The line → what it says. Throws [IllegalArgumentException] without a valid [Ctx.today] (as the JS does). */
     fun parse(text: String?, ctx: Ctx): Parsed {
@@ -417,6 +458,8 @@ object QuickParse {
         var assigneeName: String? = null
         var repeat: NRepeat.Rule? = null
         val marks = mutableListOf<Mark>()
+        val eventMode = ctx.mode == "event"
+        var endTime: String? = null
         var softTime = false
 
         // #list and @person first (their words are never dates)
@@ -459,7 +502,10 @@ object QuickParse {
                     marks.add(Mark(s, e, "important"))
                     continue
                 }
+                if (r.event && !eventMode) break
                 val got = r.take(mm) ?: continue
+                // (event mode) „nach Erledigung“ is no rule of an event: the words stay
+                if (eventMode && got.repeat?.type == "after") continue
                 if (got.time != null && r.kind == "time" && time != null && softTime && got.soft) continue
                 if (got.repeat != null) repeat = got.repeat
                 if (got.date != null) date = got.date
@@ -468,6 +514,7 @@ object QuickParse {
                     time = got.time
                     softTime = got.soft || r.kind == "date"
                 }
+                if (got.endTime != null) endTime = got.endTime
                 if (got.important) important = true
                 var start = s
                 var end = e
@@ -502,12 +549,37 @@ object QuickParse {
         }
         val remind = if (date != null && time != null) Remind(date, time) else null
 
-        var title = T1.replace(work, " ")
-        title = T2.replace(title, "$1")
-        title = T3.replace(title, "")
-        title = T4.replace(title, "")
-        title = T5.replace(title, ",")
-        title = title.trim()
-        return Parsed(title, date, time, remind, important, list, listName, assignee, assigneeName, repeat, marks.sortedBy { it.start })
+        // the line names a date and a time: it may be an event (the app asks, it never switches by itself)
+        val looksLikeEvent = time != null && marks.any { it.kind == "date" }
+        var outEnd: String? = null
+        var allDay = false
+        var location: String? = null
+        if (eventMode) {
+            allDay = time == null
+            if (time != null) {
+                // a written end that is not the start itself; else an hour (past midnight it wraps: the next day)
+                outEnd = if (endTime != null && endTime != time) endTime else hhmm((time.substring(0, 2).toInt() + 1) % 24, time.substring(3, 5).toInt())
+            }
+            // the place: after „im“, „in“, „bei“, „beim“ the rest of what is left
+            // (an article right behind the word goes with it: „in der Schule“ → „Schule“)
+            val pm = PLACE.matcher(work)
+            if (pm.find()) {
+                val rest = work.substring(pm.end())
+                val loc = tidy(rest)
+                if (loc.isNotEmpty()) {
+                    location = loc
+                    marks.add(Mark(pm.start(), pm.end() + TRAIL.replace(rest, "").length, "place"))
+                    work = work.substring(0, pm.start())
+                }
+            }
+        }
+
+        var title = tidy(work)
+        // a line that is only a place („beim Zahnarzt“) keeps it as its title
+        if (eventMode && title.isEmpty() && location != null) title = location
+        return Parsed(
+            title, date, time, remind, important, list, listName, assignee, assigneeName, repeat, marks.sortedBy { it.start },
+            endTime = outEnd, allDay = allDay, location = location, looksLikeEvent = looksLikeEvent,
+        )
     }
 }

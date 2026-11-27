@@ -110,8 +110,13 @@ data class NMe(
     val familyTasks: NFamilyTasks? = null,
     /** Plugin 1.7.0 (`driveDeadlines`, `me.driveDeadlines`); null with an older plugin. */
     val driveDeadlineInfo: NDriveDeadlines? = null,
+    /** Plugin 1.9.0 (`calendarEvents`, `me.events`); null with an older plugin. */
+    val events: NEventsInfo? = null,
 ) {
     fun has(feature: String) = feature in features
+
+    /** „Termin“ in the quick entry, events on the overview (never a version — this word). */
+    val calendarEvents: Boolean get() = has(NFeature.CALENDAR_EVENTS)
 
     /** The reminders of Drive's deadlines can ring from here: `Task.deadline`, „Datei öffnen“ (never a version — this word). */
     val driveDeadlines: Boolean get() = has(NFeature.DRIVE_DEADLINES)
@@ -338,6 +343,8 @@ data class NItem(
     /** Flat strings, numbers, booleans of the source (as text): `type`, `amount`, `child`, `stars`, `flagged` … */
     val meta: Map<String, String>,
     val updatedAt: Long,
+    /** Plugin 1.9.0: an event of the person's calendar in Mail (null: any other item — also Schule's and Alltag's events). */
+    val event: NItemEvent? = null,
 ) : NEntry {
     override val uid: String get() = "s:$id"
 }
@@ -610,6 +617,9 @@ data class NVault(
 
 /** The abilities of plugin 1.2.0 in `GET me` → `features`; without them (1.1.x) the app hides what needs them. */
 object NFeature {
+    /** Plugin 1.9.0: `GET events/calendars`, `POST events`, `me.events`, `Item.event` — „Termin“ in the quick entry. */
+    const val CALENDAR_EVENTS = "calendarEvents"
+
     /** Lists with week days, a morning message and „In ‚Mein Tag‘ zeigen“; the cards in „Mein Tag“; push `listday`. */
     const val LIST_DAYS = "listDays"
     /** Members with `read` / `write`. */
@@ -667,3 +677,67 @@ object NFeature {
      */
     const val PROFILE_PLACES = "profilePlaces"
 }
+
+// ── events of the calendar (plugin 1.9.0, `calendarEvents`) ──
+
+/** `me.events`: can the person make an event now ([available]); else [reason] (`no_mail`, `mail_old`, `feature_off` …). */
+data class NEventsInfo(val available: Boolean, val reason: String?)
+
+/**
+ * A calendar of the person (`GET events/calendars`). [id] null: the family's calendar (only shown). [kind] `own` |
+ * `shared` | `family` | `subscribed` | `tasks`; [target]: a new event may go here; [shown]: its events are on the overview.
+ */
+data class NEventCalendar(
+    val id: Long?,
+    val key: String,
+    val name: String,
+    val color: String?,
+    val kind: String,
+    val writable: Boolean,
+    val target: Boolean,
+    val isDefault: Boolean,
+    val area: String,
+    val shown: Boolean,
+)
+
+/**
+ * `GET events/calendars`: [state] `ok` | `none` (no event possible, [reason] says why), the calendars, the default one
+ * of Mail and its reminders ([remindTimed] minutes before the start, [remindAllDay] minutes before the midnight of the
+ * day; null: none).
+ */
+data class NEventCalendars(
+    val state: String,
+    val reason: String?,
+    val calendars: List<NEventCalendar>,
+    val defaultId: Long?,
+    val remindTimed: Int?,
+    val remindAllDay: Int?,
+    val timeZone: String?,
+) {
+    val ok: Boolean get() = state == "ok"
+
+    /** Where a new event may go (never „Aufgaben“). */
+    val targets: List<NEventCalendar> get() = calendars.filter { it.target && it.id != null }
+
+    /** Mail's default calendar (the app does not remember the last one chosen). */
+    val default: NEventCalendar? get() = targets.firstOrNull { it.isDefault } ?: targets.firstOrNull { it.id == defaultId } ?: targets.firstOrNull()
+}
+
+/** `Item.event` (plugin 1.9.0): an event of the calendar on the overview — no tick, never overdue. */
+data class NItemEvent(
+    /** The end with a time; all-day only over several days ([NDue.time] null); else null. */
+    val end: NDue?,
+    val location: String?,
+    val calendarKey: String?,
+    val calendarName: String?,
+    /** `#RRGGBB` of its calendar. */
+    val color: String?,
+    val calendarKind: String?,
+    /** The event's number in Mail (null: the family's calendar). */
+    val eventId: Long?,
+    val recurring: Boolean,
+    val writable: Boolean,
+)
+
+/** The answer of `POST events`: Mail's number of the event, its calendar, the rows of the overview, sent before already. */
+data class NEventCreated(val eventId: Long, val calendarId: Long?, val items: List<NItem>, val replayed: Boolean)

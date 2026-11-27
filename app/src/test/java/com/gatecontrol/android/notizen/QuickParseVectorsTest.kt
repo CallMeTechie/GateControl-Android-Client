@@ -13,8 +13,8 @@ import org.junit.jupiter.api.Test
 /**
  * The quick entry and the repeat rules against the plugin's own vectors — copied unchanged from gatecontrol-plugins
  * `plugins/gatecontrol-notizen/test/vectors/{quickparse,repeat}.json`: `quickparse.json` of gatecontrol-notizen
- * **1.8.1** (commit 1c51b68 of main; a weekday next to a calendar date belongs to it, with the optional `marks` of a
- * case), `repeat.json` of **1.0.0** (commit af53ac1). Never edit them here: a new plugin version brings new files.
+ * **1.9.0** (commit 6e347b5 of main; a weekday next to a calendar date belongs to it, with the optional `marks` of a
+ * case; `eventCases` in event mode and `signalCases` for „looks like an event“), `repeat.json` of **1.0.0** (commit af53ac1). Never edit them here: a new plugin version brings new files.
  */
 class QuickParseVectorsTest {
 
@@ -77,6 +77,58 @@ class QuickParseVectorsTest {
         assertEquals(emptyList<String>(), failed)
         // a weekday next to a calendar date belongs to it (the cases with marks): there are enough of them
         assertTrue(cases.count { it.asJsonObject.has("marks") } >= 20)
+    }
+
+    @Test
+    fun `quick entry - event mode, every vector`() {
+        val cases = qv.getAsJsonArray("eventCases")
+        assertTrue(cases.size() >= 30)
+        val eventCtx = ctx.copy(mode = "event")
+        val failed = cases.mapNotNull { c ->
+            val o = c.asJsonObject
+            val input = o.get("input").asString
+            val p = QuickParse.parse(input, eventCtx)
+            val got = JsonObject().apply {
+                add("title", str(p.title))
+                add("date", str(p.date))
+                add("time", str(p.time))
+                add("endTime", str(p.endTime))
+                addProperty("allDay", p.allDay)
+                add("location", str(p.location))
+                add("repeat", p.repeat?.let { NRepeat.toJson(it) } ?: JsonNull.INSTANCE)
+            }
+            val want = o.getAsJsonObject("expect")
+            val wantMarks = o.getAsJsonArray("marks")?.let { marks(it) }
+            // only the fields the case names (the file may add more later)
+            val gotSome = JsonObject().apply { want.keySet().forEach { k -> add(k, got.get(k)) } }
+            when {
+                gotSome != want -> "$input\n  want $want\n  got  $gotSome"
+                wantMarks != null && wantMarks != p.marks -> "$input (marks)\n  want $wantMarks\n  got  ${p.marks}"
+                else -> null
+            }
+        }
+        assertEquals(emptyList<String>(), failed)
+    }
+
+    @Test
+    fun `quick entry - looks like an event, every vector`() {
+        val cases = qv.getAsJsonArray("signalCases")
+        assertTrue(cases.size() >= 10)
+        val failed = cases.mapNotNull { c ->
+            val o = c.asJsonObject
+            val input = o.get("input").asString
+            val p = QuickParse.parse(input, ctx)
+            if (p.looksLikeEvent != o.get("looksLikeEvent").asBoolean) "$input → ${p.looksLikeEvent}" else null
+        }
+        assertEquals(emptyList<String>(), failed)
+    }
+
+    @Test
+    fun `quick entry - task mode keeps the new fields empty`() {
+        val p = QuickParse.parse("Sa 14–16 Uhr Flohmarkt bei Oma", ctx)
+        assertEquals(listOf(null, false, null), listOf(p.endTime, p.allDay, p.location))
+        // a span is no rule of a task: „16 Uhr“ is the time there
+        assertEquals("16:00", p.time)
     }
 
     @Test

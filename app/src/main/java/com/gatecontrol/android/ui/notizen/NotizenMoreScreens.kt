@@ -139,6 +139,19 @@ fun NotizenSourcesScreen(nav: NotizenNav, vm: NotizenSourcesViewModel = hiltView
                         SourceCard(s, ui.prefs.sources[s.plugin] ?: NSourcePrefs(), ui.prefs.groups, ui.prefs.evening, vm, onTime = { time = s.plugin }, deadlines = s.plugin == DRIVE_PLUGIN && ui.me?.driveDeadlinesActive == true)
                     }
                 }
+                // ── Termine aus dem Kalender (1.9.0, Bild 8): one switch per calendar ──
+                if (me?.calendarEvents == true && ui.calendars.isNotEmpty()) {
+                    item { NSectionHeader(stringResource(R.string.notizen_set_events), null) }
+                    item {
+                        NCard {
+                            ui.calendars.forEachIndexed { i, c ->
+                                if (i > 0) Box(Modifier.fillMaxWidth().height(1.dp).background(x.border))
+                                CalendarSwitch(c, canWrite) { vm.setCalendarShown(c, it) }
+                            }
+                        }
+                    }
+                    item { Text(stringResource(R.string.notizen_set_events_hint), style = MaterialTheme.typography.bodySmall, color = x.muted, modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 8.dp)) }
+                }
                 if (!ui.loading && ui.sources.isEmpty()) item { Text(stringResource(R.string.notizen_sources_none), style = MaterialTheme.typography.bodySmall, color = x.muted, modifier = Modifier.padding(horizontal = 16.dp)) }
                 // ── Mein Tag (1.2.0) ──
                 if (v12) {
@@ -316,6 +329,37 @@ fun NotizenSourcesScreen(nav: NotizenNav, vm: NotizenSourcesViewModel = hiltView
     word?.let { k ->
         val cur = ui.prefs.times[k] ?: com.gatecontrol.android.notizen.QuickParse.DEFAULT_TIMES[k]
         NTimePicker(cur, { t -> word = null; if (t != null) vm.setTime(k, t) }, { word = null })
+    }
+}
+
+/** A calendar's switch (Bild 8): its sign in its colour, what kind it is, on or off. */
+@Composable
+internal fun CalendarSwitch(c: com.gatecontrol.android.notizen.NEventCalendar, enabled: Boolean, onChange: (Boolean) -> Unit) {
+    val hint = when {
+        c.isDefault -> R.string.notizen_cal_kind_default
+        c.kind == "shared" -> R.string.notizen_cal_kind_shared
+        c.kind == "family" -> R.string.notizen_cal_kind_family
+        c.kind == "subscribed" -> R.string.notizen_cal_kind_subscribed
+        c.kind == "tasks" -> R.string.notizen_cal_kind_tasks
+        else -> R.string.notizen_cal_kind_own
+    }
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .heightIn(min = 56.dp)
+            .toggleable(value = c.shown, enabled = enabled, role = androidx.compose.ui.semantics.Role.Switch, onValueChange = onChange)
+            .padding(horizontal = 14.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Box(Modifier.size(28.dp).clip(RoundedCornerShape(8.dp)).background(calendarColor(c.color)), contentAlignment = Alignment.Center) {
+            Icon(GcIcons.Calendar, null, tint = androidx.compose.ui.graphics.Color.White, modifier = Modifier.size(16.dp))
+        }
+        Column(Modifier.weight(1f)) {
+            Text(c.name, style = MaterialTheme.typography.bodyLarge)
+            Text(stringResource(hint), style = MaterialTheme.typography.bodySmall, color = GateControlTheme.extraColors.muted)
+        }
+        androidx.compose.material3.Switch(checked = c.shown, onCheckedChange = null, enabled = enabled)
     }
 }
 

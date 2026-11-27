@@ -72,7 +72,7 @@ import com.gatecontrol.android.ui.theme.GateControlTheme
 
 /** The colour of a kind of mark — the same in the text and on its chip. */
 @Composable
-private fun markColor(kind: String): Color {
+internal fun markColor(kind: String): Color {
     val dark = GateControlTheme.extraColors.isDark
     val c = when (kind) {
         "date", "time" -> Color(0xFFDBEAFE)
@@ -123,8 +123,26 @@ fun NotizenQuickScreen(nav: NotizenNav, vm: NotizenQuickViewModel = hiltViewMode
         Column(Modifier.fillMaxSize().keyboardPadding()) {
             GcSubpageBar(stringResource(R.string.notizen_quick_title), nav.back, stringResource(R.string.notizen_back))
             Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                GcSegmented(listOf(false to stringResource(R.string.notizen_quick_task), true to stringResource(R.string.notizen_quick_note)), ui.note, vm::setNote)
-                Text(stringResource(if (ui.note) R.string.notizen_new_note else R.string.notizen_new_task), style = MaterialTheme.typography.titleMedium)
+                // plugin 1.9.0 (`calendarEvents`): „Aufgabe | Termin | Notiz“ — the switch stays even without a calendar
+                if (ui.me?.calendarEvents == true) {
+                    val kind = when {
+                        ui.note -> NotizenQuickViewModel.KIND_NOTE
+                        ui.event -> NotizenQuickViewModel.KIND_EVENT
+                        else -> NotizenQuickViewModel.KIND_TASK
+                    }
+                    GcSegmented(
+                        listOf(
+                            NotizenQuickViewModel.KIND_TASK to stringResource(R.string.notizen_quick_task),
+                            NotizenQuickViewModel.KIND_EVENT to stringResource(R.string.notizen_quick_event),
+                            NotizenQuickViewModel.KIND_NOTE to stringResource(R.string.notizen_quick_note),
+                        ),
+                        kind,
+                        vm::setKind,
+                    )
+                } else {
+                    GcSegmented(listOf(false to stringResource(R.string.notizen_quick_task), true to stringResource(R.string.notizen_quick_note)), ui.note, vm::setNote)
+                }
+                Text(stringResource(if (ui.note) R.string.notizen_new_note else if (ui.event) R.string.notizen_new_event else R.string.notizen_new_task), style = MaterialTheme.typography.titleMedium)
                 BasicTextField(
                     ui.text,
                     vm::setText,
@@ -145,7 +163,27 @@ fun NotizenQuickScreen(nav: NotizenNav, vm: NotizenQuickViewModel = hiltViewMode
                         Box { if (ui.text.isEmpty()) Text(stringResource(if (ui.note) R.string.notizen_quick_note_placeholder else R.string.notizen_quick_placeholder), color = x.faint, style = MaterialTheme.typography.bodyLarge); inner() }
                     },
                 )
-                if (!ui.note) {
+                if (ui.event) {
+                    // plugin 1.9.0: an event of the calendar in Mail (Bilder 1, 2, 4, 9)
+                    val blocked = vm.eventBlocked()
+                    val d = vm.eventDraft()
+                    if (blocked != null) {
+                        if (ui.text.isNotBlank()) QuickEventBlocked(blocked, enabled = ui.me?.readOnly != true && !ui.busy, onTask = vm::saveAsTask)
+                    } else if (d != null && ui.text.isNotBlank()) {
+                        Text(stringResource(R.string.notizen_quick_understood), style = MaterialTheme.typography.labelLarge, color = x.muted)
+                        QuickEventChips(
+                            d, vm.eventCalendar(), vm.eventReminder(d), ui.me?.lang ?: "de", colors,
+                            onDialog = { dialog = it },
+                            onTitleAsPlace = { vm.setEventLocation(d.title) },
+                            onDropRepeat = { vm.drop("repeat") },
+                            onMore = { val a = vm.moreDetails(); if (a == null || !nav.eventForm(a)) vm.notHere() },
+                        )
+                        if (vm.eventWaits()) Text(stringResource(R.string.notizen_ev_why_unreachable), style = MaterialTheme.typography.bodySmall, color = x.muted)
+                    }
+                    Text(stringResource(R.string.notizen_ev_help), style = MaterialTheme.typography.bodySmall, color = x.muted)
+                } else if (!ui.note) {
+                    // plugin 1.9.0: a date and a time — the app asks, it never switches by itself (Bild 3)
+                    if (vm.asksEvent()) QuickEventAsk(onYes = { vm.setKind(NotizenQuickViewModel.KIND_EVENT) }, onNo = vm::keepAsTask)
                     val e = vm.effective()
                     val p = ui.parsed
                     if (e != null && p != null && ui.text.isNotBlank()) {
@@ -153,28 +191,28 @@ fun NotizenQuickScreen(nav: NotizenNav, vm: NotizenQuickViewModel = hiltViewMode
                         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                             val lang = ui.me?.lang ?: "de"
                             if (e.due != null) {
-                                Chip(listOfNotNull(NotizenFormat.shortDate(e.due.date, lang), NotizenFormat.time(e.due.time)).joinToString(", "), colors.getValue("date"), GcIcons.Calendar) { dialog = "date" }
+                                QuickChip(listOfNotNull(NotizenFormat.shortDate(e.due.date, lang), NotizenFormat.time(e.due.time)).joinToString(", "), colors.getValue("date"), GcIcons.Calendar) { dialog = "date" }
                             } else {
-                                Chip(stringResource(R.string.notizen_quick_add_date), x.panel2, GcIcons.Calendar) { dialog = "date" }
+                                QuickChip(stringResource(R.string.notizen_quick_add_date), x.panel2, GcIcons.Calendar) { dialog = "date" }
                             }
-                            e.remind?.time?.let { Chip(stringResource(R.string.notizen_quick_remind, NotizenFormat.time(it) ?: it), colors.getValue("time"), GcIcons.Bell) { vm.drop("time") } }
+                            e.remind?.time?.let { QuickChip(stringResource(R.string.notizen_quick_remind, NotizenFormat.time(it) ?: it), colors.getValue("time"), GcIcons.Bell) { vm.drop("time") } }
                             // plugin 1.3.0: a task with a time becomes an event in my calendar in Mail (only while Mail
                             // offers it and the administrator and I have it on) — the chip says so, the switch is in the settings
                             val calendar = ui.me?.takeIf { it.calendarShown && e.due?.time != null }?.calendar
                             if (calendar != null) {
                                 val name = calendar.name ?: stringResource(R.string.notizen_default_list)
-                                Chip(stringResource(R.string.notizen_quick_calendar, name), MaterialTheme.colorScheme.primary.copy(alpha = 0.14f), GcIcons.Calendar) { calendarHint = name }
+                                QuickChip(stringResource(R.string.notizen_quick_calendar, name), MaterialTheme.colorScheme.primary.copy(alpha = 0.14f), GcIcons.Calendar) { calendarHint = name }
                             }
-                            e.repeat?.let { Chip(NRepeat.describe(it, lang), colors.getValue("repeat"), GcIcons.Refresh) { vm.drop("repeat") } }
-                            if (e.important) Chip(stringResource(R.string.notizen_important), colors.getValue("important"), GcIcons.Star) { vm.drop("important") }
+                            e.repeat?.let { QuickChip(NRepeat.describe(it, lang), colors.getValue("repeat"), GcIcons.Refresh) { vm.drop("repeat") } }
+                            if (e.important) QuickChip(stringResource(R.string.notizen_important), colors.getValue("important"), GcIcons.Star) { vm.drop("important") }
                             val listName = e.listId?.let { id -> ui.nav?.lists?.firstOrNull { it.id == id }?.name } ?: e.newList?.let { stringResource(R.string.notizen_quick_new_list, it) }
-                            Chip(stringResource(R.string.notizen_quick_list, listName ?: (ui.nav?.lists?.firstOrNull { it.isDefault }?.name ?: stringResource(R.string.notizen_default_list))), colors.getValue("list"), GcIcons.Tasks) { dialog = "list" }
+                            QuickChip(stringResource(R.string.notizen_quick_list, listName ?: (ui.nav?.lists?.firstOrNull { it.isDefault }?.name ?: stringResource(R.string.notizen_default_list))), colors.getValue("list"), GcIcons.Tasks) { dialog = "list" }
                             // plugin 1.4.0 (mockup „Die Liste hängt sich von selbst an“): the shopping list the server suggests
                             val attached = e.attached
                             if (attached != null) {
-                                Chip(stringResource(R.string.notizen_quick_attach, attached.name, attached.open), colors.getValue("list"), GcIcons.Cart) { dialog = "attach" }
+                                QuickChip(stringResource(R.string.notizen_quick_attach, attached.name, attached.open), colors.getValue("list"), GcIcons.Cart) { dialog = "attach" }
                             } else if (QuickAttach.asks(ui.attach, ui.attachPick, ui.attachOff)) {
-                                Chip(stringResource(R.string.notizen_quick_attach_choose), x.panel2, GcIcons.Cart) { dialog = "attach" }
+                                QuickChip(stringResource(R.string.notizen_quick_attach_choose), x.panel2, GcIcons.Cart) { dialog = "attach" }
                             }
                             // plugin 1.5.0 (mockup „Orte aus dem getippten Text“): the place the line names — decided
                             // („Bäckerei am Markt · ändern“ and when), or to choose („Ort: Baumarkt …“; the tap searches)
@@ -182,32 +220,32 @@ fun NotizenQuickScreen(nav: NotizenNav, vm: NotizenQuickViewModel = hiltViewMode
                             if (ui.me?.taskPlaces == true && sp != null && !ui.placeOff) {
                                 val place = e.place
                                 if (place != null) {
-                                    Chip(stringResource(R.string.notizen_pl_chip_change, place.name), colors.getValue("place"), GcIcons.Pin) { vm.openPlace() }
-                                    Chip(
+                                    QuickChip(stringResource(R.string.notizen_pl_chip_change, place.name), colors.getValue("place"), GcIcons.Pin) { vm.openPlace() }
+                                    QuickChip(
                                         stringResource(if (place.trigger == com.gatecontrol.android.notizen.NPlace.EXIT) R.string.notizen_pl_exit else R.string.notizen_pl_enter),
                                         colors.getValue("place"), GcIcons.Refresh,
                                     ) { vm.togglePlaceTrigger() }
                                 } else {
-                                    Chip(stringResource(R.string.notizen_pl_chip, sp.label), x.panel2, GcIcons.Pin) { vm.openPlace() }
+                                    QuickChip(stringResource(R.string.notizen_pl_chip, sp.label), x.panel2, GcIcons.Pin) { vm.openPlace() }
                                 }
                             }
                             // plugin 1.6.0 (mockup „Anlegen“): „Mia, Jonas“, „Reihum · zuerst Mia“ / „Wer zuerst“, „2 Sterne“
                             val turns = e.turns
                             if (turns != null && turns.people.size >= 2) {
-                                Chip(turns.people.joinToString(", ") { it.name.substringBefore(' ') }, colors.getValue("person"), GcIcons.Users) { vm.drop("person") }
+                                QuickChip(turns.people.joinToString(", ") { it.name.substringBefore(' ') }, colors.getValue("person"), GcIcons.Users) { vm.drop("person") }
                                 when (turns.turn) {
                                     com.gatecontrol.android.notizen.TurnWords.ROTATE ->
-                                        Chip(stringResource(R.string.notizen_turn_rotate_first, turns.people.first().name.substringBefore(' ')), colors.getValue("person"), GcIcons.Refresh) { vm.pickTurn(com.gatecontrol.android.notizen.NotizenTurns.ONE) }
+                                        QuickChip(stringResource(R.string.notizen_turn_rotate_first, turns.people.first().name.substringBefore(' ')), colors.getValue("person"), GcIcons.Refresh) { vm.pickTurn(com.gatecontrol.android.notizen.NotizenTurns.ONE) }
                                     com.gatecontrol.android.notizen.TurnWords.FIRST ->
-                                        Chip(stringResource(R.string.notizen_turn_first), colors.getValue("person"), GcIcons.Users) { vm.pickTurn(com.gatecontrol.android.notizen.NotizenTurns.ONE) }
+                                        QuickChip(stringResource(R.string.notizen_turn_first), colors.getValue("person"), GcIcons.Users) { vm.pickTurn(com.gatecontrol.android.notizen.NotizenTurns.ONE) }
                                 }
                             } else if (e.assigneeId != null) {
-                                Chip(ui.people.firstOrNull { it.id == e.assigneeId }?.name ?: p.assignee?.name.orEmpty(), colors.getValue("person"), GcIcons.User) { vm.drop("person") }
+                                QuickChip(ui.people.firstOrNull { it.id == e.assigneeId }?.name ?: p.assignee?.name.orEmpty(), colors.getValue("person"), GcIcons.User) { vm.drop("person") }
                             } else if (p.assigneeName != null && "person" !in ui.off) {
                                 Text(stringResource(R.string.notizen_quick_no_person, p.assigneeName), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
                             }
-                            turns?.stars?.let { n -> Chip(starsText(n), colors.getValue("important"), GcIcons.Star) { vm.drop("stars") } }
-                            Chip(areaLabel(ui.area), x.panel2, if (ui.area == NArea.WORK) GcIcons.Briefcase else GcIcons.House) { vm.setArea(if (ui.area == NArea.WORK) NArea.PRIVATE else NArea.WORK) }
+                            turns?.stars?.let { n -> QuickChip(starsText(n), colors.getValue("important"), GcIcons.Star) { vm.drop("stars") } }
+                            QuickChip(areaLabel(ui.area), x.panel2, if (ui.area == NArea.WORK) GcIcons.Briefcase else GcIcons.House) { vm.setArea(if (ui.area == NArea.WORK) NArea.PRIVATE else NArea.WORK) }
                         }
                         // from two people on: who is on — one of them, each in turn, or whoever is first
                         val turns = e.turns
@@ -226,7 +264,7 @@ fun NotizenQuickScreen(nav: NotizenNav, vm: NotizenQuickViewModel = hiltViewMode
                     Text(stringResource(R.string.notizen_quick_help), style = MaterialTheme.typography.bodySmall, color = x.muted)
                 } else {
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Chip(areaLabel(ui.area), x.panel2, if (ui.area == NArea.WORK) GcIcons.Briefcase else GcIcons.House) { vm.setArea(if (ui.area == NArea.WORK) NArea.PRIVATE else NArea.WORK) }
+                        QuickChip(areaLabel(ui.area), x.panel2, if (ui.area == NArea.WORK) GcIcons.Briefcase else GcIcons.House) { vm.setArea(if (ui.area == NArea.WORK) NArea.PRIVATE else NArea.WORK) }
                     }
                     Text(stringResource(R.string.notizen_quick_note_help), style = MaterialTheme.typography.bodySmall, color = x.muted)
                 }
@@ -234,7 +272,7 @@ fun NotizenQuickScreen(nav: NotizenNav, vm: NotizenQuickViewModel = hiltViewMode
             GcPrimaryButton(
                 stringResource(R.string.notizen_add),
                 vm::save,
-                enabled = ui.text.isNotBlank() && ui.me?.readOnly != true,
+                enabled = ui.text.isNotBlank() && ui.me?.readOnly != true && !(ui.event && vm.eventBlocked() != null),
                 loading = ui.busy,
                 modifier = Modifier.navigationBarsPadding().padding(16.dp),
             )
@@ -242,6 +280,14 @@ fun NotizenQuickScreen(nav: NotizenNav, vm: NotizenQuickViewModel = hiltViewMode
         SnackbarHost(snack, Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(bottom = 88.dp)) { Snackbar(it) }
     }
     PlaceChoiceHost(vm.placeChooser, onPicked = vm::pickPlace, onRemove = vm::dropPlace)
+    if (ui.event) {
+        QuickEventDialogs(
+            dialog, vm.eventDraft(), ui.me?.today ?: java.time.LocalDate.now().toString(), ui.calendars?.calendars.orEmpty(), vm.eventCalendar(),
+            vm.eventDraft()?.let { vm.eventReminder(it) },
+            onDue = vm::pickEventDue, onPlace = vm::setEventLocation, onCalendar = vm::pickEventCalendar, onReminder = vm::pickEventReminder,
+            onClose = { dialog = null },
+        )
+    }
     when (dialog) {
         "date" -> {
             var day by rememberSaveable { mutableStateOf<String?>(null) }
@@ -290,7 +336,7 @@ fun NotizenQuickScreen(nav: NotizenNav, vm: NotizenQuickViewModel = hiltViewMode
 
 /** A chip of what was understood; a tap changes or removes it. */
 @Composable
-private fun Chip(label: String, bg: Color, icon: androidx.compose.ui.graphics.vector.ImageVector, onClick: () -> Unit) {
+internal fun QuickChip(label: String, bg: Color, icon: androidx.compose.ui.graphics.vector.ImageVector, onClick: () -> Unit) {
     Row(
         Modifier
             .heightIn(min = 36.dp)

@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Notizen & Aufgaben: events of the calendar in the quick entry and on the overview (plugin gatecontrol-notizen 1.9.0, `calendarEvents`). -->
+<resources>
+    <string name="notizen_quick_event">Event</string>
+    <string name="notizen_new_event">New event</string>
+    <string name="notizen_ev_ask_head">This looks like an event.</string>
+    <string name="notizen_ev_ask">As an event it goes into the calendar, not into the task list.</string>
+    <string name="notizen_ev_ask_yes">Add as event</string>
+    <string name="notizen_ev_ask_no">Keep as task</string>
+    <string name="notizen_ev_all_day">All day</string>
+    <string name="notizen_ev_place">Place: %1$s</string>
+    <string name="notizen_ev_place_ask">Place: %1$s?</string>
+    <string name="notizen_ev_place_title">Place of the event</string>
+    <string name="notizen_ev_place_field">Place or address</string>
+    <string name="notizen_ev_place_hint">Just text. It is saved with the calendar entry. There is no reminder on arrival and no location check.</string>
+    <string name="notizen_ev_place_take">Apply</string>
+    <string name="notizen_ev_place_remove">Remove place</string>
+    <string name="notizen_ev_calendar_pick">Calendar for the event</string>
+    <string name="notizen_ev_remind_pick">Reminder</string>
+    <string name="notizen_ev_remind_none">No reminder</string>
+    <string name="notizen_ev_more">More details …</string>
+    <string name="notizen_ev_title_is">Title: “%1$s”.</string>
+    <string name="notizen_ev_title_place_hint">Tap the dashed chip to use the text as the place too.</string>
+    <string name="notizen_ev_all_day_hint">Without a time the event lasts all day.</string>
+    <string name="notizen_ev_help">The rest after “in” (or “im”, “bei”, “beim”) is read as the place. “2 to 4 o’clock” or “14:00-15:30” is read as the time span.</string>
+    <string name="notizen_ev_none_title">No calendar available</string>
+    <string name="notizen_ev_why_mail">Events need the calendar of the “Mail” plugin. It is not set up. Ask the person who runs the server.</string>
+    <string name="notizen_ev_why_off">The calendar is not switched on for you. Ask the person who runs the server.</string>
+    <string name="notizen_ev_why_none">You have no calendar you can write to. Create one in Mail.</string>
+    <string name="notizen_ev_why_unreachable">The calendar is not answering right now. The event will be sent as soon as it answers again.</string>
+    <string name="notizen_ev_as_task">Save as a task with a date</string>
+    <string name="notizen_ev_as_task_hint">Your text is not lost. It becomes a task with its date, time and reminder.</string>
+    <string name="notizen_ev_waiting">waiting for a connection</string>
+    <string name="notizen_ev_cd">Event in the calendar %1$s</string>
+    <string name="notizen_msg_event_saved">Event saved in the calendar</string>
+    <string name="notizen_set_events">Events from the calendar</string>
+    <string name="notizen_set_events_hint">Choose which calendars show on “My Day” and “Planned”.</string>
+    <string name="notizen_set_events_none">No calendars yet.</string>
+    <string name="notizen_cal_kind_default">Default for new events</string>
+    <string name="notizen_cal_kind_own">own calendar</string>
+    <string name="notizen_cal_kind_shared">shared calendar</string>
+    <string name="notizen_cal_kind_family">family calendar</string>
+    <string name="notizen_cal_kind_subscribed">subscribed</string>
+    <string name="notizen_cal_kind_tasks">already shown as tasks</string>
+</resources>

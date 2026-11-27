@@ -89,12 +89,21 @@ data class NotizenNav(
     val back: () -> Unit,
     /** Plugin 1.4.0: a shopping list of the hub by its id (a task's „Einkauf 0/8“, the side menu). */
     val shopping: (String) -> Unit = {},
+    /** Plugin 1.9.0: „Mehr Angaben …“ — Mail's event form, filled in; false when this app has no such form. */
+    val eventForm: (com.gatecontrol.android.notizen.NotizenEvents.FormArgs) -> Boolean = { false },
 )
 
 /** Opens [e]: a task here, an item's details (its original stays in its plugin). */
 internal fun NotizenNav.open(e: NEntry) = when (e) {
     is NTask -> task(e.id)
-    is NItem -> item(e.id)
+    // plugin 1.9.0: an event of the calendar opens its page in Mail, not the item's details (a waiting one: nothing yet)
+    is NItem -> if (e.event != null) openEvent(e) else item(e.id)
+}
+
+private fun NotizenNav.openEvent(e: NItem) {
+    if (com.gatecontrol.android.notizen.NotizenEvents.isPending(e)) return
+    val open = e.open?.takeIf { it.route.startsWith("event/") } ?: e.event?.eventId?.let { NOpen("gatecontrol-mail", "event/$it") }
+    if (open == null || !openSource(open)) item(e.id)
 }
 
 /** The list path of a task's row: „Privat › Gesundheit“. */

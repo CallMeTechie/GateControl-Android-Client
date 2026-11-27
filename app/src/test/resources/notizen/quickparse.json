@@ -1,5 +1,5 @@
 {
- "$comment": "Schnell-Eingabe (ui/quickparse.js): every port (Android, Windows) must give exactly these results. ctx is the same for every case; marks of the first case are listed once (offsets in UTF-16 code units). A case may carry its own marks (same offsets); a port checks them where they are given.",
+ "$comment": "Schnell-Eingabe (ui/quickparse.js): every port (Android, Windows) must give exactly these results. ctx is the same for every case; marks of the first case are listed once (offsets in UTF-16 code units). A case may carry its own marks (same offsets); a port checks them where they are given. 1.9.0, optional: eventCases — the same ctx with mode 'event' („Termin“): expect holds title, date, time, endTime, allDay, location, repeat, and marks lists every mark of the case; signalCases — task mode, only looksLikeEvent. A port without „Termin“ ignores both keys.",
  "version": 1,
  "ctx": {
   "today": "2026-11-08",
@@ -1479,6 +1479,755 @@
      "kind": "date"
     }
    ]
+  }
+ ],
+ "eventCases": [
+  {
+   "input": "Freitag 4. Dezember 14 Uhr Fashion Outlet Zweibrücken",
+   "expect": {
+    "title": "Fashion Outlet Zweibrücken",
+    "date": "2026-12-04",
+    "time": "14:00",
+    "endTime": "15:00",
+    "allDay": false,
+    "location": null,
+    "repeat": null
+   },
+   "marks": [
+    {
+     "start": 0,
+     "end": 19,
+     "kind": "date"
+    },
+    {
+     "start": 20,
+     "end": 26,
+     "kind": "time"
+    }
+   ]
+  },
+  {
+   "input": "Freitag 4. Dezember Einkaufen im Fashion Outlet Zweibrücken",
+   "expect": {
+    "title": "Einkaufen",
+    "date": "2026-12-04",
+    "time": null,
+    "endTime": null,
+    "allDay": true,
+    "location": "Fashion Outlet Zweibrücken",
+    "repeat": null
+   },
+   "marks": [
+    {
+     "start": 0,
+     "end": 19,
+     "kind": "date"
+    },
+    {
+     "start": 30,
+     "end": 59,
+     "kind": "place"
+    }
+   ]
+  },
+  {
+   "input": "morgen 14 bis 16 Uhr Kino",
+   "expect": {
+    "title": "Kino",
+    "date": "2026-11-09",
+    "time": "14:00",
+    "endTime": "16:00",
+    "allDay": false,
+    "location": null,
+    "repeat": null
+   },
+   "marks": [
+    {
+     "start": 0,
+     "end": 6,
+     "kind": "date"
+    },
+    {
+     "start": 7,
+     "end": 20,
+     "kind": "time"
+    }
+   ]
+  },
+  {
+   "input": "Sa 14–16 Uhr Flohmarkt bei Oma",
+   "expect": {
+    "title": "Flohmarkt",
+    "date": "2026-11-14",
+    "time": "14:00",
+    "endTime": "16:00",
+    "allDay": false,
+    "location": "Oma",
+    "repeat": null
+   },
+   "marks": [
+    {
+     "start": 0,
+     "end": 2,
+     "kind": "date"
+    },
+    {
+     "start": 3,
+     "end": 12,
+     "kind": "time"
+    },
+    {
+     "start": 23,
+     "end": 30,
+     "kind": "place"
+    }
+   ]
+  },
+  {
+   "input": "von 9:30 bis 11 Uhr Zahnarzt",
+   "expect": {
+    "title": "Zahnarzt",
+    "date": "2026-11-09",
+    "time": "09:30",
+    "endTime": "11:00",
+    "allDay": false,
+    "location": null,
+    "repeat": null
+   },
+   "marks": [
+    {
+     "start": 0,
+     "end": 19,
+     "kind": "time"
+    }
+   ]
+  },
+  {
+   "input": "14:00-15:30 Call",
+   "expect": {
+    "title": "Call",
+    "date": "2026-11-08",
+    "time": "14:00",
+    "endTime": "15:30",
+    "allDay": false,
+    "location": null,
+    "repeat": null
+   },
+   "marks": [
+    {
+     "start": 0,
+     "end": 11,
+     "kind": "time"
+    }
+   ]
+  },
+  {
+   "input": "beim Zahnarzt morgen 8 Uhr",
+   "expect": {
+    "title": "Zahnarzt",
+    "date": "2026-11-09",
+    "time": "08:00",
+    "endTime": "09:00",
+    "allDay": false,
+    "location": "Zahnarzt",
+    "repeat": null
+   },
+   "marks": [
+    {
+     "start": 0,
+     "end": 13,
+     "kind": "place"
+    },
+    {
+     "start": 14,
+     "end": 20,
+     "kind": "date"
+    },
+    {
+     "start": 21,
+     "end": 26,
+     "kind": "time"
+    }
+   ]
+  },
+  {
+   "input": "Essen bei Oma um 18 Uhr",
+   "expect": {
+    "title": "Essen",
+    "date": "2026-11-08",
+    "time": "18:00",
+    "endTime": "19:00",
+    "allDay": false,
+    "location": "Oma",
+    "repeat": null
+   },
+   "marks": [
+    {
+     "start": 6,
+     "end": 13,
+     "kind": "place"
+    },
+    {
+     "start": 14,
+     "end": 23,
+     "kind": "time"
+    }
+   ]
+  },
+  {
+   "input": "jeden Montag 19 Uhr Chor im Gemeindehaus",
+   "expect": {
+    "title": "Chor",
+    "date": "2026-11-09",
+    "time": "19:00",
+    "endTime": "20:00",
+    "allDay": false,
+    "location": "Gemeindehaus",
+    "repeat": {
+     "type": "weekly",
+     "interval": 1,
+     "days": [
+      1
+     ]
+    }
+   },
+   "marks": [
+    {
+     "start": 0,
+     "end": 12,
+     "kind": "repeat"
+    },
+    {
+     "start": 13,
+     "end": 19,
+     "kind": "time"
+    },
+    {
+     "start": 25,
+     "end": 40,
+     "kind": "place"
+    }
+   ]
+  },
+  {
+   "input": "3 bis 4 Äpfel kaufen",
+   "expect": {
+    "title": "3 bis 4 Äpfel kaufen",
+    "date": null,
+    "time": null,
+    "endTime": null,
+    "allDay": true,
+    "location": null,
+    "repeat": null
+   },
+   "marks": []
+  },
+  {
+   "input": "Party 23:30 heute",
+   "expect": {
+    "title": "Party",
+    "date": "2026-11-08",
+    "time": "23:30",
+    "endTime": "00:30",
+    "allDay": false,
+    "location": null,
+    "repeat": null
+   },
+   "marks": [
+    {
+     "start": 6,
+     "end": 11,
+     "kind": "time"
+    },
+    {
+     "start": 12,
+     "end": 17,
+     "kind": "date"
+    }
+   ]
+  },
+  {
+   "input": "Geburtstag Oma 6.12.",
+   "expect": {
+    "title": "Geburtstag Oma",
+    "date": "2026-12-06",
+    "time": null,
+    "endTime": null,
+    "allDay": true,
+    "location": null,
+    "repeat": null
+   },
+   "marks": [
+    {
+     "start": 15,
+     "end": 20,
+     "kind": "date"
+    }
+   ]
+  },
+  {
+   "input": "Training 3 Tage nach Erledigung",
+   "expect": {
+    "title": "Training 3 Tage nach Erledigung",
+    "date": null,
+    "time": null,
+    "endTime": null,
+    "allDay": true,
+    "location": null,
+    "repeat": null
+   },
+   "marks": []
+  },
+  {
+   "input": "Treffen in 3 Tagen in Köln, wichtig",
+   "expect": {
+    "title": "Treffen",
+    "date": "2026-11-11",
+    "time": null,
+    "endTime": null,
+    "allDay": true,
+    "location": "Köln",
+    "repeat": null
+   },
+   "marks": [
+    {
+     "start": 8,
+     "end": 18,
+     "kind": "date"
+    },
+    {
+     "start": 19,
+     "end": 26,
+     "kind": "place"
+    },
+    {
+     "start": 28,
+     "end": 35,
+     "kind": "important"
+    }
+   ]
+  },
+  {
+   "input": "morgen 22 bis 1 Uhr Feier",
+   "expect": {
+    "title": "Feier",
+    "date": "2026-11-09",
+    "time": "22:00",
+    "endTime": "01:00",
+    "allDay": false,
+    "location": null,
+    "repeat": null
+   },
+   "marks": [
+    {
+     "start": 0,
+     "end": 6,
+     "kind": "date"
+    },
+    {
+     "start": 7,
+     "end": 19,
+     "kind": "time"
+    }
+   ]
+  },
+  {
+   "input": "Dienstag 14-16h Elternsprechtag in der Schule",
+   "expect": {
+    "title": "Elternsprechtag",
+    "date": "2026-11-10",
+    "time": "14:00",
+    "endTime": "16:00",
+    "allDay": false,
+    "location": "Schule",
+    "repeat": null
+   },
+   "marks": [
+    {
+     "start": 0,
+     "end": 8,
+     "kind": "date"
+    },
+    {
+     "start": 9,
+     "end": 15,
+     "kind": "time"
+    },
+    {
+     "start": 32,
+     "end": 45,
+     "kind": "place"
+    }
+   ]
+  },
+  {
+   "input": "tomorrow 2 to 4 o'clock Workshop",
+   "expect": {
+    "title": "Workshop",
+    "date": "2026-11-09",
+    "time": "02:00",
+    "endTime": "04:00",
+    "allDay": false,
+    "location": null,
+    "repeat": null
+   },
+   "marks": [
+    {
+     "start": 0,
+     "end": 8,
+     "kind": "date"
+    },
+    {
+     "start": 9,
+     "end": 23,
+     "kind": "time"
+    }
+   ]
+  },
+  {
+   "input": "Zahnarzt 13.11. 9.30 Uhr bis 10 Uhr",
+   "expect": {
+    "title": "Zahnarzt",
+    "date": "2026-11-13",
+    "time": "09:30",
+    "endTime": "10:00",
+    "allDay": false,
+    "location": null,
+    "repeat": null
+   },
+   "marks": [
+    {
+     "start": 9,
+     "end": 15,
+     "kind": "date"
+    },
+    {
+     "start": 16,
+     "end": 35,
+     "kind": "time"
+    }
+   ]
+  },
+  {
+   "input": "Montag 9 bis 9 Uhr Probe",
+   "expect": {
+    "title": "Probe",
+    "date": "2026-11-09",
+    "time": "09:00",
+    "endTime": "10:00",
+    "allDay": false,
+    "location": null,
+    "repeat": null
+   },
+   "marks": [
+    {
+     "start": 0,
+     "end": 6,
+     "kind": "date"
+    },
+    {
+     "start": 7,
+     "end": 18,
+     "kind": "time"
+    }
+   ]
+  },
+  {
+   "input": "Samstag 5. Dezember, Weihnachtsmarkt in Trier",
+   "expect": {
+    "title": "Weihnachtsmarkt",
+    "date": "2026-12-05",
+    "time": null,
+    "endTime": null,
+    "allDay": true,
+    "location": "Trier",
+    "repeat": null
+   },
+   "marks": [
+    {
+     "start": 0,
+     "end": 19,
+     "kind": "date"
+    },
+    {
+     "start": 37,
+     "end": 45,
+     "kind": "place"
+    }
+   ]
+  },
+  {
+   "input": "Urlaub in 2 Wochen",
+   "expect": {
+    "title": "Urlaub",
+    "date": "2026-11-22",
+    "time": null,
+    "endTime": null,
+    "allDay": true,
+    "location": null,
+    "repeat": null
+   },
+   "marks": [
+    {
+     "start": 7,
+     "end": 18,
+     "kind": "date"
+    }
+   ]
+  },
+  {
+   "input": "jährlich 6.12. Nikolaus bei den Großeltern",
+   "expect": {
+    "title": "Nikolaus",
+    "date": "2026-12-06",
+    "time": null,
+    "endTime": null,
+    "allDay": true,
+    "location": "Großeltern",
+    "repeat": {
+     "type": "yearly",
+     "interval": 1
+    }
+   },
+   "marks": [
+    {
+     "start": 0,
+     "end": 8,
+     "kind": "repeat"
+    },
+    {
+     "start": 9,
+     "end": 14,
+     "kind": "date"
+    },
+    {
+     "start": 24,
+     "end": 42,
+     "kind": "place"
+    }
+   ]
+  },
+  {
+   "input": "Einkaufen",
+   "expect": {
+    "title": "Einkaufen",
+    "date": null,
+    "time": null,
+    "endTime": null,
+    "allDay": true,
+    "location": null,
+    "repeat": null
+   },
+   "marks": []
+  },
+  {
+   "input": "übermorgen abends Essen beim Italiener #privat",
+   "expect": {
+    "title": "Essen",
+    "date": "2026-11-10",
+    "time": "19:00",
+    "endTime": "20:00",
+    "allDay": false,
+    "location": "Italiener",
+    "repeat": null
+   },
+   "marks": [
+    {
+     "start": 0,
+     "end": 10,
+     "kind": "date"
+    },
+    {
+     "start": 11,
+     "end": 17,
+     "kind": "time"
+    },
+    {
+     "start": 24,
+     "end": 38,
+     "kind": "place"
+    },
+    {
+     "start": 39,
+     "end": 46,
+     "kind": "list"
+    }
+   ]
+  },
+  {
+   "input": "Im Kino",
+   "expect": {
+    "title": "Kino",
+    "date": null,
+    "time": null,
+    "endTime": null,
+    "allDay": true,
+    "location": "Kino",
+    "repeat": null
+   },
+   "marks": [
+    {
+     "start": 0,
+     "end": 7,
+     "kind": "place"
+    }
+   ]
+  },
+  {
+   "input": "Besuch 10 bis 25 Uhr",
+   "expect": {
+    "title": "Besuch 10 bis 25 Uhr",
+    "date": null,
+    "time": null,
+    "endTime": null,
+    "allDay": true,
+    "location": null,
+    "repeat": null
+   },
+   "marks": []
+  },
+  {
+   "input": "4. Dezember 14.00-15.00 Uhr Friseur",
+   "expect": {
+    "title": "Friseur",
+    "date": "2026-12-04",
+    "time": "14:00",
+    "endTime": "15:00",
+    "allDay": false,
+    "location": null,
+    "repeat": null
+   },
+   "marks": [
+    {
+     "start": 0,
+     "end": 11,
+     "kind": "date"
+    },
+    {
+     "start": 12,
+     "end": 27,
+     "kind": "time"
+    }
+   ]
+  },
+  {
+   "input": "heute 16:30–17:15 Zahnarzt, Praxis am Markt",
+   "expect": {
+    "title": "Zahnarzt, Praxis am Markt",
+    "date": "2026-11-08",
+    "time": "16:30",
+    "endTime": "17:15",
+    "allDay": false,
+    "location": null,
+    "repeat": null
+   },
+   "marks": [
+    {
+     "start": 0,
+     "end": 5,
+     "kind": "date"
+    },
+    {
+     "start": 6,
+     "end": 17,
+     "kind": "time"
+    }
+   ]
+  },
+  {
+   "input": "Samstag 4. Dezember 14 Uhr Flohmarkt",
+   "expect": {
+    "title": "Samstag Flohmarkt",
+    "date": "2026-12-04",
+    "time": "14:00",
+    "endTime": "15:00",
+    "allDay": false,
+    "location": null,
+    "repeat": null
+   },
+   "marks": [
+    {
+     "start": 8,
+     "end": 19,
+     "kind": "date"
+    },
+    {
+     "start": 20,
+     "end": 26,
+     "kind": "time"
+    }
+   ]
+  },
+  {
+   "input": "Bei Regen fällt es aus, morgen 10 Uhr",
+   "expect": {
+    "title": "Regen fällt es aus",
+    "date": "2026-11-09",
+    "time": "10:00",
+    "endTime": "11:00",
+    "allDay": false,
+    "location": "Regen fällt es aus",
+    "repeat": null
+   },
+   "marks": [
+    {
+     "start": 0,
+     "end": 22,
+     "kind": "place"
+    },
+    {
+     "start": 24,
+     "end": 30,
+     "kind": "date"
+    },
+    {
+     "start": 31,
+     "end": 37,
+     "kind": "time"
+    }
+   ]
+  }
+ ],
+ "signalCases": [
+  {
+   "input": "Freitag 4. Dezember 14 Uhr Fashion Outlet Zweibrücken",
+   "looksLikeEvent": true
+  },
+  {
+   "input": "Freitag Müll rausbringen",
+   "looksLikeEvent": false
+  },
+  {
+   "input": "um 9 Bäcker",
+   "looksLikeEvent": false
+  },
+  {
+   "input": "morgen früh Joggen",
+   "looksLikeEvent": true
+  },
+  {
+   "input": "9:30 Zahnarzt",
+   "looksLikeEvent": false
+  },
+  {
+   "input": "Morgen 9 Uhr Zahnarzt anrufen, wichtig , #gesundheit",
+   "looksLikeEvent": true
+  },
+  {
+   "input": "jeden Montag 19 Uhr Chor",
+   "looksLikeEvent": false
+  },
+  {
+   "input": "Freitag 4. Dezember Fashion Outlet Zweibrücken",
+   "looksLikeEvent": false
+  },
+  {
+   "input": "Milch kaufen",
+   "looksLikeEvent": false
+  },
+  {
+   "input": "13.11. 14 bis 16 Uhr Kino",
+   "looksLikeEvent": true
   }
  ]
 }

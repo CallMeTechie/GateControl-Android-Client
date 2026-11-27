@@ -888,7 +888,134 @@ class NotizenQuickViewModel @Inject constructor(
         val placeTrigger: String? = null,
         /** Plugin 1.6.0 (`taskTurns`): the choice of „Wer ist dran?“ ([NotizenTurns.ONE], `rotate`, `first`; null: what the line says). */
         val turnPick: String? = null,
+        /** Plugin 1.9.0 (`calendarEvents`): „Termin“ is chosen — the line is an event of the calendar in Mail. */
+        val event: Boolean = false,
+        /** „Aufgabe lassen“: „Das sieht wie ein Termin aus“ stays away until the line is emptied or saved. */
+        val keepTask: Boolean = false,
+        /** `GET events/calendars` (the last one while offline). */
+        val calendars: com.gatecontrol.android.notizen.NEventCalendars? = null,
+        /** Saving was refused for good (`503` with a lasting reason): why. */
+        val eventRefused: String? = null,
+        /** The day and time the person picked for the event (time null: all day). */
+        val evDue: NDue? = null,
+        /** The calendar the person picked (null: Mail's default one). */
+        val evCalendar: Long? = null,
+        /** The reminder the person picked ([evReminderSet]; null then: none). */
+        val evReminder: Int? = null,
+        val evReminderSet: Boolean = false,
+        /** The place the person typed or took from the title ([evLocationSet]; null then: removed). */
+        val evLocation: String? = null,
+        val evLocationSet: Boolean = false,
     )
+
+    // ── „Termin“ (plugin 1.9.0) ─────────────────────────────
+
+    /** „Aufgabe“, „Termin“ or „Notiz“ — the app never switches by itself. */
+    fun setKind(kind: String) {
+        _ui.update { it.copy(note = kind == KIND_NOTE, event = kind == KIND_EVENT && it.me?.calendarEvents == true, eventRefused = null) }
+        if (_ui.value.event) loadCalendars()
+        reparse()
+        suggest()
+    }
+
+    /** „Aufgabe lassen“. */
+    fun keepAsTask() = _ui.update { it.copy(keepTask = true) }
+
+    /** „Mehr Angaben …“ without Mail's form in this app. */
+    fun notHere() { _message.value = "not_here" }
+
+    /** „Das sieht wie ein Termin aus“: only for a task, a date and a time in the line, until „Aufgabe lassen“. */
+    fun asksEvent(): Boolean {
+        val u = _ui.value
+        return !u.note && !u.event && !u.keepTask && u.me?.calendarEvents == true && u.parsed?.looksLikeEvent == true && u.text.isNotBlank()
+    }
+
+    fun pickEventDue(d: NDue) = _ui.update { it.copy(evDue = d) }
+    fun pickEventCalendar(id: Long) = _ui.update { it.copy(evCalendar = id) }
+    fun pickEventReminder(minutes: Int?) = _ui.update { it.copy(evReminder = minutes, evReminderSet = true) }
+
+    /** The place of the event: a text only (no reminder at a place); null removes it. */
+    fun setEventLocation(text: String?) = _ui.update { it.copy(evLocation = text?.trim()?.take(255)?.takeIf { t -> t.isNotEmpty() }, evLocationSet = true) }
+
+    private fun loadCalendars() {
+        if (_ui.value.me?.calendarEvents != true) return
+        viewModelScope.launch {
+            repo.eventCalendars().valueOrNull()?.value?.let { c -> _ui.update { it.copy(calendars = c) } }
+        }
+    }
+
+    /** Why no event can be made now (null: it can): Mail missing, the calendar off, no calendar to write in. */
+    fun eventBlocked(): String? {
+        val u = _ui.value
+        return u.eventRefused ?: com.gatecontrol.android.notizen.NotizenEvents.blocked(u.me, u.calendars)
+    }
+
+    /** Mail does not answer right now: the event waits and goes later. */
+    fun eventWaits(): Boolean = com.gatecontrol.android.notizen.NotizenEvents.waits(_ui.value.me, _ui.value.calendars)
+
+    /** The event as the chips show it (null before `me` and the line are read). */
+    fun eventDraft(): com.gatecontrol.android.notizen.NotizenEvents.Draft? {
+        val u = _ui.value
+        val p = u.parsed ?: return null
+        val me = u.me ?: return null
+        val picked = u.evDue
+        val date = picked?.date ?: p.date ?: me.today
+        val time = if (picked != null) picked.time else p.time
+        val end = when {
+            time == null -> null
+            picked != null -> com.gatecontrol.android.notizen.NotizenEvents.plusHour(time)
+            else -> p.endTime ?: com.gatecontrol.android.notizen.NotizenEvents.plusHour(time)
+        }
+        return com.gatecontrol.android.notizen.NotizenEvents.Draft(
+            title = p.title.ifBlank { u.text.trim() },
+            date = date,
+            time = time,
+            endTime = end,
+            location = if (u.evLocationSet) u.evLocation else p.location,
+            calendarId = u.evCalendar ?: u.calendars?.default?.id,
+            calendarChosen = u.evCalendar != null,
+            reminder = u.evReminder,
+            reminderChosen = u.evReminderSet,
+            repeat = p.repeat?.takeIf { "repeat" !in u.off && it.type != "after" },
+        )
+    }
+
+    /** The calendar the event goes to (the chip „Kalender: …“). */
+    fun eventCalendar(): com.gatecontrol.android.notizen.NEventCalendar? {
+        val u = _ui.value
+        return u.calendars?.targets?.firstOrNull { it.id == u.evCalendar } ?: u.calendars?.default
+    }
+
+    /** The reminder the chip shows: the chosen one, else the calendar's. */
+    fun eventReminder(d: com.gatecontrol.android.notizen.NotizenEvents.Draft): Int? =
+        if (d.reminderChosen) d.reminder else com.gatecontrol.android.notizen.NotizenEvents.defaultReminder(_ui.value.calendars, d.allDay)
+
+    /** „Mehr Angaben …“: Mail's form, filled in with what the chips show. */
+    fun moreDetails(): com.gatecontrol.android.notizen.NotizenEvents.FormArgs? {
+        val d = eventDraft() ?: return null
+        val u = _ui.value
+        val zone = (u.calendars?.timeZone ?: u.me?.timezone)?.let { runCatching { java.time.ZoneId.of(it) }.getOrNull() } ?: java.time.ZoneId.systemDefault()
+        return com.gatecontrol.android.notizen.NotizenEvents.formArgs(d, zone, java.time.ZoneId.systemDefault(), eventCalendar()?.id, eventReminder(d))
+    }
+
+    /** „Als Aufgabe mit Datum speichern“: the unchanged line as a task (its day, time and reminder from the line). */
+    fun saveAsTask() {
+        _ui.update { it.copy(event = false, eventRefused = null, keepTask = true) }
+        reparse()
+        save()
+    }
+
+    private suspend fun saveEvent(u: Ui) {
+        val d = eventDraft()
+        if (d == null || eventBlocked() != null) {
+            _ui.update { it.copy(busy = false) }
+            return
+        }
+        val r = repo.createEvent(com.gatecontrol.android.notizen.NotizenEvents.body(d, null))
+        val refused = (r as? NResult.Failed)?.takeIf { it.http == 503 }?.let { NotizenJson.reason(it.body) ?: "no_calendar" }
+        _ui.update { it.copy(busy = false, done = r is NResult.Ok, eventRefused = refused, keepTask = if (r is NResult.Ok) false else it.keepTask) }
+        if (refused == null) _message.value = r.code() ?: if (r.valueOrNull()?.queued == true) "queued" else "event_saved"
+    }
 
     /** „Wer ist dran?“ was chosen in the quick entry. */
     fun pickTurn(mode: String) = _ui.update { it.copy(turnPick = mode) }
@@ -910,9 +1037,12 @@ class NotizenQuickViewModel @Inject constructor(
 
     private var attachJob: Job? = null
 
-    private companion object {
+    companion object {
         /** A pause in typing before the server is asked. */
-        const val SUGGEST_MS = 350L
+        private const val SUGGEST_MS = 350L
+        const val KIND_TASK = "task"
+        const val KIND_EVENT = "event"
+        const val KIND_NOTE = "note"
     }
 
     /**
@@ -924,7 +1054,7 @@ class NotizenQuickViewModel @Inject constructor(
         val u = _ui.value
         val lists = u.me?.taskList == true
         val places = u.me?.taskPlaces == true
-        if (u.note || !(lists || places) || u.text.isBlank()) {
+        if (u.note || u.event || !(lists || places) || u.text.isBlank()) {
             _ui.update { it.copy(attach = null, place = null, serverTitle = null) }
             return
         }
@@ -943,6 +1073,8 @@ class NotizenQuickViewModel @Inject constructor(
     fun pickAttach(l: com.gatecontrol.android.notizen.NAttached) = _ui.update { it.copy(attachPick = l, attachOff = false) }
 
     private val _ui = MutableStateFlow(Ui(text = saved.get<String>("text").orEmpty(), note = saved.get<String>("mode") == "note"))
+    /** `mode=event` of the route: „Termin“ once `me` says the plugin has it. */
+    private val startEvent = saved.get<String>("mode") == KIND_EVENT
     val ui: StateFlow<Ui> = _ui.asStateFlow()
     private val _message = MutableStateFlow<NMessage?>(null)
     val message: StateFlow<NMessage?> = _message.asStateFlow()
@@ -952,7 +1084,9 @@ class NotizenQuickViewModel @Inject constructor(
             val me = repo.meOrCached()
             val area = repo.currentArea()
             val nav = repo.nav(area).valueOrNull()?.value
-            _ui.update { it.copy(me = me, nav = nav, area = area) }
+            _ui.update { it.copy(me = me, nav = nav, area = area, event = startEvent && me?.calendarEvents == true) }
+            // plugin 1.9.0: the calendars at once — the chips and the card „Kein Kalender“ need them
+            loadCalendars()
             reparse()
             suggest()
             repo.api.people().valueOrNull()?.let { p -> _ui.update { it.copy(people = p) }; reparse() }
@@ -962,15 +1096,13 @@ class NotizenQuickViewModel @Inject constructor(
     fun consumeMessage() { _message.value = null }
 
     fun setText(t: String) {
-        _ui.update { it.copy(text = t.take(1000)) }
+        // an emptied line asks again („Aufgabe lassen“ holds until then)
+        _ui.update { it.copy(text = t.take(1000), keepTask = it.keepTask && t.isNotBlank()) }
         reparse()
         suggest()
     }
 
-    fun setNote(v: Boolean) {
-        _ui.update { it.copy(note = v) }
-        suggest()
-    }
+    fun setNote(v: Boolean) = setKind(if (v) KIND_NOTE else KIND_TASK)
 
     fun setArea(a: String) {
         _ui.update { it.copy(area = NArea.of(a), listId = null, attachPick = null) }
@@ -995,6 +1127,7 @@ class NotizenQuickViewModel @Inject constructor(
             lists = u.nav?.lists.orEmpty().filter { it.canEdit }.map { QuickParse.Ref(it.id, it.name) },
             people = u.people.map { QuickParse.Ref(it.id, it.name) },
             times = me.prefs.times,
+            mode = if (u.event) "event" else null,
         )
         _ui.update { it.copy(parsed = runCatching { QuickParse.parse(u.text, ctx) }.getOrNull()) }
     }
@@ -1045,6 +1178,10 @@ class NotizenQuickViewModel @Inject constructor(
         if (u.text.isBlank() || u.busy) return
         viewModelScope.launch {
             _ui.update { it.copy(busy = true) }
+            if (u.event) {
+                saveEvent(u)
+                return@launch
+            }
             if (u.note) {
                 val (title, body) = NoteMd.splitTitle(u.text)
                 val r = repo.createNote(NotizenJson.noteBody(null, u.area, title, body))

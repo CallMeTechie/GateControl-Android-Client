@@ -44,6 +44,9 @@ object NotizenJson {
     fun failureCode(http: Int, body: JsonObject?): String =
         (body?.str("code") ?: body?.obj("error")?.str("code"))?.takeIf { CODE.matches(it) } ?: "http_$http"
 
+    /** The `field` of a refusal (`400 invalid { field }`, `404 not_found { field: "calendarId" }`). */
+    fun field(body: JsonObject?): String? = body?.str("field")?.take(40)
+
     /** The `reason` of a refusal (`login`, `read_only`, `off` …). */
     fun reason(body: JsonObject?): String? = body?.str("reason")?.take(40)
 
@@ -148,6 +151,7 @@ object NotizenJson {
             places = NotizenPlacesJson.info(o.obj("places")),
             familyTasks = familyTasks(o.obj("familyTasks")),
             driveDeadlineInfo = o.obj("driveDeadlines")?.let { d -> NDriveDeadlines(d.bool("available") ?: false, d.bool("active") ?: false) },
+            events = NotizenEventsJson.info(o.obj("events")),
         )
     }
 
@@ -424,6 +428,7 @@ object NotizenJson {
             groupLabel = group?.text("label", 80),
             meta = meta,
             updatedAt = o.long("updatedAt") ?: 0,
+            event = NotizenEventsJson.itemEvent(o.obj("event")),
         )
     }
 

@@ -463,6 +463,30 @@ class NotizenRepository @Inject constructor(
         return write(NotizenOutbox.CREATE, NotizenOutbox.TASK, 0, b, cid) { _, x -> api.createTask(x).map { it.id to it } }.touch("tasks")
     }
 
+    // ── events of the calendar (plugin 1.9.0, `calendarEvents`) ──
+
+    /** `GET events/calendars` (the last answer while offline: contract § 7). */
+    suspend fun eventCalendars(): NResult<NCached<NEventCalendars>> = cached("events:calendars", { api.eventCalendars() }, NotizenEventsJson::calendars)
+
+    /**
+     * `POST events` ([body] of [NotizenEvents.body], without `clientId`): a clientId of its own, straight to the server
+     * while nothing waits, else — and without a connection, or while Mail does not answer (`503 unreachable`) — in the
+     * outbox with that clientId. A calendar that is gone (`404 calendarId`): once again without it (the default one).
+     */
+    suspend fun createEvent(body: JsonObject): NResult<NWritten<NEventCreated>> {
+        val cid = newClientId()
+        val b = body.deepCopy().apply { addProperty("clientId", cid) }
+        val r = write(NotizenOutbox.CREATE, NotizenOutbox.EVENT, 0, b, cid) { _, x -> api.createEvent(x).map { it.eventId to it } }
+        if (r is NResult.Failed && r.http == 404 && NotizenJson.field(r.body) == "calendarId" && b.has("calendarId")) {
+            return createEvent(body.deepCopy().apply { remove("calendarId") })
+        }
+        if (r is NResult.Failed && r.http == 503 && !NotizenEvents.permanent(NotizenJson.reason(r.body))) {
+            val local = enqueueWrite(NotizenOutbox.CREATE, NotizenOutbox.EVENT, 0, b, cid)
+            return NResult.Ok(NWritten(local, null, queued = true, offline = true))
+        }
+        return r.touch("items")
+    }
+
     /** `PATCH tasks/<id>`: [fields] with `base` — the values of [seen] (plugin 1.1.0: a field changed elsewhere meanwhile → 409). */
     suspend fun patchTask(id: Long, fields: JsonObject, seen: NTaskDetail?): NResult<NWritten<NTaskDetail>> {
         val b = fields.deepCopy()
@@ -572,6 +596,8 @@ class NotizenRepository @Inject constructor(
             NotizenOutbox.TASK -> api.createTask(body).map { it.id }
             NotizenOutbox.LIST -> api.createListBody(body).map { it.id }
             NotizenOutbox.NOTEBOOK -> api.createNotebookBody(body).map { it.id }
+            // an event is never named by anything else: no id to map
+            NotizenOutbox.EVENT -> api.createEvent(body).map { 0L }
             else -> api.createNote(body).map { revs[it.summary.id] = it.summary.rev; it.summary.id }
         }
         NotizenOutbox.ACTION -> when (op.what) {
@@ -591,6 +617,7 @@ class NotizenRepository @Inject constructor(
     suspend fun flush(): Boolean = flushLock.withLock {
         ensureLoaded()
         var changed = false
+        var later = false
         val skip = mutableSetOf<String>()
         while (true) {
             val op = outboxLock.withLock {
@@ -612,6 +639,8 @@ class NotizenRepository @Inject constructor(
                 if (changed) _changed.tryEmit(emptySet())
                 return@withLock false
             }
+            // a waiting event refused: wait, without its calendar, or as a task (contract § 6)
+            val eventNext = if (r is NResult.Failed && op.what == NotizenOutbox.EVENT) eventRefused(op, r) else null
             outboxLock.withLock {
                 sending = null
                 var s = _state.value
@@ -624,6 +653,9 @@ class NotizenRepository @Inject constructor(
                         s = s.copy(ops = s.ops.map { if (it.uid == op.uid) it.copy(conflict = true) else it })
                         skip.add(op.uid)
                     }
+                    // Mail does not answer right now: it stays, the rest goes on, a later run tries again
+                    eventNext == op -> { skip.add(op.uid); later = true }
+                    eventNext != null -> s = s.copy(ops = s.ops.map { if (it.uid == op.uid) eventNext else it })
                     else -> {
                         Timber.i("Notizen: a waiting %s was refused (%s)", op.kind, (r as? NResult.Failed)?.code)
                         s = s.copy(ops = s.ops.filterNot { it.uid == op.uid })
@@ -634,8 +666,17 @@ class NotizenRepository @Inject constructor(
             changed = true
         }
         if (changed) _changed.tryEmit(emptySet())
-        true
+        !later
     }
+
+    /**
+     * A waiting event the server refused (contract § 6): [op] itself while Mail does not answer (`503` with a reason
+     * that passes), the same without `calendarId` (and a new clientId: another body) when the calendar is gone, a
+     * task with its day and time when no event can be made for good (`no_mail`, `feature_off` … — the text is not
+     * lost); null: given up (`400`, anything else).
+     */
+    private fun eventRefused(op: NotizenOutbox.Op, r: NResult.Failed): NotizenOutbox.Op? =
+        NotizenEvents.refused(op, r.http, NotizenJson.reason(r.body), NotizenJson.field(r.body), ::newClientId)
 
     private fun flushSoon() {
         if (_pending.value.any { !it.conflict }) scope.launch { flush() }

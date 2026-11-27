@@ -290,6 +290,17 @@ class NotizenApi @Inject constructor(
     suspend fun placeConsent(id: Long, accept: Boolean): NResult<String> =
         post("tasks/$id/place/consent", NotizenPlacesJson.consentBody(accept)) { o -> o.get("consent")?.takeIf { it.isJsonPrimitive }?.asString }
 
+    // ── events of the calendar (plugin 1.9.0, `calendarEvents`) ──
+
+    /** `GET events/calendars` with the raw answer (kept for offline). */
+    suspend fun eventCalendars(): NResult<Pair<NEventCalendars, JsonObject>> = get("events/calendars") { o -> NotizenEventsJson.calendars(o)?.let { it to o } }
+
+    /** `POST events` (the body of the quick entry, with `clientId`): the event is saved in the calendar in Mail only. */
+    suspend fun createEvent(body: JsonObject): NResult<NEventCreated> = post("events", body, parse = NotizenEventsJson::created)
+
+    /** `DELETE events/<id>` (only an event made through Notizen); safe to repeat. */
+    suspend fun deleteEvent(id: Long): NResult<Boolean> = del("events/$id", NotizenEventsJson::removed)
+
     suspend fun item(id: Long): NResult<Pair<NItem, Long?>> = get("items/$id", parse = NotizenJson::itemAnswer)
 
     suspend fun completeItem(id: Long, done: Boolean): NResult<NItem> = post("items/$id/complete", NotizenJson.doneBody(done)) { o -> NotizenJson.itemAnswer(o)?.first }

@@ -198,6 +198,10 @@ internal fun NavGraphBuilder.mailRoutes(
             optional(Screen.MailEventEdit.ARG_END),
             optional(Screen.MailEventEdit.ARG_ALL_DAY),
             optional(Screen.MailEventEdit.ARG_TO),
+            optional(Screen.MailEventEdit.ARG_TITLE),
+            optional(Screen.MailEventEdit.ARG_LOC),
+            optional(Screen.MailEventEdit.ARG_REM),
+            optional(Screen.MailEventEdit.ARG_REP),
         ),
     ) {
         GcContentWidth { MailEventEditScreen(onClose = back) }

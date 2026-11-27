@@ -52,13 +52,18 @@ object NotizenOutbox {
     const val LIST = "list"
     const val NOTEBOOK = "notebook"
     const val NOTE = "note"
+    /**
+     * Plugin 1.9.0: a new event (`POST events` with its finished body and `clientId`). Unlike a task its clientId lives as
+     * long as the event: it leaves the outbox after the first `200` (also `replayed`) and is never sent „to be sure“ again.
+     */
+    const val EVENT = "event"
 
     const val MAX = 500
     private const val MAX_IDS = 500
     private val KINDS = setOf(TASK, ITEM, CREATE, PATCH, DELETE, ACTION)
     private val ACTIONS = setOf(SNOOZE, MOVE, PLACE_LATER, PLACE_SKIP)
     private val PLACE_ACTIONS = setOf(PLACE_LATER, PLACE_SKIP)
-    private val WHATS = setOf(TASK, LIST, NOTEBOOK, NOTE)
+    private val WHATS = setOf(TASK, LIST, NOTEBOOK, NOTE, EVENT)
     private val CLIENT_ID = Regex("^[A-Za-z0-9_-]{8,64}$")
 
     /** Fields of a create that name another object (negative: made offline as well). */
@@ -333,7 +338,8 @@ object NotizenOutbox {
                 listOf(NSection(into, "", adds.size, adds, false)) + sections
             }
         }
-        return view.copy(sections = sections, yesterday = yesterday)
+        // plugin 1.9.0: an event waiting for a connection shows in „Mein Tag“ („wartet auf Verbindung“)
+        return NotizenEvents.overlay(view.copy(sections = sections, yesterday = yesterday), ops, today)
     }
 
     /** A task's page as the person sees it: its waiting changes and ticks, sub tasks made, ticked or deleted offline. */
