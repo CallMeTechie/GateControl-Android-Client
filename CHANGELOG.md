@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.165.0] - 2026-11-28
+
+### Features
+- Tresor „Nur auf diesem Gerät“ – Oberfläche (#319)
+
+---
+
+## [1.164.0] - 2026-11-28
+
+### Features
+- Tresor „Nur auf diesem Gerät“ – Speicher, lokaler Schlüssel und Umstellen (#318)
+
+---
+
 ## [1.163.2] - 2026-11-27
 
 ### Fixes
