@@ -124,4 +124,50 @@
         <item quantity="other">%1$d Dateien · %2$s</item>
     </plurals>
     <string name="drive_vault_local_job_stopped">Unterbrochen. „Weiter“ macht dort weiter, wo es aufgehört hat.</string>
+    <string name="drive_vault_local_export">Sicherung exportieren</string>
+    <string name="drive_vault_local_export_desc">Datei „%1$s“, öffnet nur mit dem Wiederherstellungsschlüssel</string>
+    <string name="drive_vault_local_export_name">Tresor-Ordner</string>
+    <string name="drive_vault_local_backup_none_bold">Noch keine Sicherung.</string>
+    <string name="drive_vault_local_backup_none">Ohne Sicherung sind die Dateien weg, wenn das Handy verloren geht. Die Sicherung öffnest du mit deinem Wiederherstellungsschlüssel.</string>
+    <string name="drive_vault_local_backup_old_bold">Zeit für eine neue Sicherung.</string>
+    <string name="drive_vault_local_backup_old">Die letzte ist vom %1$s. Seitdem ist ein Monat vergangen oder hier hat sich etwas geändert.</string>
+    <string name="drive_vault_local_backup_channel">Tresor: Erinnerung an die Sicherung</string>
+    <string name="drive_vault_local_backup_title">Tresor: Zeit für eine neue Sicherung</string>
+    <plurals name="drive_vault_local_backup_text">
+        <item quantity="one">Ein Ordner liegt nur auf diesem Handy. Exportiere eine neue Sicherung, damit nichts verloren geht.</item>
+        <item quantity="other">%1$d Ordner liegen nur auf diesem Handy. Exportiere neue Sicherungen, damit nichts verloren geht.</item>
+    </plurals>
+    <string name="drive_vault_local_import">Sicherung importieren</string>
+    <string name="drive_vault_local_import_desc">Eine .gctresor-Datei mit dem Wiederherstellungsschlüssel öffnen. Der Ordner kommt als neuer Ordner hierher auf den Server.</string>
+    <string name="drive_vault_local_import_title">Wiederherstellungsschlüssel</string>
+    <string name="drive_vault_local_import_text">Die Sicherung öffnet nur mit dem Wiederherstellungsschlüssel dieses Tresors, der beim Export galt (56 Zeichen).</string>
+    <string name="drive_vault_local_import_key">Wiederherstellungsschlüssel</string>
+    <string name="drive_vault_local_import_go">Importieren</string>
+    <string name="drive_vault_local_saved_on">gesichert am %1$s</string>
+    <string name="drive_vault_local_saved_never">noch nie gesichert</string>
+    <string name="drive_vault_local_folder_generic">Tresor-Ordner %1$d</string>
+    <plurals name="drive_vault_local_locked_text">
+        <item quantity="one">Ein Ordner dieses Tresors liegt nur auf diesem Handy. Solange das Gerät nicht freigegeben ist, öffnet er nicht – sichern und löschen geht.</item>
+        <item quantity="other">%1$d Ordner dieses Tresors liegen nur auf diesem Handy. Solange das Gerät nicht freigegeben ist, öffnen sie nicht – sichern und löschen geht.</item>
+    </plurals>
+    <plurals name="drive_vault_local_leave_title">
+        <item quantity="one">Ein Ordner liegt nur auf diesem Handy</item>
+        <item quantity="other">%1$d Ordner liegen nur auf diesem Handy</item>
+    </plurals>
+    <string name="drive_vault_local_leave_text">Zusammen %1$s gibt es nirgends sonst. Beim Abmelden löscht die App sie, sie sind dann</string>
+    <string name="drive_vault_local_leave_lost">verloren.</string>
+    <string name="drive_vault_local_leave_save">Erst sichern</string>
+    <string name="drive_vault_local_leave_go">Trotzdem abmelden …</string>
+    <string name="drive_vault_local_leave_hint">Öffne den Tresor: im Ordner „Sicherung exportieren“ oder im Menü des Ordners „Zurück auf den Server“.</string>
+    <string name="drive_vault_local_leave_sure_title">Wirklich abmelden?</string>
+    <string name="drive_vault_local_leave_sure_text">Die Ordner, die nur auf diesem Handy liegen, werden gelöscht. Das lässt sich nicht rückgängig machen.</string>
+    <string name="drive_vault_local_leave_sure_go">Löschen und abmelden</string>
+    <string name="drive_vault_local_msg_exported">Sicherung gespeichert.</string>
+    <string name="drive_vault_local_msg_no_recovery">Der Tresor hat keinen Wiederherstellungsschlüssel. Erzeuge erst einen (Schlüssel-Menü), dann geht die Sicherung.</string>
+    <string name="drive_vault_local_msg_write">Die Datei ließ sich dort nicht schreiben.</string>
+    <string name="drive_vault_local_msg_imported">Die Sicherung ist wieder da – als neuer Ordner.</string>
+    <string name="drive_vault_local_msg_recovery_key">Dieser Wiederherstellungsschlüssel öffnet die Sicherung nicht.</string>
+    <string name="drive_vault_local_msg_backup_invalid">Das ist keine Tresor-Sicherung.</string>
+    <string name="drive_vault_local_msg_backup_other_vault">Die Sicherung gehört zu einem anderen Tresor.</string>
+    <string name="drive_vault_local_msg_backup_damaged">Die Sicherung ist beschädigt oder unvollständig.</string>
 </resources>

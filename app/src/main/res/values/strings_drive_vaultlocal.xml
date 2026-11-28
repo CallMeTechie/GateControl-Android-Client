@@ -124,4 +124,50 @@
         <item quantity="other">%1$d files · %2$s</item>
     </plurals>
     <string name="drive_vault_local_job_stopped">Interrupted. “Continue” goes on where it stopped.</string>
+    <string name="drive_vault_local_export">Export a backup</string>
+    <string name="drive_vault_local_export_desc">File “%1$s”, opens only with the recovery key</string>
+    <string name="drive_vault_local_export_name">Vault folder</string>
+    <string name="drive_vault_local_backup_none_bold">No backup yet.</string>
+    <string name="drive_vault_local_backup_none">Without a backup the files are gone if the phone is lost. You open the backup with your recovery key.</string>
+    <string name="drive_vault_local_backup_old_bold">Time for a new backup.</string>
+    <string name="drive_vault_local_backup_old">The last one is from %1$s. A month has passed since, or something changed here.</string>
+    <string name="drive_vault_local_backup_channel">Vault: backup reminder</string>
+    <string name="drive_vault_local_backup_title">Vault: time for a new backup</string>
+    <plurals name="drive_vault_local_backup_text">
+        <item quantity="one">A folder is only on this phone. Export a new backup so nothing gets lost.</item>
+        <item quantity="other">%1$d folders are only on this phone. Export new backups so nothing gets lost.</item>
+    </plurals>
+    <string name="drive_vault_local_import">Import a backup</string>
+    <string name="drive_vault_local_import_desc">Open a .gctresor file with the recovery key. The folder comes back here on the server as a new folder.</string>
+    <string name="drive_vault_local_import_title">Recovery key</string>
+    <string name="drive_vault_local_import_text">The backup opens only with this vault’s recovery key as it was at the export (56 characters).</string>
+    <string name="drive_vault_local_import_key">Recovery key</string>
+    <string name="drive_vault_local_import_go">Import</string>
+    <string name="drive_vault_local_saved_on">backed up on %1$s</string>
+    <string name="drive_vault_local_saved_never">never backed up</string>
+    <string name="drive_vault_local_folder_generic">Vault folder %1$d</string>
+    <plurals name="drive_vault_local_locked_text">
+        <item quantity="one">A folder of this vault is only on this phone. While the device is not approved it does not open – backing up and deleting work.</item>
+        <item quantity="other">%1$d folders of this vault are only on this phone. While the device is not approved they do not open – backing up and deleting work.</item>
+    </plurals>
+    <plurals name="drive_vault_local_leave_title">
+        <item quantity="one">A folder is only on this phone</item>
+        <item quantity="other">%1$d folders are only on this phone</item>
+    </plurals>
+    <string name="drive_vault_local_leave_text">Together %1$s that exist nowhere else. Signing out, the app deletes them; they are then</string>
+    <string name="drive_vault_local_leave_lost">lost.</string>
+    <string name="drive_vault_local_leave_save">Back up first</string>
+    <string name="drive_vault_local_leave_go">Sign out anyway …</string>
+    <string name="drive_vault_local_leave_hint">Open the vault: in the folder “Export a backup”, or in the folder’s menu “Back to the server”.</string>
+    <string name="drive_vault_local_leave_sure_title">Really sign out?</string>
+    <string name="drive_vault_local_leave_sure_text">The folders that are only on this phone are deleted. This cannot be undone.</string>
+    <string name="drive_vault_local_leave_sure_go">Delete and sign out</string>
+    <string name="drive_vault_local_msg_exported">Backup saved.</string>
+    <string name="drive_vault_local_msg_no_recovery">The vault has no recovery key. Make one first (key menu), then the backup works.</string>
+    <string name="drive_vault_local_msg_write">The file could not be written there.</string>
+    <string name="drive_vault_local_msg_imported">The backup is back – as a new folder.</string>
+    <string name="drive_vault_local_msg_recovery_key">This recovery key does not open the backup.</string>
+    <string name="drive_vault_local_msg_backup_invalid">This is not a vault backup.</string>
+    <string name="drive_vault_local_msg_backup_other_vault">The backup belongs to another vault.</string>
+    <string name="drive_vault_local_msg_backup_damaged">The backup is damaged or incomplete.</string>
 </resources>

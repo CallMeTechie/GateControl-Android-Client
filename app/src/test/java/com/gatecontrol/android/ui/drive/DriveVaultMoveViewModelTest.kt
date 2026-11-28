@@ -142,6 +142,7 @@ class DriveVaultMoveViewModelTest {
                 every { it.progress } returns MutableStateFlow(emptyMap())
             },
             localEdit = mockk(relaxed = true),
+            localBackup = mockk(relaxed = true),
         )
         models += vm
         // the page loads with a few steps on Dispatchers.IO: wait until it shows the folder

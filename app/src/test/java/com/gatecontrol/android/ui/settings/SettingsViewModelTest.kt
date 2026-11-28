@@ -270,6 +270,30 @@ class SettingsViewModelTest {
     }
 
     @Test
+    fun `another server or token with folders kept only here asks first, the same login does not`(@org.junit.jupiter.api.io.TempDir dir: java.io.File) = runTest {
+        val store = com.gatecontrol.android.drive.vault.DriveVaultLocalStore(java.io.File(dir, "data"), java.io.File(dir, "keys"))
+        val vm = SettingsViewModel(
+            setupRepository, settingsRepository, apiClientProvider, licenseRepository,
+            supportBundleCollector, supportBundleUploader,
+            com.gatecontrol.android.service.fakeClientPolicyManager(),
+            machineFingerprint,
+            localFolders = store,
+        ).also { models += it }
+        org.junit.jupiter.api.Assertions.assertFalse(vm.leavesLocalFolders("https://other.example.com", "gc_othertoken123456"))
+        store.put(
+            com.gatecontrol.android.drive.vault.DriveVaultLocalFolder(
+                "https://gate.example.com", "Vt9bJm0n2QwErTyUiOpAsD", 10, 1, "mine:1", null, "dev",
+                com.gatecontrol.android.drive.vault.DriveVaultLocalFolder.State.LOCAL, since = 1,
+            ),
+        )
+        org.junit.jupiter.api.Assertions.assertTrue(vm.leavesLocalFolders("https://other.example.com", "gc_testtoken"))
+        org.junit.jupiter.api.Assertions.assertTrue(vm.leavesLocalFolders("gate.example.com", "gc_othertoken123456"))
+        org.junit.jupiter.api.Assertions.assertFalse(vm.leavesLocalFolders("gate.example.com", "gc_testtoken"))
+        testDispatcher.scheduler.advanceUntilIdle()
+        org.junit.jupiter.api.Assertions.assertEquals(1, vm.localOnly.value.size)
+    }
+
+    @Test
     fun `client policy locks auto-connect, split mode and server change`() = runTest {
         val policy = com.gatecontrol.android.common.ClientPolicy(
             autoConnect = com.gatecontrol.android.common.ClientPolicy.AutoConnect.REQUIRED,

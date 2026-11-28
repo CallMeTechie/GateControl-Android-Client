@@ -32,6 +32,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -87,7 +88,34 @@ class SettingsViewModel @Inject constructor(
     private val machineFingerprint: MachineFingerprint,
     /** Another server or token: this device leaves Jellyfin first (Medien), the old server's sources go. */
     private val mediaSwitch: MediaServerSwitch = MediaServerSwitch.NONE,
+    /** Drive vaults "Nur auf diesem Gerät": folders that exist nowhere else — signing out asks first (A7). */
+    private val localFolders: com.gatecontrol.android.drive.vault.DriveVaultLocalStore? = null,
 ) : ViewModel() {
+
+    /** The folders kept only on this phone (empty without any). */
+    val localOnly: StateFlow<List<com.gatecontrol.android.drive.vault.DriveVaultLocalFolder>> =
+        (localFolders?.folders ?: MutableStateFlow(emptyMap()))
+            .map { m -> m.values.sortedBy { it.since } }
+            .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+
+    /**
+     * Saving [url] / [token] leaves the current login (another server or another token) while folders lie only on this
+     * phone: the screen asks first (A7). False: save at once.
+     */
+    fun leavesLocalFolders(url: String, token: String): Boolean {
+        val store = localFolders ?: return false
+        if (store.load().isEmpty()) return false
+        val oldUrl = setupRepository.getServerUrl()
+        val oldToken = setupRepository.getApiToken()
+        if (oldUrl.isBlank() && oldToken.isBlank()) return false
+        return ensureHttps(url).trimEnd('/') != oldUrl.trimEnd('/') || token != oldToken
+    }
+
+    /** "Trotzdem abmelden": the folders kept only here go (the person confirmed twice), then the new login is saved. */
+    fun saveServerDroppingLocal(url: String, token: String) {
+        localFolders?.let { store -> store.load().keys.toList().forEach(store::remove) }
+        saveServer(url, token)
+    }
 
     private val _uiState = MutableStateFlow(SettingsUiState())
     val uiState: StateFlow<SettingsUiState> = _uiState.asStateFlow()

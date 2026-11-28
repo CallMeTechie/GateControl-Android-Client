@@ -159,6 +159,8 @@ class DriveVaultViewModel @Inject constructor(
     val localStore: com.gatecontrol.android.drive.vault.DriveVaultLocalStore,
     val localJobs: com.gatecontrol.android.drive.vault.DriveVaultLocalJobs,
     private val localEdit: com.gatecontrol.android.drive.vault.DriveVaultLocalEdit,
+    /** "Sicherung exportieren" / "importieren" (`.gctresor`, the recovery key opens it). */
+    val localBackup: com.gatecontrol.android.drive.vault.DriveVaultLocalBackup,
 ) : ViewModel() {
 
     val vaultId: String = savedStateHandle.get<String>("vault").orEmpty()
@@ -252,6 +254,8 @@ class DriveVaultViewModel @Inject constructor(
 
     init {
         refresh()
+        // folders kept here: the monthly reminder of a new export runs
+        if (localStore.load().isNotEmpty()) com.gatecontrol.android.drive.vault.DriveVaultLocalReminder.schedule(context)
         // locked (time without use, the app in the background): the content goes, the vault asks again
         viewModelScope.launch {
             session.locks.collect {
@@ -283,26 +287,6 @@ class DriveVaultViewModel @Inject constructor(
             }
         }
         viewModelScope.launch { live.changed.collect { if (_ui.value is Ui.Ready) refresh(quiet = true) } }
-        // a folder kept here changed (a move or the way back through, a file added): the page follows
-        viewModelScope.launch {
-            var first = true
-            localStore.folders.collect {
-                if (!first && _ui.value is Ui.Ready) refresh(quiet = true)
-                first = false
-            }
-        }
-        // a job of this vault through: the page anew, a move's end with "Rückgängig"
-        viewModelScope.launch {
-            val seen = HashSet<Long>()
-            localJobs.progress.collect { m ->
-                m.values.filter { it.vaultId == vaultId && it.finished && seen.add(it.nodeId) }.forEach { p ->
-                    if (p.kind == com.gatecontrol.android.drive.vault.DriveVaultLocalJobs.Kind.MOVE) _localDone.value = p.nodeId
-                    else _message.value = "local_back_done"
-                    localJobs.dismiss(p.nodeId)
-                    refresh(quiet = true)
-                }
-            }
-        }
     }
 
     fun clearMessage() { _message.value = null }
@@ -346,6 +330,33 @@ class DriveVaultViewModel @Inject constructor(
         val title = session.nameOf(pageNode) ?: "…"
         val folder = DFolder(pageNode, crumbs = emptyList(), role = if (lf.revoked) "read" else "write", items = nodes, total = nodes.size, next = null)
         return Ui.Ready(vault, folder, title, items, local = lf)
+    }
+
+    init {
+        // a folder kept here changed (a move or the way back through, a file added): the page follows
+        viewModelScope.launch {
+            var first = true
+            localStore.folders.collect {
+                if (!first && _ui.value is Ui.Ready) refresh(quiet = true)
+                first = false
+            }
+        }
+        // a job of this vault through: the page anew, a move's end with "Rückgängig"
+        viewModelScope.launch {
+            val seen = HashSet<Long>()
+            localJobs.progress.collect { m ->
+                m.values.filter { it.vaultId == vaultId && it.finished && seen.add(it.nodeId) }.forEach { p ->
+                    if (p.kind == com.gatecontrol.android.drive.vault.DriveVaultLocalJobs.Kind.MOVE) {
+                        _localDone.value = p.nodeId
+                        // the monthly reminder of an export (only while folders are kept here)
+                        com.gatecontrol.android.drive.vault.DriveVaultLocalReminder.schedule(context)
+                    }
+                    else _message.value = "local_back_done"
+                    localJobs.dismiss(p.nodeId)
+                    refresh(quiet = true)
+                }
+            }
+        }
     }
 
     /** What the confirmation (A3) shows: the server's numbers of the move begun, the free room here. */
@@ -476,6 +487,64 @@ class DriveVaultViewModel @Inject constructor(
     /** "Platzhalter entfernen" of a folder on another device of mine (that device lost; after the 24 hours). */
     fun forgetPlaceholder(node: DNode) = act("local_forgotten") {
         api.vaultLocalForget(vaultId, node.id, session.deviceId(), null).also { if (it is DResult.Ok) refresh(quiet = true) }
+    }
+
+    // ─── export and import (`.gctresor`) ─────────────────────────────
+
+    /**
+     * Writes the export of the folder [nodeId] to [uri] (the place the person picked). Its key LK is in memory while the
+     * vault is open; else (a locked folder of a device removed from the vault) the device key opens it — read right
+     * after the person confirmed.
+     */
+    fun exportLocal(nodeId: Long, name: String, uri: Uri) {
+        lock.touch()
+        viewModelScope.launch {
+            if (localStore.key(nodeId) == null) {
+                val pair = keyPair() ?: return@launch
+                try {
+                    withContext(Dispatchers.IO) { localStore.unlock(vaultId, pair) }
+                } finally {
+                    pair.wipe()
+                }
+            }
+            _busy.value = true
+            val r = lock.busy { localBackup.export(nodeId, name, uri) }
+            _busy.value = false
+            _message.value = when ((r as? DResult.Failed)?.code) {
+                null -> "local_exported"
+                "no_recovery" -> "local_no_recovery"
+                "write" -> "local_write"
+                "locked" -> "local_auth"
+                else -> r.errorCode() ?: "failed"
+            }
+        }
+    }
+
+    /** An export back into this folder of the vault, opened with the written-down recovery key [key]. */
+    fun importBackup(uri: Uri, key: String) {
+        val r = here() ?: return
+        if (r.local != null || r.offline || !r.folder.writable) return
+        lock.touch()
+        viewModelScope.launch {
+            _upload.value = "…" to 0f
+            val res = lock.busy { localBackup.import(r.vault, r.folder.node.id, uri, key, r.items.map { it.second }) { n, p -> _upload.value = n to p } }
+            _upload.value = null
+            _message.value = when (res) {
+                is DResult.Ok -> "local_imported"
+                is DResult.Failed -> when (res.code) {
+                    "recovery_key", "backup_invalid", "backup_other_vault", "backup_damaged" -> "local_" + res.code
+                    else -> res.errorCode() ?: "failed"
+                }
+                else -> res.errorCode() ?: "failed"
+            }
+            refresh(quiet = true)
+        }
+    }
+
+    /** A locked folder (this device no longer one of the vault) deleted here only; the placeholder stays on the server. */
+    fun dropLocalHere(nodeId: Long) {
+        localStore.remove(nodeId)
+        _message.value = "local_deleted"
     }
 
     // ─── working inside a folder kept here ──────────────────────────
@@ -1117,6 +1186,28 @@ fun DriveVaultScreen(onBack: () -> Unit, onFolder: (vaultId: String, folderId: L
     val pick = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
         if (uris.isNotEmpty()) viewModel.upload(uris) { u -> displayName(context, u) }
     }
+    // "Sicherung exportieren": a place the person picks (SD card, USB stick, Downloads, another cloud app's folder)
+    var exportFor by remember { mutableStateOf<Pair<Long, String>?>(null) }
+    val exportTo = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/octet-stream")) { uri ->
+        val e = exportFor
+        exportFor = null
+        if (uri != null && e != null) viewModel.exportLocal(e.first, e.second, uri)
+    }
+    val startExport: (Long, String) -> Unit = { id, name ->
+        val go = {
+            exportFor = id to name
+            viewModel.away()
+            runCatching { exportTo.launch(viewModel.localBackup.fileName(name)) }
+            Unit
+        }
+        // a locked folder's key opens with the device key: the person confirms first
+        if (viewModel.localStore.key(id) == null) confirmThen(go) else go()
+    }
+    // "Sicherung importieren": the file, then the recovery key
+    var importUri by remember { mutableStateOf<Uri?>(null) }
+    val importFrom = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> if (uri != null) importUri = uri }
+    var dropLocalFor by remember { mutableStateOf<com.gatecontrol.android.drive.vault.DriveVaultLocalFolder?>(null) }
+    val exportName = stringResource(R.string.drive_vault_local_export_name)
     // into a folder kept only here: encrypted on this phone, nothing goes to the server
     val pickLocal = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
         if (uris.isNotEmpty()) viewModel.uploadLocal(uris) { u -> displayName(context, u) }
@@ -1220,7 +1311,15 @@ fun DriveVaultScreen(onBack: () -> Unit, onFolder: (vaultId: String, folderId: L
                     DriveVaultViewModel.Ui.Loading -> DriveLoading()
                     is DriveVaultViewModel.Ui.Error -> DriveErrorBox(s.code, onRetry = { viewModel.refresh() })
                     is DriveVaultViewModel.Ui.Gate -> VaultGate(s.noScreenLock, onConfirmed = viewModel::confirmed)
-                    is DriveVaultViewModel.Ui.Locked -> LockedVault(s.access, busy, safety = viewModel.session.safetyNumber(), onAsk = viewModel::ask, onCheck = { viewModel.refresh() }, onRecover = viewModel::recover)
+                    is DriveVaultViewModel.Ui.Locked -> {
+                        LockedVault(s.access, busy, safety = viewModel.session.safetyNumber(), onAsk = viewModel::ask, onCheck = { viewModel.refresh() }, onRecover = viewModel::recover)
+                        // folders kept only here stay (locked): an export and deleting still work
+                        VaultLocalLockedFolders(
+                            localFolders.values.filter { it.vaultId == s.vault.id }.sortedBy { it.since },
+                            onExport = { f -> startExport(f.nodeId, exportName) },
+                            onDelete = { f -> dropLocalFor = f },
+                        )
+                    }
                     is DriveVaultViewModel.Ui.Ready -> if (s.offline && s.local == null) {
                         VaultOfflinePage(s, onOpen = { n, name -> viewModel.touch(); open(n, name) }, onMore = { n, name -> menuFor = n to name }, onRetry = { viewModel.refresh() })
                     } else if (s.local != null) {
@@ -1234,7 +1333,11 @@ fun DriveVaultScreen(onBack: () -> Unit, onFolder: (vaultId: String, folderId: L
                             undoUntil = if (canUndo) lf.purgeAt else null,
                             onBack = if (top && !lf.revoked && !s.offline && localJobs[lf.nodeId]?.running != true) ({ backFor = Triple(lf.nodeId, s.title, true) }) else null,
                             onUndo = if (top && canUndo && !s.offline) ({ viewModel.undoLocal(lf.nodeId) }) else null,
+                            extra = { if (top) VaultLocalExportButton { startExport(lf.nodeId, s.title) } },
                         )
+                        if (top && com.gatecontrol.android.drive.vault.DriveVaultLocalLogic.needsBackup(lf, now)) {
+                            VaultLocalBackupBanner(lf, onExport = null)
+                        }
                         localJobs[lf.nodeId]?.let { p ->
                             VaultLocalJobCard(p, onCancel = { viewModel.cancelLocal(p.nodeId) }, onRetry = { confirmThen { viewModel.retryLocal(p) } }, onClose = { viewModel.dismissLocal(p.nodeId) })
                         }
@@ -1462,6 +1565,13 @@ fun DriveVaultScreen(onBack: () -> Unit, onFolder: (vaultId: String, folderId: L
                         leading = { Icon(GcIcons.Smartphone, contentDescription = null, tint = GateControlTheme.extraColors.muted) },
                     )
                 } else {
+                    // an export of a folder that was only on a phone (lost, new phone): back as a new folder here
+                    GcListRow(
+                        title = stringResource(R.string.drive_vault_local_import),
+                        description = stringResource(R.string.drive_vault_local_import_desc),
+                        onClick = { addOpen = false; viewModel.away(); importFrom.launch(arrayOf("*/*")) },
+                        leading = { Icon(GcIcons.Lifebuoy, contentDescription = null, tint = GateControlTheme.extraColors.muted) },
+                    )
                     // a move: the unencrypted original goes once the file is in the vault (said before, too)
                     GcListRow(
                         title = stringResource(R.string.drive_vault_move_in),
@@ -1510,6 +1620,9 @@ fun DriveVaultScreen(onBack: () -> Unit, onFolder: (vaultId: String, folderId: L
             if (inLocal) {
                 add(MoreItem(GcIcons.Edit, stringResource(R.string.drive_rename), can = if (writable) DriveBulk.Can.YES else DriveBulk.Can.no(DriveBulk.Why.READ_ONLY)) { one?.let { renaming = it } })
                 return@buildList
+            }
+            if (hereFolder != null && one != null) {
+                add(MoreItem(GcIcons.Download, stringResource(R.string.drive_vault_local_export), stringResource(R.string.drive_vault_local_export_desc, viewModel.localBackup.fileName(one.second))) { startExport(one.first.id, one.second) })
             }
             add(MoreItem(GcIcons.Edit, stringResource(R.string.drive_rename), can = can(DriveBulk.Action.RENAME)) { one?.let { renaming = it } })
             if (one == null || !one.first.isDir) {
@@ -1649,6 +1762,12 @@ fun DriveVaultScreen(onBack: () -> Unit, onFolder: (vaultId: String, folderId: L
     }
     deleteLocalFolderFor?.let { (id, name) ->
         VaultLocalDeleteDialog(name, onConfirm = { deleteLocalFolderFor = null; confirmThen { viewModel.deleteLocalFolder(id) } }, onDismiss = { deleteLocalFolderFor = null })
+    }
+    importUri?.let { uri ->
+        VaultLocalImportDialog(onImport = { key -> importUri = null; viewModel.importBackup(uri, key) }, onDismiss = { importUri = null })
+    }
+    dropLocalFor?.let { f ->
+        VaultLocalDeleteDialog(exportName, onConfirm = { dropLocalFor = null; viewModel.dropLocalHere(f.nodeId) }, onDismiss = { dropLocalFor = null })
     }
     deletingLocal?.let { (n, name) ->
         VaultLocalDeleteDialog(name, onConfirm = { deletingLocal = null; viewModel.deleteLocal(n) }, onDismiss = { deletingLocal = null })
