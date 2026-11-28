@@ -319,7 +319,7 @@ class DriveVaultLocalUiTest {
         page { VaultLocalCard(trashed, undoUntil = null, onBack = {}, onUndo = null, onTrash = { opened = true }, extra = { VaultLocalExportButton {} }) }
         rule.onNodeWithText("Papierkorb: 2 Elemente · ", substring = true).assertExists()
         shot("T2-karte-papierkorb")
-        rule.onNodeWithText("Papierkorb").performClick()
+        rule.onNodeWithText("Papierkorb: 2 Elemente · ", substring = true).performClick()
         assertEquals(true, opened)
         page { VaultLocalCard(folder(), undoUntil = null, onBack = {}, onUndo = null, onTrash = {}) }
         rule.onNodeWithText("Papierkorb", substring = true).assertDoesNotExist()

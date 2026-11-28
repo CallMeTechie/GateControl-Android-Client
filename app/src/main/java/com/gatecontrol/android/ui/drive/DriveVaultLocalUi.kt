@@ -497,7 +497,15 @@ internal fun VaultLocalCard(folder: DriveVaultLocalFolder, undoUntil: Long?, onB
                 Text(pluralStringResource(R.plurals.drive_vault_local_card_line, files.size, files.size, DriveLogic.size(folder.bytes)), style = MaterialTheme.typography.bodySmall, color = x.muted)
                 // the local trash (30 days): how much it holds — it takes room on the phone as well
                 if (folder.trash.isNotEmpty()) {
-                    Text(pluralStringResource(R.plurals.drive_vault_local_trash_line, folder.trash.size, folder.trash.size, DriveLogic.size(folder.trashBytes)), style = MaterialTheme.typography.bodySmall, color = x.muted)
+                    val line = pluralStringResource(R.plurals.drive_vault_local_trash_line, folder.trash.size, folder.trash.size, DriveLogic.size(folder.trashBytes))
+                    if (onTrash == null) {
+                        Text(line, style = MaterialTheme.typography.bodySmall, color = x.muted)
+                    } else {
+                        TextButton(onClick = onTrash, contentPadding = PaddingValues(0.dp), modifier = Modifier.heightIn(min = 32.dp)) {
+                            Icon(GcIcons.Trash, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Text(line, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(start = 6.dp))
+                        }
+                    }
                 }
                 undoUntil?.let { Text(stringResource(R.string.drive_vault_local_undo_until, android.text.format.DateUtils.formatDateTime(context, it, android.text.format.DateUtils.FORMAT_SHOW_DATE or android.text.format.DateUtils.FORMAT_SHOW_TIME or android.text.format.DateUtils.FORMAT_ABBREV_MONTH)), style = MaterialTheme.typography.bodySmall, color = x.muted) }
             }
@@ -511,12 +519,6 @@ internal fun VaultLocalCard(folder: DriveVaultLocalFolder, undoUntil: Long?, onB
                 }
             }
             onUndo?.let { TextButton(onClick = it) { Text(stringResource(R.string.drive_vault_local_undo)) } }
-            if (folder.trash.isNotEmpty()) onTrash?.let {
-                TextButton(onClick = it) {
-                    Icon(GcIcons.Trash, contentDescription = null, modifier = Modifier.size(18.dp))
-                    Text(stringResource(R.string.drive_trash), modifier = Modifier.padding(start = 6.dp))
-                }
-            }
         }
     }
     if (folder.revoked) {
