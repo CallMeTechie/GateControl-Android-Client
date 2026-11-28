@@ -75,7 +75,7 @@ class QuickActionActivity : ComponentActivity() {
 
     private fun confirm(item: QuickActionItem) {
         AlertDialog.Builder(this, android.R.style.Theme_DeviceDefault_Dialog_Alert)
-            .setTitle(getString(R.string.quick_action_confirm_title, item.title))
+            .setTitle(getString(R.string.quick_action_confirm_title, item.confirmLabel))
             .setMessage(item.subtitle ?: item.pluginName)
             .setPositiveButton(R.string.quick_action_confirm_run) { _, _ -> runAndFinish(item) }
             .setNegativeButton(android.R.string.cancel) { _, _ -> finish() }

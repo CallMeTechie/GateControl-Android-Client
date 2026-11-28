@@ -685,7 +685,7 @@ private fun ResultToasts(viewModel: QuickActionsViewModel) {
 private fun ConfirmDialog(item: QuickActionItem, onConfirm: () -> Unit, onDismiss: () -> Unit) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(stringResource(R.string.quick_action_confirm_title, item.title)) },
+        title = { Text(stringResource(R.string.quick_action_confirm_title, item.confirmLabel)) },
         text = { Text(item.subtitle ?: item.deviceTitle ?: item.pluginName) },
         confirmButton = { TextButton(onClick = onConfirm) { Text(stringResource(R.string.quick_action_confirm_run)) } },
         dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(android.R.string.cancel)) } },
