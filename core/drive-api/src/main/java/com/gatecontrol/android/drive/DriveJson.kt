@@ -214,7 +214,12 @@ object DriveJson {
             // a node of a vault (Drive 1.9): its name is opaque, the encrypted one comes as nameCipher
             val vault = vaultId(o.str("vaultId"))
             if (vault == null && o.bool("encrypted") != true) n
-            else n.copy(vaultId = vault ?: INVALID_VAULT, nameCipher = nameCipher(o.str("nameCipher")), keyVersion = o.int("keyVersion")?.takeIf { it > 0 }, preview = false, insight = null, previewLan = null, largeLan = null)
+            else n.copy(
+                vaultId = vault ?: INVALID_VAULT, nameCipher = nameCipher(o.str("nameCipher")), keyVersion = o.int("keyVersion")?.takeIf { it > 0 },
+                preview = false, insight = null, previewLan = null, largeLan = null,
+                // Drive 1.32: a folder of a vault that is a placeholder ("Nur auf diesem Gerät")
+                local = if (n.isDir && vault != null) vaultLocal(o.obj("local"))?.takeIf { it.vaultId == vault && it.nodeId == id } else null,
+            )
         }
     }
 
@@ -242,7 +247,11 @@ object DriveJson {
     /** `GET nodes/<id>` + `GET nodes/<id>/children` → the folder. */
     fun folder(nodeAnswer: JsonObject, childrenAnswer: JsonObject): DFolder? {
         val n = nodeAnswer.obj("node") ?: return null
-        val node = node(n) ?: return null
+        val own = node(n) ?: return null
+        // Drive 1.32: the children's answer of a placeholder names it as well (`local` at the top)
+        val node = if (own.local == null && own.isDir && own.vaultId != null) {
+            own.copy(local = vaultLocal(childrenAnswer.obj("local"))?.takeIf { it.vaultId == own.vaultId && it.nodeId == own.id })
+        } else own
         val items = childrenAnswer.arr("items")?.mapNotNull { (it as? JsonObject)?.let(::node) } ?: return null
         return DFolder(
             node = node,
@@ -535,7 +544,7 @@ object DriveJson {
     /** `PUT photos/settings`: only the fields given ([clearFolder] sends `workFolder: null`). */
     fun photoSettingsBody(workFolder: Long? = null, clearFolder: Boolean = false, workSubfolders: Boolean? = null, workInMemories: Boolean? = null) =
         JsonObject().apply {
-            if (clearFolder) add("workFolder", com.google.gson.JsonNull.INSTANCE) else if (workFolder != null) addProperty("workFolder", workFolder)
+            if (clearFolder) add("workFolder", JsonNull.INSTANCE) else if (workFolder != null) addProperty("workFolder", workFolder)
             if (workSubfolders != null) addProperty("workSubfolders", workSubfolders)
             if (workInMemories != null) addProperty("workInMemories", workInMemories)
         }
@@ -885,6 +894,119 @@ object DriveJson {
         keyVersion = o.int("keyVersion")?.takeIf { it > 0 },
         keys = wraps(o),
     )
+
+    // ─── Drive 1.32: "Nur auf diesem Gerät" (feature `vaultLocal`) ─────
+
+    private val LOCAL_STATES = setOf(DVaultLocal.STATE_MOVING, DVaultLocal.STATE_LOCAL, DVaultLocal.STATE_RETURNING)
+
+    /** The field `local` of a placeholder; null when it is none (or not readable). */
+    fun vaultLocal(o: JsonObject?): DVaultLocal? {
+        if (o == null) return null
+        return DVaultLocal(
+            nodeId = o.long("nodeId") ?: return null,
+            vaultId = vaultId(o.str("vaultId")) ?: return null,
+            deviceId = vaultId(o.str("deviceId")) ?: return null,
+            deviceName = o.str("deviceName")?.trim()?.take(80)?.ifEmpty { null },
+            platform = o.str("platform")?.take(16),
+            deviceState = o.str("deviceState")?.takeIf { it in setOf("pending", "approved", "revoked") },
+            state = o.str("state")?.takeIf { it in LOCAL_STATES } ?: return null,
+            since = o.str("since")?.take(40),
+            mine = o.bool("mine") == true,
+            thisDevice = o.bool("thisDevice"),
+            leaseUntil = o.str("leaseUntil")?.take(40),
+            purgeAt = o.str("purgeAt")?.take(40),
+            undo = o.bool("undo"),
+        )
+    }
+
+    /** `{ local }` (`GET vaults/<id>/local/<nodeId>`, lease, return) → the placeholder; an answer `local: null` is none. */
+    fun vaultLocalAnswer(o: JsonObject): DVaultLocalState? =
+        if (o.has("local") && (o.get("local").isJsonNull || o.obj("local") != null)) DVaultLocalState(vaultLocal(o.obj("local"))) else null
+
+    /** `GET vaults/<id>/local` → the placeholders of the vault. */
+    fun vaultLocals(o: JsonObject): List<DVaultLocal>? = o.arr("items")?.mapNotNull { vaultLocal(it as? JsonObject) }
+
+    fun vaultLocalItem(o: JsonObject?): DVaultLocalItem? {
+        if (o == null) return null
+        val dir = o.bool("isDir") ?: return null
+        return DVaultLocalItem(
+            id = o.long("id") ?: return null,
+            parentId = o.long("parentId"),
+            isDir = dir,
+            nameCipher = nameCipher(o.str("nameCipher")),
+            keyVersion = o.int("keyVersion")?.takeIf { it > 0 },
+            rev = o.int("rev") ?: 0,
+            sha256 = sha256(o.str("sha256")),
+            size = o.long("size")?.coerceAtLeast(0) ?: 0,
+            mtime = o.str("mtime")?.take(40),
+        )
+    }
+
+    private fun localItems(a: JsonArray?): List<DVaultLocalItem> = a?.mapNotNull { vaultLocalItem(it as? JsonObject) }.orEmpty()
+
+    /** `POST vaults/<id>/local` → the manifest and the numbers for the confirmation. */
+    fun vaultLocalStart(o: JsonObject): DVaultLocalStart? {
+        val m = o.obj("manifest") ?: return null
+        val items = localItems(m.arr("items") ?: return null)
+        val v = o.obj("versions")
+        val t = o.obj("trash")
+        return DVaultLocalStart(
+            local = vaultLocal(o.obj("local")),
+            items = items,
+            files = m.int("files") ?: items.count { !it.isDir },
+            folders = m.int("folders") ?: items.count { it.isDir },
+            bytes = m.long("bytes") ?: items.filter { !it.isDir }.sumOf { it.size },
+            versions = v?.int("count")?.coerceAtLeast(0) ?: 0,
+            versionBytes = v?.long("bytes")?.coerceAtLeast(0) ?: 0,
+            trashEntries = t?.int("entries")?.coerceAtLeast(0) ?: 0,
+            trashFiles = t?.int("files")?.coerceAtLeast(0) ?: 0,
+            trashBytes = t?.long("bytes")?.coerceAtLeast(0) ?: 0,
+        )
+    }
+
+    /** `POST …/challenge` → the sealed challenge (base64url). */
+    fun vaultLocalChallenge(o: JsonObject): String? = o.str("challenge")?.takeIf { it.length in 100..120 && B64URL.matches(it) }
+
+    /** The body of a 409 `conflict { reason: 'changed' }` of a commit; null for another conflict. */
+    fun vaultLocalChanged(body: JsonObject?): DVaultLocalChanged? {
+        if (body == null || body.str("reason") != "changed") return null
+        return DVaultLocalChanged(
+            changed = localItems(body.arr("changed")),
+            added = localItems(body.arr("added")),
+            removed = body.arr("removed")?.mapNotNull { e -> runCatching { e.asLong }.getOrNull() }.orEmpty(),
+        )
+    }
+
+    /** `reason` of a 409 `conflict` (`changed`, `state`, `purged`, `not_empty`, `count`, `purge_pending`). */
+    fun conflictReason(body: JsonObject?): String? = body?.str("reason")?.take(40)
+
+    fun deviceIdBody(deviceId: String) = JsonObject().apply { addProperty("deviceId", deviceId) }
+
+    fun vaultLocalStartBody(nodeId: Long, deviceId: String) = deviceIdBody(deviceId).apply { addProperty("nodeId", nodeId) }
+
+    /** The commit: [proof] and every live node below — folders `{ id }`, files `{ id, rev, sha256 }`. */
+    fun vaultLocalCommitBody(deviceId: String, proof: String, manifest: List<DVaultLocalItem>) = deviceIdBody(deviceId).apply {
+        addProperty("proof", proof)
+        add("manifest", JsonArray().apply {
+            manifest.forEach { i ->
+                add(JsonObject().apply {
+                    addProperty("id", i.id)
+                    if (!i.isDir) {
+                        addProperty("rev", i.rev)
+                        if (i.sha256 != null) addProperty("sha256", i.sha256) else add("sha256", JsonNull.INSTANCE)
+                    }
+                })
+            }
+        })
+    }
+
+    fun vaultLocalReturnBody(deviceId: String, proof: String, count: Int) = deviceIdBody(deviceId).apply {
+        addProperty("proof", proof)
+        addProperty("count", count)
+    }
+
+    /** `forget`: from the device with the copy with its [proof]; from another device of mine without one. */
+    fun vaultLocalForgetBody(deviceId: String, proof: String?) = deviceIdBody(deviceId).apply { proof?.let { addProperty("proof", it) } }
 
     fun vaultRecovery(o: JsonObject): DVaultRecovery = DVaultRecovery(pub(o.str("recoveryPub")), o.int("keyVersion")?.takeIf { it > 0 }, wraps(o))
 

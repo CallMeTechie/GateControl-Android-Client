@@ -129,6 +129,12 @@ data class DMe(
         /** Drive 1.20: "Offline verfügbar" marks (`GET offline`, `PUT|DELETE nodes/<id>/offline`). */
         const val FEATURE_OFFLINE = "offline"
         /**
+         * Drive 1.32: "Nur auf diesem Gerät" — a folder of a vault "Nur ich" whose content lies on one device only (the
+         * server keeps a placeholder, `vaults/<id>/local/…`). Only while the administrator switched it on; placeholders
+         * show without it too.
+         */
+        const val FEATURE_VAULT_LOCAL = "vaultLocal"
+        /**
          * Drive 1.25: only pictures or only videos — `media=image|video` on the photos and the search (search then also
          * without a word), `durationMs` on videos, uploads/commit `{ durationMs }`.
          */
@@ -275,6 +281,8 @@ data class DNode(
      */
     val previewLan: com.gatecontrol.android.network.LanHint? = null,
     val largeLan: com.gatecontrol.android.network.LanHint? = null,
+    /** Drive 1.32 (`vaultLocal`): this folder of a vault is a placeholder — its content lies on one device only. */
+    val local: DVaultLocal? = null,
 ) {
     /** In a vault: nothing of it may go to a preview, a link, the office, the AI or a backup. */
     val encrypted: Boolean get() = vaultId != null
@@ -577,6 +585,75 @@ data class DVault(
     /** Requests of new devices that one of my approved devices could answer. */
     val pending: Int,
 )
+
+/**
+ * Drive 1.32 (`vaultLocal`, "Nur auf diesem Gerät"): a folder of a vault whose content lies on the vault device
+ * [deviceId] only. [state] `moving` (being fetched, still readable, nothing changeable), `local` or `returning`.
+ * [thisDevice] only when the request named this phone's vault device; [purgeAt] / [undo] only for the owner ([mine]):
+ * until when "Rückgängig" works.
+ */
+data class DVaultLocal(
+    val nodeId: Long,
+    val vaultId: String,
+    val deviceId: String,
+    val deviceName: String?,
+    val platform: String?,
+    /** `approved` | `pending` | `revoked` | null: is the device with the copy still a device of the vault. */
+    val deviceState: String?,
+    val state: String,
+    /** ISO 8601: since when only there (while moving: since when it is moved). */
+    val since: String?,
+    val mine: Boolean,
+    val thisDevice: Boolean? = null,
+    val leaseUntil: String? = null,
+    val purgeAt: String? = null,
+    val undo: Boolean? = null,
+) {
+    val moving: Boolean get() = state == STATE_MOVING
+    val returning: Boolean get() = state == STATE_RETURNING
+
+    companion object {
+        const val STATE_MOVING = "moving"
+        const val STATE_LOCAL = "local"
+        const val STATE_RETURNING = "returning"
+    }
+}
+
+/** A node below a folder being moved to one device (`POST vaults/<id>/local` → manifest); files carry rev and SHA-256. */
+data class DVaultLocalItem(
+    val id: Long,
+    val parentId: Long?,
+    val isDir: Boolean,
+    val nameCipher: String?,
+    val keyVersion: Int?,
+    val rev: Int = 0,
+    val sha256: String? = null,
+    val size: Long = 0,
+    val mtime: String? = null,
+)
+
+/**
+ * The answer of `POST vaults/<id>/local`: every live node below the folder, and what goes with the move for good (older
+ * versions, trash entries from this folder) — the numbers of the confirmation.
+ */
+data class DVaultLocalStart(
+    val local: DVaultLocal?,
+    val items: List<DVaultLocalItem>,
+    val files: Int,
+    val folders: Int,
+    val bytes: Long,
+    val versions: Int,
+    val versionBytes: Long,
+    val trashEntries: Int,
+    val trashFiles: Int,
+    val trashBytes: Long,
+)
+
+/** An answer `{ local }`: the placeholder now, or null (a plain folder again, or the move called off). */
+data class DVaultLocalState(val local: DVaultLocal?)
+
+/** `409 conflict { reason: 'changed' }` of a commit: what differs from the manifest sent. */
+data class DVaultLocalChanged(val changed: List<DVaultLocalItem>, val added: List<DVaultLocalItem>, val removed: List<Long>)
 
 data class DVaultMyDevice(val deviceId: String, val state: String, val name: String?)
 

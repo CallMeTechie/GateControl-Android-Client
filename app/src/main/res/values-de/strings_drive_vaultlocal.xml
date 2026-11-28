@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Drive-Tresore: „Nur auf diesem Gerät“ (Drive 1.32) – ein Ordner, dessen Inhalt nur auf diesem Handy liegt. -->
+<resources>
+    <string name="drive_vault_local_channel">Tresor: nur auf diesem Handy</string>
+    <string name="drive_vault_local_notify_move">Ordner wird auf dieses Handy verschoben</string>
+    <string name="drive_vault_local_notify_back">Ordner kommt zurück auf den Server</string>
+    <plurals name="drive_vault_local_notify_fetch">
+        <item quantity="one">Herunterladen · %1$d von %2$d Datei</item>
+        <item quantity="other">Herunterladen · %1$d von %2$d Dateien</item>
+    </plurals>
+    <plurals name="drive_vault_local_notify_check">
+        <item quantity="one">Prüfen · %1$d von %2$d Datei</item>
+        <item quantity="other">Prüfen · %1$d von %2$d Dateien</item>
+    </plurals>
+    <string name="drive_vault_local_step_finish">Vom Server löschen</string>
+    <string name="drive_vault_local_step_finish_back">Abschluss auf dem Server</string>
+</resources>
