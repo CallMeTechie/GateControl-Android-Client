@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.166.0] - 2026-11-28
+
+### Features
+- Tresor „Nur auf diesem Gerät“ – Sicherung, Erinnerung, Abmelde-Schutz (#320)
+
+---
+
 ## [1.165.0] - 2026-11-28
 
 ### Features
