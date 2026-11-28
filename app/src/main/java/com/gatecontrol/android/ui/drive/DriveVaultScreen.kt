@@ -1207,6 +1207,7 @@ fun DriveVaultScreen(onBack: () -> Unit, onFolder: (vaultId: String, folderId: L
     var importUri by remember { mutableStateOf<Uri?>(null) }
     val importFrom = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> if (uri != null) importUri = uri }
     var dropLocalFor by remember { mutableStateOf<com.gatecontrol.android.drive.vault.DriveVaultLocalFolder?>(null) }
+    val exportName = stringResource(R.string.drive_vault_local_export_name)
     // into a folder kept only here: encrypted on this phone, nothing goes to the server
     val pickLocal = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
         if (uris.isNotEmpty()) viewModel.uploadLocal(uris) { u -> displayName(context, u) }
@@ -1315,7 +1316,7 @@ fun DriveVaultScreen(onBack: () -> Unit, onFolder: (vaultId: String, folderId: L
                         // folders kept only here stay (locked): an export and deleting still work
                         VaultLocalLockedFolders(
                             localFolders.values.filter { it.vaultId == s.vault.id }.sortedBy { it.since },
-                            onExport = { f -> startExport(f.nodeId, context.getString(R.string.drive_vault_local_export_name)) },
+                            onExport = { f -> startExport(f.nodeId, exportName) },
                             onDelete = { f -> dropLocalFor = f },
                         )
                     }
@@ -1766,7 +1767,7 @@ fun DriveVaultScreen(onBack: () -> Unit, onFolder: (vaultId: String, folderId: L
         VaultLocalImportDialog(onImport = { key -> importUri = null; viewModel.importBackup(uri, key) }, onDismiss = { importUri = null })
     }
     dropLocalFor?.let { f ->
-        VaultLocalDeleteDialog(context.getString(R.string.drive_vault_local_export_name), onConfirm = { dropLocalFor = null; viewModel.dropLocalHere(f.nodeId) }, onDismiss = { dropLocalFor = null })
+        VaultLocalDeleteDialog(exportName, onConfirm = { dropLocalFor = null; viewModel.dropLocalHere(f.nodeId) }, onDismiss = { dropLocalFor = null })
     }
     deletingLocal?.let { (n, name) ->
         VaultLocalDeleteDialog(name, onConfirm = { deletingLocal = null; viewModel.deleteLocal(n) }, onDismiss = { deletingLocal = null })
