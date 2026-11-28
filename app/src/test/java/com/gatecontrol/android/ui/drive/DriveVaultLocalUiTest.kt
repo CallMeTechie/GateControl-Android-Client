@@ -241,4 +241,46 @@ class DriveVaultLocalUiTest {
         page { VaultLocalBackDialog("Steuer 2025", keep = true, onConfirm = {}, onDismiss = {}) }
         shot("A8-zurueck-dialog", dialog = true)
     }
+
+    @Test
+    fun `A5 the reminder of a backup and the export in the card`() {
+        page {
+            VaultLocalCard(folder(), undoUntil = null, onBack = {}, onUndo = null, extra = { VaultLocalExportButton {} })
+            VaultLocalBackupBanner(folder(), onExport = null)
+        }
+        rule.onNodeWithText("Sicherung exportieren").assertExists()
+        rule.onNodeWithText("Noch keine Sicherung.", substring = true).assertExists()
+        shot("A5-sicherung")
+        page { VaultLocalBackupBanner(folder().copy(lastExport = 1000), onExport = null) }
+        rule.onNodeWithText("Zeit für eine neue Sicherung.", substring = true).assertExists()
+    }
+
+    @Test
+    fun `A7 signing out asks first, twice before anything goes`() {
+        var left = false
+        var hinted = false
+        page {
+            VaultLocalLeaveDialog(
+                listOf(folder().copy(lastExport = 1_764_000_000_000), folder().copy(nodeId = 11)),
+                onFirstSave = { hinted = true }, onLeave = { left = true }, onDismiss = {},
+            )
+        }
+        rule.onNodeWithText("2 Ordner liegen nur auf diesem Handy").assertExists()
+        rule.onNodeWithText("noch nie gesichert", substring = true).assertExists()
+        shot("A7-abmelden", dialog = true)
+        rule.onNodeWithText("Erst sichern").performClick()
+        assertEquals(true, hinted)
+        rule.onNodeWithText("Trotzdem abmelden …").performClick()
+        assertEquals(false, left)
+        rule.onNodeWithText("Löschen und abmelden").performClick()
+        assertEquals(true, left)
+    }
+
+    @Test
+    fun `a device removed from the vault keeps its folders locked, export and delete stay`() {
+        page { VaultLocalLockedFolders(listOf(folder()), onExport = {}, onDelete = {}) }
+        rule.onNodeWithText("Sicherung exportieren").assertExists()
+        rule.onNodeWithText("Löschen").assertExists()
+        shot("gesperrt-entfernt")
+    }
 }

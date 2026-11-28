@@ -463,6 +463,14 @@ internal fun vaultLocalText(context: Context, code: String): String? = when (cod
     "local_deleted" -> context.getString(R.string.drive_vault_local_msg_deleted)
     "changed_here" -> context.getString(R.string.drive_vault_local_msg_changed_here)
     "local_locked" -> context.getString(R.string.drive_vault_local_msg_locked)
+    "local_exported" -> context.getString(R.string.drive_vault_local_msg_exported)
+    "local_no_recovery" -> context.getString(R.string.drive_vault_local_msg_no_recovery)
+    "local_write" -> context.getString(R.string.drive_vault_local_msg_write)
+    "local_imported" -> context.getString(R.string.drive_vault_local_msg_imported)
+    "local_recovery_key" -> context.getString(R.string.drive_vault_local_msg_recovery_key)
+    "local_backup_invalid" -> context.getString(R.string.drive_vault_local_msg_backup_invalid)
+    "local_backup_other_vault" -> context.getString(R.string.drive_vault_local_msg_backup_other_vault)
+    "local_backup_damaged" -> context.getString(R.string.drive_vault_local_msg_backup_damaged)
     else -> null
 }
 
@@ -593,5 +601,153 @@ internal fun VaultForgetDialog(name: String, device: String, onConfirm: () -> Un
         text = { Text(stringResource(R.string.drive_vault_local_forget_text, name, device)) },
         confirmButton = { TextButton(onClick = onConfirm) { Text(stringResource(R.string.drive_vault_local_forget_go), color = MaterialTheme.colorScheme.error) } },
         dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.drive_cancel)) } },
+    )
+}
+
+// ─── export, reminder, signing out (part 3) ─────────────────────────
+
+/** "Noch keine Sicherung." (A5) / "Zeit für eine neue Sicherung." — while the folder needs a new export. */
+@Composable
+internal fun VaultLocalBackupBanner(folder: DriveVaultLocalFolder, onExport: (() -> Unit)?) {
+    val context = LocalContext.current
+    val last = folder.lastExport
+    GcBanner(tone = GcTone.Warn, icon = GcIcons.Alert) {
+        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(
+                buildAnnotatedString {
+                    withStyle(SpanStyle(fontWeight = FontWeight.Bold)) {
+                        append(stringResource(if (last == null) R.string.drive_vault_local_backup_none_bold else R.string.drive_vault_local_backup_old_bold))
+                    }
+                    append(" ")
+                    append(if (last == null) stringResource(R.string.drive_vault_local_backup_none) else stringResource(R.string.drive_vault_local_backup_old, localDate(context, last)))
+                },
+                style = MaterialTheme.typography.bodyMedium,
+            )
+            onExport?.let { TextButton(onClick = it, contentPadding = PaddingValues(0.dp)) { Text(stringResource(R.string.drive_vault_local_export)) } }
+        }
+    }
+}
+
+/** "Sicherung exportieren" in the card of a folder kept here. */
+@Composable
+internal fun VaultLocalExportButton(onClick: () -> Unit) {
+    TextButton(onClick = onClick) {
+        Icon(GcIcons.Download, contentDescription = null, modifier = Modifier.size(18.dp))
+        Text(stringResource(R.string.drive_vault_local_export), modifier = Modifier.padding(start = 6.dp))
+    }
+}
+
+/** "Sicherung importieren": the recovery key of the vault opens the file (the key is never kept). */
+@Composable
+internal fun VaultLocalImportDialog(onImport: (String) -> Unit, onDismiss: () -> Unit) {
+    var key by remember { mutableStateOf("") }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        icon = { Icon(GcIcons.Lifebuoy, contentDescription = null) },
+        title = { Text(stringResource(R.string.drive_vault_local_import_title)) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(stringResource(R.string.drive_vault_local_import_text))
+                com.gatecontrol.android.ui.components.GcTextField(
+                    value = key,
+                    onValueChange = { key = it },
+                    label = stringResource(R.string.drive_vault_local_import_key),
+                    mono = true,
+                )
+            }
+        },
+        confirmButton = { TextButton(onClick = { onImport(key) }, enabled = key.isNotBlank()) { Text(stringResource(R.string.drive_vault_local_import_go)) } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.drive_cancel)) } },
+    )
+}
+
+/** A line of a folder kept here when its name cannot be read (the vault locked, signing out): its size, its export. */
+@Composable
+internal fun localFolderLine(context: Context, f: DriveVaultLocalFolder): String {
+    val saved = f.lastExport?.let { stringResource(R.string.drive_vault_local_saved_on, localDate(context, it)) } ?: stringResource(R.string.drive_vault_local_saved_never)
+    return DriveLogic.size(f.bytes) + " · " + saved
+}
+
+/**
+ * The vault is not open on this device (removed from it, or not approved again): its folders kept here stay — locked,
+ * but an export and deleting them still work.
+ */
+@Composable
+internal fun VaultLocalLockedFolders(folders: List<DriveVaultLocalFolder>, onExport: (DriveVaultLocalFolder) -> Unit, onDelete: (DriveVaultLocalFolder) -> Unit) {
+    if (folders.isEmpty()) return
+    val x = GateControlTheme.extraColors
+    val context = LocalContext.current
+    GcCard(borderColor = x.blue.copy(alpha = 0.45f)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            GcIconSquare(size = 40.dp, background = x.blueBg) { Icon(GcIcons.Smartphone, contentDescription = null, tint = x.blue, modifier = Modifier.size(20.dp)) }
+            Text(pluralStringResource(R.plurals.drive_vault_local_locked_text, folders.size, folders.size), style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+        }
+        folders.forEachIndexed { i, f ->
+            if (i > 0) GcRowDivider()
+            Column {
+                Text(stringResource(R.string.drive_vault_local_folder_generic, i + 1), style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.SemiBold)
+                Text(localFolderLine(context, f), style = MaterialTheme.typography.bodySmall, color = x.muted)
+                Row {
+                    VaultLocalExportButton { onExport(f) }
+                    TextButton(onClick = { onDelete(f) }) { Text(stringResource(R.string.drive_bar_delete), color = MaterialTheme.colorScheme.error) }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Signing out (another server or token) while folders lie only on this phone (A7): what would be lost, "Erst sichern",
+ * "Zurück auf den Server" (both in the vault: said in a hint) and "Trotzdem abmelden …" with a second question.
+ */
+@Composable
+internal fun VaultLocalLeaveDialog(folders: List<DriveVaultLocalFolder>, onFirstSave: () -> Unit, onLeave: () -> Unit, onDismiss: () -> Unit) {
+    val x = GateControlTheme.extraColors
+    val context = LocalContext.current
+    var sure by remember { mutableStateOf(false) }
+    if (sure) {
+        AlertDialog(
+            onDismissRequest = { sure = false },
+            title = { Text(stringResource(R.string.drive_vault_local_leave_sure_title)) },
+            text = { Text(stringResource(R.string.drive_vault_local_leave_sure_text)) },
+            confirmButton = { TextButton(onClick = onLeave) { Text(stringResource(R.string.drive_vault_local_leave_sure_go), color = MaterialTheme.colorScheme.error) } },
+            dismissButton = { TextButton(onClick = { sure = false }) { Text(stringResource(R.string.drive_cancel)) } },
+        )
+        return
+    }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        icon = { GcIconSquare(size = 48.dp, background = x.errorBg) { Icon(GcIcons.Alert, contentDescription = null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(24.dp)) } },
+        title = { Text(pluralStringResource(R.plurals.drive_vault_local_leave_title, folders.size, folders.size), textAlign = TextAlign.Center) },
+        text = {
+            Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(
+                    buildAnnotatedString {
+                        append(stringResource(R.string.drive_vault_local_leave_text, DriveLogic.size(folders.sumOf { it.bytes })))
+                        append(" ")
+                        withStyle(SpanStyle(fontWeight = FontWeight.Bold)) { append(stringResource(R.string.drive_vault_local_leave_lost)) }
+                    },
+                )
+                Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(x.panel2)) {
+                    folders.forEachIndexed { i, f ->
+                        if (i > 0) GcRowDivider()
+                        Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            GcIconSquare(size = 40.dp, background = x.warnBg) { Icon(GcIcons.Lock, contentDescription = null, tint = x.warn, modifier = Modifier.size(20.dp)) }
+                            Column {
+                                Text(stringResource(R.string.drive_vault_local_folder_generic, i + 1), style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.SemiBold)
+                                Text(localFolderLine(context, f), style = MaterialTheme.typography.bodySmall, color = x.muted)
+                            }
+                        }
+                    }
+                }
+                Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
+                    TextButton(onClick = onFirstSave) { Text(stringResource(R.string.drive_vault_local_leave_save)) }
+                    TextButton(onClick = onFirstSave) { Text(stringResource(R.string.drive_vault_local_back)) }
+                    TextButton(onClick = { sure = true }) { Text(stringResource(R.string.drive_vault_local_leave_go), color = MaterialTheme.colorScheme.error) }
+                    TextButton(onClick = onDismiss) { Text(stringResource(R.string.drive_cancel), color = x.muted) }
+                }
+            }
+        },
+        confirmButton = {},
     )
 }

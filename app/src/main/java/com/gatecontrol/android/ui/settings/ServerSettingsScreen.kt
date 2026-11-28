@@ -55,6 +55,9 @@ fun ServerSettingsScreen(
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val extra = GateControlTheme.extraColors
+    // Drive vaults "Nur auf diesem Gerät": signing out (another server or token) asks first (A7)
+    val localOnly by viewModel.localOnly.collectAsStateWithLifecycle()
+    var leaving by remember { mutableStateOf<Pair<String, String>?>(null) }
 
     val filePickerLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
         contract = androidx.activity.result.contract.ActivityResultContracts.OpenDocument(),
@@ -152,7 +155,10 @@ fun ServerSettingsScreen(
                     )
                     GcPrimaryButton(
                         text = stringResource(R.string.settings_save_register),
-                        onClick = { viewModel.saveServer("https://$serverUrlField", apiTokenField) },
+                        onClick = {
+                            val url = "https://$serverUrlField"
+                            if (viewModel.leavesLocalFolders(url, apiTokenField)) leaving = url to apiTokenField else viewModel.saveServer(url, apiTokenField)
+                        },
                         loading = uiState.isLoading,
                         modifier = Modifier.weight(1f),
                     )
@@ -184,5 +190,13 @@ fun ServerSettingsScreen(
                 )
             }
         }
+    }
+    leaving?.let { (url, token) ->
+        com.gatecontrol.android.ui.drive.VaultLocalLeaveDialog(
+            folders = localOnly,
+            onFirstSave = { leaving = null; android.widget.Toast.makeText(context, R.string.drive_vault_local_leave_hint, android.widget.Toast.LENGTH_LONG).show() },
+            onLeave = { leaving = null; viewModel.saveServerDroppingLocal(url, token) },
+            onDismiss = { leaving = null },
+        )
     }
 }
