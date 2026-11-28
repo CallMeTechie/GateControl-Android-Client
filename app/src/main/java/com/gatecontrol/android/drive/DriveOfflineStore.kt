@@ -351,8 +351,13 @@ class DriveOfflineStore @Inject constructor(
     private val deviceKey: DriveVaultDeviceKey,
     /** What a vault with offline files needs to open without a connection (wrapped keys, listings). */
     val vaultCache: DriveVaultOfflineCache,
+    /** "Nur auf diesem Gerät" (Drive 1.32): a vault with folders kept only here opens without a connection as well. */
+    private val localFolders: com.gatecontrol.android.drive.vault.DriveVaultLocalStore,
 ) {
     enum class Outcome { DONE, RETRY }
+
+    /** The vaults with folders kept only on this phone. */
+    private fun localVaults(): Set<String> = runCatching { localFolders.load().values.mapTo(HashSet()) { it.vaultId } }.getOrDefault(emptySet())
 
     private val lock = Mutex()
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -442,8 +447,8 @@ class DriveOfflineStore @Inject constructor(
         return if (anyVersion || DriveOfflineStoreLogic.current(c, node)) fileOf(c) else null
     }
 
-    /** Files of [vaultId] are kept (or to come) on this phone. */
-    fun hasVault(vaultId: String): Boolean = _copies.value.values.any { it.vaultId == vaultId }
+    /** Files of [vaultId] are kept (or to come) on this phone — as offline copies or in folders kept only here. */
+    fun hasVault(vaultId: String): Boolean = _copies.value.values.any { it.vaultId == vaultId } || vaultId in localVaults()
 
     /**
      * The server says this device is no longer approved for [vaultId] (revoked, declined, unknown) or the vault is gone:
@@ -593,7 +598,7 @@ class DriveOfflineStore @Inject constructor(
         }
         keepUp(map.isNotEmpty())
         // a vault without copies keeps nothing of itself on this phone
-        withContext(Dispatchers.IO) { runCatching { vaultCache.keep(DriveVaultOfflineLogic.keep(map.values)) } }
+        withContext(Dispatchers.IO) { runCatching { vaultCache.keep(DriveVaultOfflineLogic.keep(map.values) + localVaults()) } }
     }
 
     /**

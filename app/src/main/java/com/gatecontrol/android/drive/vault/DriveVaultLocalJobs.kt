@@ -185,6 +185,20 @@ class DriveVaultLocalJobs internal constructor(
         }
     }
 
+    /**
+     * A move or a way back of an earlier run of the app that did not end ([f] still `moving` / `returning` here): its
+     * card shows "Weiter" (on where it stopped) and "Abbrechen". A way back is a folder kept here again until then (the
+     * server's lease ran out or runs out: it is `local` there as well).
+     */
+    fun stalled(f: DriveVaultLocalFolder, name: String) {
+        synchronized(this) { if (running.containsKey(f.nodeId) || queue.any { it.node.id == f.nodeId }) return }
+        if (_progress.value.containsKey(f.nodeId) || f.state == DriveVaultLocalFolder.State.LOCAL) return
+        val kind = if (f.state == DriveVaultLocalFolder.State.MOVING) Kind.MOVE else Kind.BACK
+        if (kind == Kind.BACK) store.update(f.nodeId) { it.copy(state = DriveVaultLocalFolder.State.LOCAL) }
+        val files = f.files
+        show(Progress(kind, f.vaultId, f.nodeId, name, total = 0, done = if (kind == Kind.MOVE) files.size else files.count { it.up != null }, error = "stopped"))
+    }
+
     /** "Abbrechen" (A4: until step 3 without consequences): the move stops, the server forgets it, the copies here go. */
     fun cancel(nodeId: Long) {
         val job = synchronized(this) {

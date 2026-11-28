@@ -2,8 +2,8 @@
 <!-- Drive vaults: vault files available offline – only the encrypted content is kept on the phone. -->
 <resources>
     <string name="drive_vault_offline_all">Keep the whole vault offline</string>
-    <string name="drive_vault_offline_folder">Keep this folder offline</string>
-    <string name="drive_vault_offline_none">Then kept encrypted on this phone. Opens without a connection too.</string>
+    <string name="drive_vault_offline_folder">Also keep this folder offline</string>
+    <string name="drive_vault_offline_none">Stays on the server. An encrypted copy is then kept here and opens without a connection too.</string>
     <plurals name="drive_vault_offline_of">
         <item quantity="one">%1$d of %2$d file offline · %3$s encrypted on this phone</item>
         <item quantity="other">%1$d of %2$d files offline · %3$s encrypted on this phone</item>
@@ -14,8 +14,8 @@
     </plurals>
     <string name="drive_vault_offline_badge">Offline</string>
     <string name="drive_vault_offline_loading">Loading</string>
-    <string name="drive_vault_offline_item">Available offline</string>
-    <string name="drive_vault_offline_item_desc">Kept encrypted on this phone. Opens without a connection too.</string>
+    <string name="drive_vault_offline_item">Also offline on this phone</string>
+    <string name="drive_vault_offline_item_desc">Stays on the server. An encrypted copy is kept here and opens without a connection too.</string>
     <string name="drive_vault_offline_from_folder">Comes from a folder above – switch it off there.</string>
     <string name="drive_vault_offline_from_vault">The whole vault is kept offline.</string>
     <string name="drive_vault_offline_needs_net">Can only be changed with a connection.</string>

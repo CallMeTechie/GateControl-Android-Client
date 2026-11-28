@@ -270,6 +270,8 @@ internal fun NodeRow(
     title: String? = null,
     /** "Offline verfügbar" (Drive 1.20): marked by the person, kept ready in the home network. */
     offline: Boolean = false,
+    /** Another picture than the node's own (a vault folder kept only on this phone: the phone in its corner). */
+    icon: (@Composable () -> Unit)? = null,
 ) {
     // the virus scan's mark (Drive 1.19) needs the full row; without `scan` the row is as before
     val scanMark = node.scan?.badge != null
@@ -279,7 +281,7 @@ internal fun NodeRow(
                 title = title ?: nodeTitle(node),
                 description = description ?: nodeLine(node),
                 onClick = onClick,
-                leading = { NodeIcon(node) },
+                leading = { if (icon != null) icon() else NodeIcon(node) },
                 trailing = trailing,
                 onLongClick = onLongClick,
                 onLongClickLabel = onLongClick?.let { stringResource(R.string.drive_sel_select) },
@@ -320,7 +322,7 @@ internal fun NodeRow(
             horizontalArrangement = Arrangement.spacedBy(14.dp),
         ) {
             if (selecting) SelectCheck(selected)
-            NodeIcon(node)
+            if (icon != null) icon() else NodeIcon(node)
             Column(Modifier.weight(1f)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(name, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurface, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
