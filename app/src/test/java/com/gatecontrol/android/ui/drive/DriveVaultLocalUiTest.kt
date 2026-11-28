@@ -23,6 +23,7 @@ import androidx.compose.ui.test.isDialog
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -338,7 +339,7 @@ class DriveVaultLocalUiTest {
         assertEquals(2, rule.onAllNodesWithText("aus Ausweise", substring = true).fetchSemanticsNodes().size)
         rule.onNodeWithText("Die Sicherung enthält den Papierkorb nicht.", substring = true).assertExists()
         shot("T3-papierkorb")
-        rule.onAllNodesWithText("Wiederherstellen")[0].performClick()
+        rule.onAllNodesWithContentDescription("Wiederherstellen")[0].performClick()
         assertEquals(listOf(31L), restored)
         rule.onAllNodesWithContentDescription("Endgültig löschen")[1].performClick()
         rule.onNodeWithText("„Alte Scans“ endgültig löschen?", substring = true).assertExists()
@@ -354,7 +355,7 @@ class DriveVaultLocalUiTest {
         rule.onNodeWithText("Der Papierkorb ist leer.").assertExists()
         rule.onNodeWithText("Papierkorb leeren").assertDoesNotExist()
         page { VaultLocalTrashScreen(trashed, trashRows(trashed), canRestore = false, onBack = {}, onRestore = {}, onPurge = {}, onEmpty = {}) }
-        rule.onNodeWithText("Wiederherstellen").assertDoesNotExist()
+        rule.onNodeWithContentDescription("Wiederherstellen").assertDoesNotExist()
     }
 
     @Test

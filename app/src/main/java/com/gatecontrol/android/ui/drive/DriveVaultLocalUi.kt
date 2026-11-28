@@ -680,7 +680,8 @@ internal fun VaultLocalTrashScreen(
                             description = line,
                             trailing = {
                                 Row {
-                                    if (canRestore) TextButton(onClick = { onRestore(r.entry.id) }) { Text(stringResource(R.string.drive_trash_restore)) }
+                                    // icons only: the rows of a phone are narrow, the name and "wird am …" need the room
+                                    if (canRestore) com.gatecontrol.android.ui.components.GcIconButton(GcIcons.History, contentDescription = stringResource(R.string.drive_trash_restore), onClick = { onRestore(r.entry.id) }, size = 40.dp, iconSize = 18.dp, tint = MaterialTheme.colorScheme.primary)
                                     com.gatecontrol.android.ui.components.GcIconButton(GcIcons.Trash, contentDescription = stringResource(R.string.drive_trash_purge), onClick = { purging = r }, size = 40.dp, iconSize = 18.dp)
                                 }
                             },
