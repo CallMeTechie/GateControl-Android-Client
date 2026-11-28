@@ -15,6 +15,7 @@ import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.ui.draw.alpha
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -154,6 +155,10 @@ class DriveVaultViewModel @Inject constructor(
     val offlineStore: DriveOfflineStore,
     /** "In Tresor verschieben": the originals go once their encrypted upload is through and verified. */
     private val vaultMove: DriveVaultMove,
+    /** "Nur auf diesem Gerät" (Drive 1.32): the folders kept only here, the moves there and back, the work inside. */
+    val localStore: com.gatecontrol.android.drive.vault.DriveVaultLocalStore,
+    val localJobs: com.gatecontrol.android.drive.vault.DriveVaultLocalJobs,
+    private val localEdit: com.gatecontrol.android.drive.vault.DriveVaultLocalEdit,
 ) : ViewModel() {
 
     val vaultId: String = savedStateHandle.get<String>("vault").orEmpty()
@@ -185,6 +190,8 @@ class DriveVaultViewModel @Inject constructor(
             val offline: Boolean = false,
             val netOnly: List<Pair<DNode, String>> = emptyList(),
             val places: Map<Long, String> = emptyMap(),
+            /** A folder kept only on this phone (or a folder inside it): its content comes from here, never the server. */
+            val local: com.gatecontrol.android.drive.vault.DriveVaultLocalFolder? = null,
         ) : Ui()
     }
 
@@ -276,9 +283,245 @@ class DriveVaultViewModel @Inject constructor(
             }
         }
         viewModelScope.launch { live.changed.collect { if (_ui.value is Ui.Ready) refresh(quiet = true) } }
+        // a folder kept here changed (a move or the way back through, a file added): the page follows
+        viewModelScope.launch {
+            var first = true
+            localStore.folders.collect {
+                if (!first && _ui.value is Ui.Ready) refresh(quiet = true)
+                first = false
+            }
+        }
+        // a job of this vault through: the page anew, a move's end with "Rückgängig"
+        viewModelScope.launch {
+            val seen = HashSet<Long>()
+            localJobs.progress.collect { m ->
+                m.values.filter { it.vaultId == vaultId && it.finished && seen.add(it.nodeId) }.forEach { p ->
+                    if (p.kind == com.gatecontrol.android.drive.vault.DriveVaultLocalJobs.Kind.MOVE) _localDone.value = p.nodeId
+                    else _message.value = "local_back_done"
+                    localJobs.dismiss(p.nodeId)
+                    refresh(quiet = true)
+                }
+            }
+        }
     }
 
     fun clearMessage() { _message.value = null }
+
+    // ─── "Nur auf diesem Gerät" (Drive 1.32, feature `vaultLocal`) ────────────
+
+    private val _localDone = MutableStateFlow<Long?>(null)
+    /** A move onto this phone is through: the snackbar "Liegt jetzt nur auf diesem Handy" with "Rückgängig". */
+    val localDone: StateFlow<Long?> = _localDone.asStateFlow()
+
+    fun localDoneShown() { _localDone.value = null }
+
+    /**
+     * The choice "Nur auf diesem Handy" is offered: Drive can do it (`vaultLocal`, the administrator's setting), the vault
+     * is "Nur ich" (in my own files), this device is approved and may write.
+     */
+    val canLocal: StateFlow<Boolean> = combine(live.me, _ui) { me, u ->
+        val r = u as? Ui.Ready ?: return@combine false
+        me?.has(DMe.FEATURE_VAULT_LOCAL) == true && !r.offline && r.local == null && r.folder.writable &&
+            me.areas.any { it.id == r.vault.areaId && it.kind == "mine" } && session.approved(r.vault)
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, false)
+
+    /** The page of a folder kept only here, or of a folder inside it (null: not one). */
+    private fun localPage(vault: DVault): Ui.Ready? {
+        val fid = if (folderId != 0L) folderId else return null
+        val lf = localStore.get(fid)
+            ?: localStore.folderOfItem(fid)?.takeIf { f -> f.items.any { it.id == fid && it.isDir } }
+            ?: return null
+        if (lf.vaultId != vaultId || lf.state == com.gatecontrol.android.drive.vault.DriveVaultLocalFolder.State.MOVING) return null
+        val L = com.gatecontrol.android.drive.vault.DriveVaultLocalLogic
+        val pageNode = if (fid == lf.nodeId) {
+            DNode(
+                id = lf.nodeId, areaId = lf.areaId, parentId = lf.parentId, name = L.opaque(lf.nodeId), isDir = true, size = 0, mime = null,
+                mediaId = null, rev = 1, mtime = null, updatedAt = null, updatedBy = null, vaultId = lf.vaultId, nameCipher = lf.nameCipher,
+            )
+        } else {
+            L.asNode(lf, lf.items.first { it.id == fid })
+        }
+        val nodes = L.children(lf, fid).map { L.asNode(lf, it) }
+        val items = DriveLogic.sortVault(nodes.map { it to (session.nameOf(it) ?: "…") })
+        val title = session.nameOf(pageNode) ?: "…"
+        val folder = DFolder(pageNode, crumbs = emptyList(), role = if (lf.revoked) "read" else "write", items = nodes, total = nodes.size, next = null)
+        return Ui.Ready(vault, folder, title, items, local = lf)
+    }
+
+    /** What the confirmation (A3) shows: the server's numbers of the move begun, the free room here. */
+    data class LocalAsk(val node: DNode, val name: String, val start: DriveLoad<com.gatecontrol.android.drive.DVaultLocalStart>, val free: Long = 0)
+
+    private val _localAsk = MutableStateFlow<LocalAsk?>(null)
+    val localAsk: StateFlow<LocalAsk?> = _localAsk.asStateFlow()
+
+    /**
+     * "Nur auf diesem Handy" chosen for [node]: the move begins on the server (the numbers of the confirmation; other
+     * devices see "wird verschoben"), the room here is checked. Nothing is deleted until the person confirms and every
+     * file is here and checked.
+     */
+    fun askLocal(node: DNode, name: String) {
+        val r = here() ?: return
+        lock.touch()
+        if (_upload.value != null) {
+            _message.value = "local_busy"
+            return
+        }
+        _localAsk.value = LocalAsk(node, name, DriveLoad.Loading)
+        viewModelScope.launch {
+            val did = runCatching { session.deviceId() }.getOrNull() ?: return@launch
+            when (val s = api.vaultLocalStart(r.vault.id, node.id, did)) {
+                is DResult.Ok -> {
+                    val free = withContext(Dispatchers.IO) { localStore.usableSpace() }
+                    if (!com.gatecontrol.android.drive.vault.DriveVaultLocalLogic.enoughRoom(s.value.bytes, free)) {
+                        api.vaultLocalCancel(r.vault.id, node.id, did)
+                        _localAsk.value = null
+                        _message.value = "local_no_space"
+                    } else if (_localAsk.value?.node?.id == node.id) {
+                        _localAsk.value = LocalAsk(node, name, DriveLoad.Ready(s.value), free)
+                    } else {
+                        api.vaultLocalCancel(r.vault.id, node.id, did)
+                    }
+                }
+                else -> {
+                    _localAsk.value = null
+                    _message.value = localErrorCode(s)
+                }
+            }
+        }
+    }
+
+    /** The code of a refused step: `local_only`, `local_nested`, … (the server's text is in the body). */
+    private fun localErrorCode(r: DResult<*>): String = when {
+        r is DResult.Failed && r.code == "local_nested" -> "local_nested"
+        r is DResult.Failed && r.code == "local_shared" -> "local_shared"
+        r is DResult.Failed && r.code == "local_only" -> "local_only"
+        r is DResult.Failed && r.code == "local_moving" -> "local_moving"
+        r is DResult.Failed && r.code == "too_large" -> "local_too_large"
+        r is DResult.Failed && r.code == "feature_off" -> "local_off"
+        else -> r.errorCode() ?: "failed"
+    }
+
+    /** The confirmation closed without a move: the server forgets the move begun (nothing was deleted). */
+    fun dismissLocalAsk() {
+        val a = _localAsk.value ?: return
+        _localAsk.value = null
+        val r = here() ?: return
+        if (a.start is DriveLoad.Ready) viewModelScope.launch { runCatching { api.vaultLocalCancel(r.vault.id, a.node.id, session.deviceId()) } }
+    }
+
+    /** The device key for a job (read right after the person confirmed); null with a message when it needs the person. */
+    private fun keyPair(): com.gatecontrol.android.drive.vault.DriveVaultCrypto.KeyPair? = try {
+        session.deviceKeyPair()
+    } catch (e: com.gatecontrol.android.drive.vault.DriveVaultDeviceKey.AuthRequired) {
+        _message.value = "local_auth"
+        null
+    } catch (e: Exception) {
+        _message.value = "failed"
+        null
+    }
+
+    /** The person ticked and confirmed (A3) — and confirmed with fingerprint or PIN: the move runs. */
+    fun confirmLocal() {
+        val a = _localAsk.value ?: return
+        val r = here() ?: return
+        val pair = keyPair() ?: return
+        _localAsk.value = null
+        lock.touch()
+        localJobs.move(r.vault, a.node, a.name, pair)
+    }
+
+    /** A move or a way back that stopped (no connection, the confirmation needed): on where it stopped. */
+    fun retryLocal(p: com.gatecontrol.android.drive.vault.DriveVaultLocalJobs.Progress) {
+        val r = here() ?: return
+        val node = placeholderNode(p.nodeId) ?: return
+        val pair = keyPair() ?: return
+        localJobs.dismiss(p.nodeId)
+        if (p.kind == com.gatecontrol.android.drive.vault.DriveVaultLocalJobs.Kind.MOVE) localJobs.move(r.vault, node, p.name, pair)
+        else localJobs.back(r.vault, node, p.name, pair, keepOffline = false)
+    }
+
+    fun cancelLocal(nodeId: Long) = localJobs.cancel(nodeId)
+
+    fun dismissLocal(nodeId: Long) = localJobs.dismiss(nodeId)
+
+    /** The placeholder [nodeId] as a node (a row of this page, else from the folder kept here). */
+    private fun placeholderNode(nodeId: Long): DNode? {
+        here()?.items?.firstOrNull { it.first.id == nodeId }?.first?.let { return it }
+        val f = localStore.get(nodeId) ?: return null
+        return DNode(
+            id = f.nodeId, areaId = f.areaId, parentId = f.parentId, name = com.gatecontrol.android.drive.vault.DriveVaultLocalLogic.opaque(f.nodeId),
+            isDir = true, size = 0, mime = null, mediaId = null, rev = 1, mtime = null, updatedAt = null, updatedBy = null,
+            vaultId = f.vaultId, nameCipher = f.nameCipher,
+        )
+    }
+
+    /** "Zurück auf den Server" ([keepOffline]: "… und zusätzlich offline"), after the person confirmed. */
+    fun backToServer(nodeId: Long, name: String, keepOffline: Boolean) {
+        val r = here() ?: return
+        val node = placeholderNode(nodeId) ?: return
+        val pair = keyPair() ?: return
+        lock.touch()
+        localJobs.back(r.vault, node, name, pair, keepOffline)
+    }
+
+    /** "Rückgängig" (within 24 h): the content back on the server as it was. */
+    fun undoLocal(nodeId: Long) = act("local_undone") { localJobs.undo(nodeId).also { if (it is DResult.Ok) refresh(quiet = true) } }
+
+    /** "Ordner löschen" of a folder kept only here (with the device's proof): gone for good. */
+    fun deleteLocalFolder(nodeId: Long) {
+        val pair = keyPair() ?: return
+        act("done_trash") { localJobs.deleteHere(nodeId, pair).also { if (it is DResult.Ok) refresh(quiet = true) } }
+    }
+
+    /** "Platzhalter entfernen" of a folder on another device of mine (that device lost; after the 24 hours). */
+    fun forgetPlaceholder(node: DNode) = act("local_forgotten") {
+        api.vaultLocalForget(vaultId, node.id, session.deviceId(), null).also { if (it is DResult.Ok) refresh(quiet = true) }
+    }
+
+    // ─── working inside a folder kept here ──────────────────────────
+
+    private fun localHere(): Pair<com.gatecontrol.android.drive.vault.DriveVaultLocalFolder, Long>? {
+        val r = here() ?: return null
+        val lf = r.local ?: return null
+        return lf to r.folder.node.id
+    }
+
+    fun createLocalFolder(name: String) {
+        val (lf, parent) = localHere() ?: return
+        act("done_folder") { localEdit.newFolder(lf.nodeId, parent, name) }
+    }
+
+    fun renameLocal(node: DNode, name: String) {
+        val (lf, _) = localHere() ?: return
+        act("done_rename") { localEdit.rename(lf.nodeId, node.id, name) }
+    }
+
+    fun deleteLocal(node: DNode) {
+        val (lf, _) = localHere() ?: return
+        act("local_deleted") { localEdit.delete(lf.nodeId, node.id) }
+    }
+
+    /** New files into a folder kept here: encrypted on this phone, never sent; the original goes once checked. */
+    fun uploadLocal(uris: List<Uri>, names: (Uri) -> String) {
+        val (lf, parent) = localHere() ?: return
+        val r = here() ?: return
+        viewModelScope.launch {
+            var outcome = DriveVaultMove.Outcome()
+            var last: DResult<*> = DResult.Ok(Unit)
+            val taken = r.items.map { it.second }.toMutableList()
+            for (uri in uris) {
+                val name = DriveLogic.freeName(DriveLogic.safeName(names(uri)) ?: "file", taken)
+                taken += name
+                _upload.value = name to 0f
+                last = lock.busy { localEdit.add(lf.nodeId, parent, uri, name) { p -> _upload.value = name to p } }
+                if (last !is DResult.Ok) break
+                outcome += lock.busy { vaultMove.remove(uri) }
+            }
+            _upload.value = null
+            last.errorCode()?.let { _message.value = it }
+            finishMove(outcome)
+        }
+    }
 
     /** The phone has a screen lock (PIN, pattern or password): without one no vault opens (Drive 1.11). */
     private fun deviceSecure(): Boolean =
@@ -372,7 +615,12 @@ class DriveVaultViewModel @Inject constructor(
                 }
             }
             lock.touch()
-            val f = if (kept == null) api.folder(if (folderId > 0) folderId else vault.nodeId) else DResult.Offline
+            // a folder kept only on this phone opens from here (also without a connection)
+            localPage(vault)?.let { page ->
+                _ui.value = page
+                return@launch
+            }
+            val f = if (kept == null) api.folder(if (folderId != 0L) folderId else vault.nodeId, vaultDevice = runCatching { session.deviceId() }.getOrNull()) else DResult.Offline
             if (f is DResult.Offline && withContext(Dispatchers.IO) { session.offlineVault(vaultId) } != null) {
                 _ui.value = withContext(Dispatchers.IO) { offlinePage(vault) }
                 return@launch
@@ -385,9 +633,24 @@ class DriveVaultViewModel @Inject constructor(
             val title = (if (folder.node.id == vault.nodeId) session.nameOf(vault) else session.nameOf(folder.node)) ?: "…"
             val items = DriveLogic.sortVault(folder.items.filter { it.vaultId == vaultId }.map { it to (session.nameOf(it) ?: "…") })
             // the listing (opaque and encrypted names only) for opening without a connection, while files are offline
-            withContext(Dispatchers.IO) { session.keepListing(vaultId, folder) }
+            withContext(Dispatchers.IO) {
+                session.keepListing(vaultId, folder)
+                // a folder kept only here renamed or moved (its placeholder): the copy here follows
+                folder.items.filter { it.local != null }.forEach { n ->
+                    localStore.get(n.id)?.takeIf { it.nameCipher != n.nameCipher || it.parentId != n.parentId }?.let {
+                        runCatching { localStore.update(n.id) { f -> f.copy(nameCipher = n.nameCipher ?: f.nameCipher, parentId = n.parentId) } }
+                    }
+                }
+            }
             _ui.value = Ui.Ready(vault, folder, title, items, ancestors = DriveVaultOfflineLogic.ancestors(folder))
             bulk.keepPresent()
+            // a move or a way back of an earlier run that did not end: its card with "Weiter"
+            localStore.ofVault(vaultId).filter { it.state != com.gatecontrol.android.drive.vault.DriveVaultLocalFolder.State.LOCAL }.forEach { f ->
+                val name = items.firstOrNull { it.first.id == f.nodeId }?.second
+                    ?: session.nameOf(DNode(f.nodeId, f.areaId, f.parentId, "", true, 0, null, null, 1, null, null, null, vaultId = f.vaultId, nameCipher = f.nameCipher))
+                    ?: "…"
+                localJobs.stalled(f, name)
+            }
             if (showRequests && !requestsShown && vault.pending > 0) {
                 requestsShown = true
                 openRequests()
@@ -400,7 +663,7 @@ class DriveVaultViewModel @Inject constructor(
      * from the ciphertext here) and the other files of the folder as last seen, greyed out. Nothing can be changed.
      */
     private fun offlinePage(vault: DVault): Ui.Ready {
-        val fid = if (folderId > 0) folderId else vault.nodeId
+        val fid = if (folderId != 0L) folderId else vault.nodeId
         val seen = session.offlineFolder(vaultId, fid)
         val page = DriveVaultOfflineLogic.offlinePage(vaultId, vault.nodeId, fid, seen?.items, offlineStore.copies.value.values)
         val title = (if (fid == vault.nodeId) session.nameOf(vault) else seen?.node?.let { session.nameOf(it) } ?: session.offlineFolderName(vaultId, fid)) ?: "…"
@@ -801,6 +1064,26 @@ fun DriveVaultScreen(onBack: () -> Unit, onFolder: (vaultId: String, folderId: L
     val recoveryKey by viewModel.recoveryKey.collectAsStateWithLifecycle()
     val marks by viewModel.offlineMarks.collectAsStateWithLifecycle()
     val canOffline by viewModel.canOffline.collectAsStateWithLifecycle()
+    // "Nur auf diesem Gerät" (Drive 1.32)
+    val canLocal by viewModel.canLocal.collectAsStateWithLifecycle()
+    val localFolders by viewModel.localStore.folders.collectAsStateWithLifecycle()
+    val localJobs by viewModel.localJobs.progress.collectAsStateWithLifecycle()
+    val localAsk by viewModel.localAsk.collectAsStateWithLifecycle()
+    var placeholderFor by remember { mutableStateOf<Pair<DNode, String>?>(null) }
+    var forgetFor by remember { mutableStateOf<Pair<DNode, String>?>(null) }
+    var backFor by remember { mutableStateOf<Triple<Long, String, Boolean>?>(null) }
+    var deleteLocalFolderFor by remember { mutableStateOf<Pair<Long, String>?>(null) }
+    var deletingLocal by remember { mutableStateOf<Pair<DNode, String>?>(null) }
+    val localAuth = rememberGcDeviceAuth()
+    val localAuthTitle = stringResource(R.string.drive_vault_local_auth)
+    // a job that proves this device (move, way back, delete here) reads the device key: the person confirms first
+    val confirmThen: (() -> Unit) -> Unit = { go ->
+        if (viewModel.session.deviceKeyNeedsAuth() && localAuth.available()) {
+            localAuth.authenticate(localAuthTitle, null) { r -> if (r == DeviceAuthResult.SUCCESS) go() }
+        } else {
+            go()
+        }
+    }
     // The whole page, locked or not, with the viewer over it and its dialogs: no screenshot, no picture in the recent apps.
     SecureScreenEffect()
     val copies by viewModel.offlineStore.copies.collectAsStateWithLifecycle()
@@ -827,12 +1110,16 @@ fun DriveVaultScreen(onBack: () -> Unit, onFolder: (vaultId: String, folderId: L
     }
     LaunchedEffect(message) {
         message?.let {
-            Toast.makeText(context, vaultViewText(context, it) ?: driveText(context, it), Toast.LENGTH_SHORT).show()
+            Toast.makeText(context, vaultLocalText(context, it) ?: vaultViewText(context, it) ?: driveText(context, it), Toast.LENGTH_SHORT).show()
             viewModel.clearMessage()
         }
     }
     val pick = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
         if (uris.isNotEmpty()) viewModel.upload(uris) { u -> displayName(context, u) }
+    }
+    // into a folder kept only here: encrypted on this phone, nothing goes to the server
+    val pickLocal = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
+        if (uris.isNotEmpty()) viewModel.uploadLocal(uris) { u -> displayName(context, u) }
     }
     // "In Tresor verschieben": Android asks before gallery originals go for good (one dialog for the batch)
     val deleteAsk by viewModel.deleteAsk.collectAsStateWithLifecycle()
@@ -934,8 +1221,48 @@ fun DriveVaultScreen(onBack: () -> Unit, onFolder: (vaultId: String, folderId: L
                     is DriveVaultViewModel.Ui.Error -> DriveErrorBox(s.code, onRetry = { viewModel.refresh() })
                     is DriveVaultViewModel.Ui.Gate -> VaultGate(s.noScreenLock, onConfirmed = viewModel::confirmed)
                     is DriveVaultViewModel.Ui.Locked -> LockedVault(s.access, busy, safety = viewModel.session.safetyNumber(), onAsk = viewModel::ask, onCheck = { viewModel.refresh() }, onRecover = viewModel::recover)
-                    is DriveVaultViewModel.Ui.Ready -> if (s.offline) {
+                    is DriveVaultViewModel.Ui.Ready -> if (s.offline && s.local == null) {
                         VaultOfflinePage(s, onOpen = { n, name -> viewModel.touch(); open(n, name) }, onMore = { n, name -> menuFor = n to name }, onRetry = { viewModel.refresh() })
+                    } else if (s.local != null) {
+                        // a folder kept only on this phone (A5): its content from here, also without a connection
+                        val lf = s.local
+                        val now = System.currentTimeMillis()
+                        val canUndo = com.gatecontrol.android.drive.vault.DriveVaultLocalLogic.canUndo(lf, now)
+                        val top = s.folder.node.id == lf.nodeId
+                        VaultLocalCard(
+                            lf,
+                            undoUntil = if (canUndo) lf.purgeAt else null,
+                            onBack = if (top && !lf.revoked && !s.offline && localJobs[lf.nodeId]?.running != true) ({ backFor = Triple(lf.nodeId, s.title, true) }) else null,
+                            onUndo = if (top && canUndo && !s.offline) ({ viewModel.undoLocal(lf.nodeId) }) else null,
+                        )
+                        localJobs[lf.nodeId]?.let { p ->
+                            VaultLocalJobCard(p, onCancel = { viewModel.cancelLocal(p.nodeId) }, onRetry = { confirmThen { viewModel.retryLocal(p) } }, onClose = { viewModel.dismissLocal(p.nodeId) })
+                        }
+                        upload?.let { (name, p) ->
+                            GcCard {
+                                Text(stringResource(R.string.drive_vault_local_encrypting, name), style = MaterialTheme.typography.bodyMedium)
+                                LinearProgressIndicator(progress = { p }, modifier = Modifier.fillMaxWidth())
+                            }
+                        }
+                        if (s.items.isEmpty()) {
+                            Text(stringResource(R.string.drive_empty_folder), color = GateControlTheme.extraColors.muted, modifier = Modifier.padding(vertical = 24.dp, horizontal = 4.dp))
+                        } else {
+                            GcCard(contentPadding = PaddingValues(vertical = 4.dp), verticalArrangement = Arrangement.spacedBy(0.dp)) {
+                                s.items.forEachIndexed { i, (n, name) ->
+                                    if (i > 0) GcRowDivider()
+                                    NodeRow(
+                                        node = n,
+                                        title = name,
+                                        description = nodeLine(n),
+                                        onClick = {
+                                            viewModel.touch()
+                                            if (n.isDir) onFolder(viewModel.vaultId, n.id) else open(n, name)
+                                        },
+                                        onMore = { menuFor = n to name },
+                                    )
+                                }
+                            }
+                        }
                     } else {
                         if (s.vault.pending > 0) {
                             GcBanner(tone = GcTone.Warn, icon = GcIcons.Users) {
@@ -977,6 +1304,10 @@ fun DriveVaultScreen(onBack: () -> Unit, onFolder: (vaultId: String, folderId: L
                             )
                         }
                         BulkBusyCard(bulkBusy, viewModel.bulk::cancelBusy)
+                        // a folder going onto this phone or back (A4)
+                        localJobs.values.filter { it.vaultId == s.vault.id && !it.finished && localFolders[it.nodeId]?.let { f -> f.nodeId == s.folder.node.id } != true }.forEach { p ->
+                            VaultLocalJobCard(p, onCancel = { viewModel.cancelLocal(p.nodeId) }, onRetry = { confirmThen { viewModel.retryLocal(p) } }, onClose = { viewModel.dismissLocal(p.nodeId) })
+                        }
                         upload?.let { (name, p) ->
                             GcCard {
                                 Text(stringResource(R.string.drive_vault_uploading, name), style = MaterialTheme.typography.bodyMedium)
@@ -990,36 +1321,71 @@ fun DriveVaultScreen(onBack: () -> Unit, onFolder: (vaultId: String, folderId: L
                             GcCard(contentPadding = PaddingValues(vertical = 4.dp), verticalArrangement = Arrangement.spacedBy(0.dp)) {
                                 s.items.forEachIndexed { i, (n, name) ->
                                     if (i > 0) GcRowDivider()
-                                    val mark = DriveVaultOfflineLogic.markOf(n.id, s.ancestors, s.vault.nodeId, marks)
-                                    val row = if (n.isDir) DriveVaultOfflineLogic.RowState.NONE else DriveVaultOfflineLogic.rowState(copies[n.id]?.takeIf { it.vaultId == n.vaultId })
-                                    val inside = if (n.isDir && mark == DriveVaultOfflineLogic.Mark.NONE) vaultCopies.count { it.hasFile && n.id in it.parents } else 0
-                                    NodeRow(
-                                        node = n,
-                                        title = name,
-                                        description = vaultRowLine(n, copies[n.id]?.takeIf { it.vaultId == n.vaultId }, inside),
-                                        trailing = when {
-                                            n.isDir && mark != DriveVaultOfflineLogic.Mark.NONE -> ({ VaultOfflineChip(loading = false) })
-                                            row == DriveVaultOfflineLogic.RowState.OFFLINE -> ({ VaultOfflineChip(loading = false) })
-                                            row == DriveVaultOfflineLogic.RowState.LOADING -> ({ VaultOfflineChip(loading = true) })
-                                            else -> null
-                                        },
-                                        onClick = {
-                                            viewModel.touch()
-                                            when {
-                                                selecting -> viewModel.bulk.toggle(n)
-                                                n.isDir -> onFolder(viewModel.vaultId, n.id)
-                                                else -> open(n, name)
-                                            }
-                                        },
-                                        onLongClick = {
-                                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                            viewModel.touch()
-                                            if (selecting) viewModel.bulk.toggle(n) else viewModel.bulk.select(n)
-                                        },
-                                        selecting = selecting,
-                                        selected = n.id in selected,
-                                        onMore = { menuFor = n to name },
-                                    )
+                                    val lp = n.local
+                                    val hereFolder = localFolders[n.id]
+                                    val job = localJobs[n.id]
+                                    val movingHere = (job != null && job.kind == com.gatecontrol.android.drive.vault.DriveVaultLocalJobs.Kind.MOVE && !job.finished) ||
+                                        hereFolder?.state == com.gatecontrol.android.drive.vault.DriveVaultLocalFolder.State.MOVING
+                                    when {
+                                        // another device's folder (A6): greyed out, never opened here
+                                        lp != null && hereFolder == null && lp.thisDevice != true && !movingHere ->
+                                            VaultPlaceholderRow(n, name, lp) { viewModel.touch(); placeholderFor = n to name }
+                                        // coming onto this phone right now (A4)
+                                        movingHere -> NodeRow(
+                                            node = n,
+                                            title = name,
+                                            description = stringResource(R.string.drive_vault_local_row_moving),
+                                            onClick = null,
+                                            icon = { Box(Modifier.alpha(0.6f)) { VaultLocalIcon(n, here = true) } },
+                                            trailing = job?.let { p -> ({ Text("${(p.step.ordinal + 1)}/3", style = MaterialTheme.typography.labelLarge, color = GateControlTheme.extraColors.blue) }) },
+                                        )
+                                        // kept only on this phone (A1): "Nur hier", opens from here
+                                        hereFolder != null || lp?.thisDevice == true -> NodeRow(
+                                            node = n,
+                                            title = name,
+                                            description = when {
+                                                hereFolder?.state == com.gatecontrol.android.drive.vault.DriveVaultLocalFolder.State.RETURNING || lp?.returning == true -> stringResource(R.string.drive_vault_local_row_returning)
+                                                hereFolder != null -> pluralStringResource(R.plurals.drive_vault_local_row_line, hereFolder.files.size, hereFolder.files.size, DriveLogic.size(hereFolder.bytes))
+                                                else -> nodeLine(n)
+                                            },
+                                            onClick = { viewModel.touch(); if (!selecting) onFolder(viewModel.vaultId, n.id) },
+                                            icon = { VaultLocalIcon(n, here = true) },
+                                            trailing = { VaultLocalChip() },
+                                            onMore = { menuFor = n to name },
+                                        )
+                                        else -> {
+                                            val mark = DriveVaultOfflineLogic.markOf(n.id, s.ancestors, s.vault.nodeId, marks)
+                                            val row = if (n.isDir) DriveVaultOfflineLogic.RowState.NONE else DriveVaultOfflineLogic.rowState(copies[n.id]?.takeIf { it.vaultId == n.vaultId })
+                                            val inside = if (n.isDir && mark == DriveVaultOfflineLogic.Mark.NONE) vaultCopies.count { it.hasFile && n.id in it.parents } else 0
+                                            NodeRow(
+                                                node = n,
+                                                title = name,
+                                                description = vaultRowLine(n, copies[n.id]?.takeIf { it.vaultId == n.vaultId }, inside),
+                                                trailing = when {
+                                                    n.isDir && mark != DriveVaultOfflineLogic.Mark.NONE -> ({ VaultOfflineChip(loading = false) })
+                                                    row == DriveVaultOfflineLogic.RowState.OFFLINE -> ({ VaultOfflineChip(loading = false) })
+                                                    row == DriveVaultOfflineLogic.RowState.LOADING -> ({ VaultOfflineChip(loading = true) })
+                                                    else -> null
+                                                },
+                                                onClick = {
+                                                    viewModel.touch()
+                                                    when {
+                                                        selecting -> viewModel.bulk.toggle(n)
+                                                        n.isDir -> onFolder(viewModel.vaultId, n.id)
+                                                        else -> open(n, name)
+                                                    }
+                                                },
+                                                onLongClick = {
+                                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                                    viewModel.touch()
+                                                    if (selecting) viewModel.bulk.toggle(n) else viewModel.bulk.select(n)
+                                                },
+                                                selecting = selecting,
+                                                selected = n.id in selected,
+                                                onMore = { menuFor = n to name },
+                                            )
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -1065,6 +1431,15 @@ fun DriveVaultScreen(onBack: () -> Unit, onFolder: (vaultId: String, folderId: L
     DriveBulkHost(viewModel.bulk, snackbar)
     // what became of the originals of a batch put into the vault (in the page's scope: GcShowOnce)
     val moved by viewModel.moved.collectAsStateWithLifecycle()
+    // a move onto this phone through: "Liegt jetzt nur auf diesem Handy." with "Rückgängig" (24 h)
+    val localDone by viewModel.localDone.collectAsStateWithLifecycle()
+    val doneText = stringResource(R.string.drive_vault_local_done)
+    val undoText = stringResource(R.string.drive_vault_local_undo)
+    GcShowOnce(localDone, consume = viewModel::localDoneShown) { id ->
+        snackbar.currentSnackbarData?.dismiss()
+        val r = snackbar.showSnackbar(doneText, actionLabel = undoText, withDismissAction = true, duration = SnackbarDuration.Long)
+        if (r == androidx.compose.material3.SnackbarResult.ActionPerformed) viewModel.undoLocal(id)
+    }
     GcShowOnce(moved, consume = viewModel::movedShown) { o ->
         snackbar.currentSnackbarData?.dismiss()
         snackbar.showSnackbar(vaultMoveText(context, o), withDismissAction = true, duration = SnackbarDuration.Long)
@@ -1078,13 +1453,23 @@ fun DriveVaultScreen(onBack: () -> Unit, onFolder: (vaultId: String, folderId: L
                     onClick = { addOpen = false; newFolder = true },
                     leading = { Icon(GcIcons.FolderPlus, contentDescription = null, tint = GateControlTheme.extraColors.muted) },
                 )
-                // a move: the unencrypted original goes once the file is in the vault (said before, too)
-                GcListRow(
-                    title = stringResource(R.string.drive_vault_move_in),
-                    description = stringResource(R.string.drive_vault_move_in_desc),
-                    onClick = { addOpen = false; viewModel.away(); pick.launch(arrayOf("*/*")) },
-                    leading = { Icon(GcIcons.Upload, contentDescription = null, tint = GateControlTheme.extraColors.muted) },
-                )
+                if (ready?.local != null) {
+                    // kept only here: encrypted on this phone, never sent
+                    GcListRow(
+                        title = stringResource(R.string.drive_vault_local_add),
+                        description = stringResource(R.string.drive_vault_local_add_desc),
+                        onClick = { addOpen = false; viewModel.away(); pickLocal.launch(arrayOf("*/*")) },
+                        leading = { Icon(GcIcons.Smartphone, contentDescription = null, tint = GateControlTheme.extraColors.muted) },
+                    )
+                } else {
+                    // a move: the unencrypted original goes once the file is in the vault (said before, too)
+                    GcListRow(
+                        title = stringResource(R.string.drive_vault_move_in),
+                        description = stringResource(R.string.drive_vault_move_in_desc),
+                        onClick = { addOpen = false; viewModel.away(); pick.launch(arrayOf("*/*")) },
+                        leading = { Icon(GcIcons.Upload, contentDescription = null, tint = GateControlTheme.extraColors.muted) },
+                    )
+                }
             }
         }
     }
@@ -1095,14 +1480,22 @@ fun DriveVaultScreen(onBack: () -> Unit, onFolder: (vaultId: String, folderId: L
         val one = ns.singleOrNull()
         val bulk = viewModel.bulk
         val can: (DriveBulk.Action) -> DriveBulk.Can = { a -> bulk.can(a, nodes, where) }
+        // a folder kept only here (A5): its content is changed on this phone only
+        val inLocal = ready?.local != null
+        val hereFolder = one?.first?.let { localFolders[it.id] }
         // without a connection only what works on this phone: looking at a file (and the explicit way out)
-        val noNet = ready?.offline == true
-        val quick = if (!fromRow || one == null || noNet) emptyList() else listOf(
+        val noNet = ready?.offline == true && !inLocal
+        val quick = if (!fromRow || one == null || noNet) emptyList() else if (inLocal) listOf(
+            BarAction(GcIcons.Trash, stringResource(R.string.drive_bar_delete), if (writable) DriveBulk.Can.YES else DriveBulk.Can.no(DriveBulk.Why.READ_ONLY), danger = true) { deletingLocal = one },
+        ) else if (hereFolder != null) listOf(
+            BarAction(GcIcons.FolderMove, stringResource(R.string.drive_bar_move), can(DriveBulk.Action.MOVE)) { bulk.openTarget(DriveBulk.Mode.MOVE, nodes) },
+            BarAction(GcIcons.Trash, stringResource(R.string.drive_bar_delete), DriveBulk.Can.YES, danger = true) { deleteLocalFolderFor = one.first.id to one.second },
+        ) else listOf(
             BarAction(GcIcons.FolderMove, stringResource(R.string.drive_bar_move), can(DriveBulk.Action.MOVE)) { bulk.openTarget(DriveBulk.Mode.MOVE, nodes) },
             BarAction(GcIcons.Copy, stringResource(R.string.drive_bar_copy), can(DriveBulk.Action.COPY)) { bulk.openTarget(DriveBulk.Mode.COPY, nodes) },
             BarAction(GcIcons.Trash, stringResource(R.string.drive_bar_delete), can(DriveBulk.Action.DELETE), danger = true) { deleting = one },
         )
-        val multi = if (noNet) emptyList() else listOf(
+        val multi = if (noNet || inLocal) emptyList() else listOf(
             MoreItem(GcIcons.Download, stringResource(R.string.drive_more_save), stringResource(R.string.drive_more_save_desc), can(DriveBulk.Action.SAVE)) {},
             MoreItem(GcIcons.Archive, stringResource(R.string.drive_more_zip), stringResource(R.string.drive_more_zip_desc), can(DriveBulk.Action.ZIP)) {},
             MoreItem(GcIcons.Link, stringResource(R.string.drive_share_link), null, can(DriveBulk.Action.LINK)) {},
@@ -1114,6 +1507,10 @@ fun DriveVaultScreen(onBack: () -> Unit, onFolder: (vaultId: String, folderId: L
                 add(MoreItem(GcIcons.External, stringResource(R.string.drive_vault_open_with)) { openWithFor = one })
             }
             if (noNet) return@buildList
+            if (inLocal) {
+                add(MoreItem(GcIcons.Edit, stringResource(R.string.drive_rename), can = if (writable) DriveBulk.Can.YES else DriveBulk.Can.no(DriveBulk.Why.READ_ONLY)) { one?.let { renaming = it } })
+                return@buildList
+            }
             add(MoreItem(GcIcons.Edit, stringResource(R.string.drive_rename), can = can(DriveBulk.Action.RENAME)) { one?.let { renaming = it } })
             if (one == null || !one.first.isDir) {
                 add(
@@ -1132,7 +1529,33 @@ fun DriveVaultScreen(onBack: () -> Unit, onFolder: (vaultId: String, folderId: L
                 )
             }
         }
-        val header: (@Composable () -> Unit)? = if (fromRow && one != null && ready != null && (canOffline || ready.offline)) {
+        val header: (@Composable () -> Unit)? = if (fromRow && one != null && ready != null && !inLocal && one.first.isDir && (canOffline || canLocal || hereFolder != null)) {
+            {
+                // "Wo liegt dieser Ordner?" (A2, A8): only on the server, also offline here, or only on this phone
+                val n = one.first
+                val mark = DriveVaultOfflineLogic.markOf(n.id, ready.ancestors, ready.vault.nodeId, marks)
+                val current = when {
+                    hereFolder != null -> VaultWhere.HERE
+                    mark != DriveVaultOfflineLogic.Mark.NONE -> VaultWhere.EXTRA
+                    else -> VaultWhere.SERVER
+                }
+                VaultWhereChoice(
+                    current = current,
+                    localOffered = canLocal && localJobs[n.id] == null,
+                    online = !ready.offline,
+                    fixedExtra = mark == DriveVaultOfflineLogic.Mark.FOLDER || mark == DriveVaultOfflineLogic.Mark.VAULT,
+                    since = hereFolder?.let { localDate(context, it.since) },
+                ) { w ->
+                    if (w == current) return@VaultWhereChoice
+                    close()
+                    when {
+                        current == VaultWhere.HERE -> backFor = Triple(n.id, one.second, w == VaultWhere.EXTRA)
+                        w == VaultWhere.HERE -> viewModel.askLocal(n, one.second)
+                        else -> viewModel.setOffline(n, w == VaultWhere.EXTRA)
+                    }
+                }
+            }
+        } else if (fromRow && one != null && ready != null && !inLocal && (canOffline || ready.offline)) {
             {
                 VaultOfflineSwitch(
                     mark = DriveVaultOfflineLogic.markOf(one.first.id, ready.ancestors, ready.vault.nodeId, marks),
@@ -1153,7 +1576,7 @@ fun DriveVaultScreen(onBack: () -> Unit, onFolder: (vaultId: String, folderId: L
             title = stringResource(R.string.drive_new_folder),
             initial = "",
             confirm = stringResource(R.string.drive_create),
-            onConfirm = { newFolder = false; viewModel.createFolder(it) },
+            onConfirm = { newFolder = false; if (ready?.local != null) viewModel.createLocalFolder(it) else viewModel.createFolder(it) },
             onDismiss = { newFolder = false },
         )
     }
@@ -1162,7 +1585,7 @@ fun DriveVaultScreen(onBack: () -> Unit, onFolder: (vaultId: String, folderId: L
             title = stringResource(R.string.drive_rename),
             initial = name,
             confirm = stringResource(R.string.drive_save),
-            onConfirm = { renaming = null; if (it != name) viewModel.rename(n, it) },
+            onConfirm = { renaming = null; if (it != name) { if (ready?.local != null) viewModel.renameLocal(n, it) else viewModel.rename(n, it) } },
             onDismiss = { renaming = null },
         )
     }
@@ -1195,6 +1618,41 @@ fun DriveVaultScreen(onBack: () -> Unit, onFolder: (vaultId: String, folderId: L
         )
     }
     move?.let { p -> VaultMovePicker(p, onBrowse = viewModel::browseMove, onMove = viewModel::moveHere, onDismiss = viewModel::closeMove) }
+    // ─── "Nur auf diesem Gerät" ───
+    localAsk?.let { a ->
+        VaultLocalAskDialog(
+            name = a.name,
+            start = (a.start as? DriveLoad.Ready)?.value,
+            free = a.free,
+            onConfirm = { confirmThen { viewModel.confirmLocal() } },
+            onDismiss = viewModel::dismissLocalAsk,
+        )
+    }
+    placeholderFor?.let { (n, name) ->
+        val l = n.local
+        if (l == null) {
+            placeholderFor = null
+        } else {
+            VaultPlaceholderSheet(
+                title = name,
+                local = l,
+                onForget = if (l.mine && l.state == com.gatecontrol.android.drive.DVaultLocal.STATE_LOCAL && l.undo != true && ready?.offline != true) ({ placeholderFor = null; forgetFor = n to name }) else null,
+                onDismiss = { placeholderFor = null },
+            )
+        }
+    }
+    forgetFor?.let { (n, name) ->
+        VaultForgetDialog(name, n.local?.let { localDeviceName(it) } ?: "", onConfirm = { forgetFor = null; viewModel.forgetPlaceholder(n) }, onDismiss = { forgetFor = null })
+    }
+    backFor?.let { (id, name, keep) ->
+        VaultLocalBackDialog(name, keep, onConfirm = { k -> backFor = null; confirmThen { viewModel.backToServer(id, name, k) } }, onDismiss = { backFor = null })
+    }
+    deleteLocalFolderFor?.let { (id, name) ->
+        VaultLocalDeleteDialog(name, onConfirm = { deleteLocalFolderFor = null; confirmThen { viewModel.deleteLocalFolder(id) } }, onDismiss = { deleteLocalFolderFor = null })
+    }
+    deletingLocal?.let { (n, name) ->
+        VaultLocalDeleteDialog(name, onConfirm = { deletingLocal = null; viewModel.deleteLocal(n) }, onDismiss = { deletingLocal = null })
+    }
     if (confirmRotate) {
         AlertDialog(
             onDismissRequest = { confirmRotate = false },

@@ -83,7 +83,7 @@ class DriveVaultMoveViewModelTest {
 
     private val api = mockk<DriveApi>(relaxed = true).also {
         coEvery { it.vault(vault.id) } returns DResult.Ok(vault)
-        coEvery { it.folder(any(), any(), any(), any(), any()) } returns DResult.Ok(folder)
+        coEvery { it.folder(any(), any(), any(), any(), any(), any()) } returns DResult.Ok(folder)
     }
     private val session = mockk<DriveVaultSession>(relaxed = true).also {
         every { it.unlocked(any()) } returns true
@@ -103,6 +103,10 @@ class DriveVaultMoveViewModelTest {
     }
     private val marks = mockk<DriveOffline>(relaxed = true).also { every { it.ids } returns MutableStateFlow(emptySet()) }
     private val store = mockk<DriveOfflineStore>(relaxed = true).also { every { it.copies } returns MutableStateFlow(emptyMap()) }
+    /** "Nur auf diesem Gerät": no folder kept here (an empty store of its own). */
+    private val localStore = kotlin.io.path.createTempDirectory("vault-local").toFile().let { d ->
+        com.gatecontrol.android.drive.vault.DriveVaultLocalStore(java.io.File(d, "data"), java.io.File(d, "keys"))
+    }
     private val network = mockk<DriveUploadNetwork>().also { every { it.waitsForWifi() } returns false }
 
     /** The phone's side of the originals. */
@@ -133,6 +137,11 @@ class DriveVaultMoveViewModelTest {
             marks = marks,
             offlineStore = store,
             vaultMove = DriveVaultMove(api, phone, dispatcher),
+            localStore = localStore,
+            localJobs = mockk<com.gatecontrol.android.drive.vault.DriveVaultLocalJobs>(relaxed = true).also {
+                every { it.progress } returns MutableStateFlow(emptyMap())
+            },
+            localEdit = mockk(relaxed = true),
         )
         models += vm
         // the page loads with a few steps on Dispatchers.IO: wait until it shows the folder
