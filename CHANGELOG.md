@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.168.0] - 2026-11-28
+
+### Features
+- lokaler Papierkorb in Tresor-Ordnern „Nur auf diesem Gerät“ (#322)
+
+---
+
 ## [1.167.0] - 2026-11-28
 
 ### Features
