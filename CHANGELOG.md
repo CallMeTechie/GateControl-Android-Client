@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.167.0] - 2026-11-28
+
+### Features
+- Schloss als ein Schalter – alte Knöpfe wandern auf den Schalter (#321)
+
+---
+
 ## [1.166.0] - 2026-11-28
 
 ### Features
