@@ -48,6 +48,8 @@ class DriveVaultSession @Inject constructor(
     private val vaultNames: DriveVaultNames,
     /** "Tresor-Dateien offline": the ciphertext copies and what unlocking needs without a connection (wrapped keys). */
     private val offline: DriveOfflineStore,
+    /** "Nur auf diesem Gerät" (Drive 1.32): the folders kept only here and their own keys LK. */
+    private val local: DriveVaultLocalStore,
 ) {
     /** vault id → key version → TK. Never written anywhere. */
     private val keys = ConcurrentHashMap<String, ConcurrentHashMap<Int, ByteArray>>()
@@ -97,6 +99,8 @@ class DriveVaultSession @Inject constructor(
         val gone = keys.values.toList().also { keys.clear() }
         gone.forEach { m -> m.values.forEach { it.fill(0) } }
         synchronized(names) { names.clear() }
+        // the folders kept only here lock with their vault
+        local.lockKeys()
         DriveVaultShares.clear()
         wipeOpened()
         _locks.tryEmit(Unit)
@@ -152,6 +156,8 @@ class DriveVaultSession @Inject constructor(
             is DResult.Ok -> {
                 val k = r.value
                 r.value.keyVersion?.let { current[vault.id] = it }
+                // the folders kept only here lock while this device is not one of the vault (never deleted on their own)
+                runCatching { local.setRevoked(vault.id, k.state == "revoked") }
                 if (k.state != "approved") {
                     // no longer approved (or never): what this phone keeps of the vault offline goes
                     offline.vaultRevoked(vault.id)
@@ -236,6 +242,8 @@ class DriveVaultSession @Inject constructor(
                     Timber.w("Drive vault: key version %d not readable (%s)", w.keyVersion, e.code)
                 }
             }
+            // the keys of the folders kept only on this phone open with the same device key (Drive 1.32)
+            runCatching { local.unlock(vaultId, pair) }
         } finally {
             pair.wipe()
         }
@@ -450,6 +458,25 @@ class DriveVaultSession @Inject constructor(
         }
     }
 
+    // ─── "Nur auf diesem Gerät" (Drive 1.32) ─────────────────────────
+
+    /** The vault key of [version] while the vault is open (the moves of a folder onto this phone and back). */
+    internal fun vaultKey(vaultId: String, version: Int): ByteArray? = tk(vaultId, version)
+
+    /** This phone's device key pair (needs the person's confirmation just before: [DriveVaultDeviceKey.AuthRequired]). */
+    internal fun deviceKeyPair(): DriveVaultCrypto.KeyPair = deviceKey.keyPair()
+
+    /** The device key protected by the confirmation (fingerprint, face or PIN); null: there is none yet. */
+    fun deviceKeyNeedsAuth(): Boolean = deviceKey.protectedByAuth() != false
+
+    /** A local entry (`kv = 0`): its folder's key LK, while the vault is open. */
+    private fun localKeys(node: DNode): (Int) -> ByteArray? {
+        val lk = local.keyOfItem(node.id)
+        return { v -> if (v == DriveVaultCrypto.LOCAL_KEY_VERSION) lk else null }
+    }
+
+    private fun isLocal(node: DNode) = node.keyVersion == DriveVaultCrypto.LOCAL_KEY_VERSION
+
     // ─── names ──────────────────────────────────────────────────────
 
     /** The name of a vault node, decrypted with the keys in memory; null when they are not there. */
@@ -458,8 +485,9 @@ class DriveVaultSession @Inject constructor(
         val cipher = node.nameCipher ?: return null
         synchronized(names) { names[cipher] }?.let { return it }
         if (!unlocked(vaultId)) return null
+        val keys: (Int) -> ByteArray? = if (isLocal(node)) localKeys(node) else ({ tk(vaultId, it) })
         return try {
-            DriveVaultCrypto.decryptName({ tk(vaultId, it) }, vaultId, cipher).also { n -> synchronized(names) { names[cipher] = n } }
+            DriveVaultCrypto.decryptName(keys, vaultId, cipher).also { n -> synchronized(names) { names[cipher] = n } }
         } catch (e: DriveVaultException) {
             null
         }
@@ -608,6 +636,11 @@ class DriveVaultSession @Inject constructor(
     private suspend fun decryptInto(node: DNode, output: OutputStream): DResult<Unit> {
         val vaultId = node.vaultId ?: return DResult.Failed("invalid", 0)
         if (!unlocked(vaultId)) return DResult.Failed("locked", 0)
+        // kept only on this phone: its file here, its folder's own key
+        if (isLocal(node)) {
+            val file = localFile(node) ?: return DResult.Failed("failed", 0)
+            return decryptStream(vaultId, output, localKeys(node)) { file.inputStream().buffered(256 * 1024) }.let { r -> if (r is DResult.Offline) DResult.Failed("failed", 0) else r }
+        }
         // "offline verfügbar": the ciphertext on this phone (the version Drive has; without a connection an older one)
         offline.vaultCipher(node)?.let { return decryptFile(vaultId, it, output) }
         val r = api.download(node.id, expectedSha256 = node.sha256)
@@ -621,7 +654,15 @@ class DriveVaultSession @Inject constructor(
     private suspend fun decryptFile(vaultId: String, file: File, output: OutputStream): DResult<Unit> =
         decryptStream(vaultId, output) { file.inputStream().buffered(256 * 1024) }.let { r -> if (r is DResult.Offline) DResult.Failed("failed", 0) else r }
 
-    private suspend fun decryptStream(vaultId: String, output: OutputStream, open: () -> java.io.Closeable): DResult<Unit> {
+    /** The file of a local entry (null: not here). */
+    private fun localFile(node: DNode): File? = local.folderOfItem(node.id)?.let { local.fileOf(it, node.id) }?.takeIf { it.isFile }
+
+    private suspend fun decryptStream(
+        vaultId: String,
+        output: OutputStream,
+        keysOf: ((Int) -> ByteArray?)? = null,
+        open: () -> java.io.Closeable,
+    ): DResult<Unit> {
         return try {
             var missing = false
             val src = open()
@@ -631,7 +672,8 @@ class DriveVaultSession @Inject constructor(
                     is java.io.InputStream -> s
                     else -> throw DriveVaultException("invalid", "source")
                 }
-                inp.use { DriveVaultCrypto.decryptContent({ v -> tk(vaultId, v).also { if (it == null) missing = true } }, vaultId, it, output) }
+                val keys: (Int) -> ByteArray? = keysOf ?: { v -> tk(vaultId, v).also { if (it == null) missing = true } }
+                inp.use { DriveVaultCrypto.decryptContent(keys, vaultId, it, output) }
             }
             if (missing) DResult.Failed("stale_key", 0) else DResult.Ok(Unit)
         } catch (e: CancellationException) {
@@ -639,7 +681,7 @@ class DriveVaultSession @Inject constructor(
         } catch (e: DriveVaultTooLarge) {
             DResult.Failed("too_large", 0)
         } catch (e: DriveVaultException) {
-            if (e.message == "no key for this version") {
+            if (e.message == "no key for this version" && keysOf == null) {
                 reload(vaultId)
                 DResult.Failed("stale_key", 0)
             } else {
@@ -702,7 +744,7 @@ class DriveVaultSession @Inject constructor(
      * The kept ciphertext [kept] for playing: a hard link in the viewer's folder (a newer version the background run
      * puts in place does not change what plays), else the copy itself. Never a second copy, never plaintext.
      */
-    private fun openKept(vaultId: String, kept: File): DResult<Cipher> {
+    private fun openKept(vaultId: String, kept: File, keysOf: ((Int) -> ByteArray?)? = null): DResult<Cipher> {
         val dir = viewDir().apply { mkdirs() }
         val link = File(dir, "kept-" + System.nanoTime() + ".gcdv")
         val linked = runCatching { android.system.Os.link(kept.path, link.path) }.isSuccess
@@ -710,7 +752,7 @@ class DriveVaultSession @Inject constructor(
         return try {
             val head = ByteArray(DriveVaultCrypto.HEADER)
             java.io.RandomAccessFile(file, "r").use { it.readFully(head) }
-            val content = DriveVaultCrypto.openContent({ v -> tk(vaultId, v) }, vaultId, head, file.length())
+            val content = DriveVaultCrypto.openContent(keysOf ?: { v -> tk(vaultId, v) }, vaultId, head, file.length())
             DResult.Ok(Cipher(file, content, owned = linked))
         } catch (e: DriveVaultException) {
             if (linked) link.delete()
@@ -725,6 +767,8 @@ class DriveVaultSession @Inject constructor(
     suspend fun fetchCipher(node: DNode, onProgress: (Float) -> Unit = {}): DResult<Cipher> = withContext(Dispatchers.IO) {
         val vaultId = node.vaultId ?: return@withContext DResult.Failed("invalid", 0)
         if (!unlocked(vaultId)) return@withContext DResult.Failed("locked", 0)
+        // kept only on this phone (Drive 1.32): played from its file here, with its folder's own key
+        if (isLocal(node)) return@withContext localFile(node)?.let { openKept(vaultId, it, localKeys(node)) } ?: DResult.Failed("failed", 0)
         // "offline verfügbar": the ciphertext is on this phone already (streamed chunk by chunk from there)
         offline.vaultCipher(node)?.let { return@withContext openKept(vaultId, it) }
         val dir = viewDir().apply { mkdirs() }

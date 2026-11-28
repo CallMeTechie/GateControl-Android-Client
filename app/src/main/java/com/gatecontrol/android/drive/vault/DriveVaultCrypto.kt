@@ -237,6 +237,68 @@ object DriveVaultCrypto {
         return tk
     }
 
+    // ── "Nur auf diesem Gerät" (Drive 1.32, feature `vaultLocal`) ──
+
+    /**
+     * The key version of a local folder key (LK): its names and contents carry `kv = 0`, which the server refuses
+     * everywhere — a local file can never be uploaded by mistake (vertrag-apps 7).
+     */
+    const val LOCAL_KEY_VERSION = 0
+
+    private const val PROOF_BYTES = 32
+
+    private fun proofInfo(vaultId: String, deviceId: String) = utf8("gcdrive-v1:local-proof:$vaultId:$deviceId")
+
+    /**
+     * The device's proof (README "Device proof"): the server's challenge `0x01 ‖ enc (32) ‖ ct (48)` opened like a wrap
+     * with this device's key pair, info `gcdrive-v1:local-proof:<vaultId>:<deviceId>` → the 32 bytes as base64url
+     * (43 characters). `invalid` for a challenge of another shape, `decrypt` when it was not sealed to this device.
+     */
+    fun openProof(challenge: String, device: KeyPair, vaultId: String, deviceId: String): String {
+        val b = unb64u(challenge)
+        if (b.size != WRAP_BYTES || b[0] != VERSION) throw DriveVaultException("invalid", "challenge")
+        val secret = hpkeOpen(device, proofInfo(vaultId, deviceId), ByteArray(0), b.copyOfRange(1, b.size))
+        try {
+            if (secret.size != PROOF_BYTES) throw DriveVaultException("decrypt")
+            return b64u(secret)
+        } finally {
+            secret.fill(0)
+        }
+    }
+
+    /** A challenge as the server seals it (tests; [ephemeral] for vectors). */
+    fun sealProof(secret: ByteArray, devicePublic: ByteArray, vaultId: String, deviceId: String, ephemeral: KeyPair? = null): String {
+        if (secret.size != PROOF_BYTES) throw DriveVaultException("invalid", "proof")
+        return b64u(byteArrayOf(VERSION) + hpkeSeal(devicePublic, proofInfo(vaultId, deviceId), ByteArray(0), secret, ephemeral))
+    }
+
+    /**
+     * The info of LK sealed to the vault's recovery key (export, a new phone): `gcdrive-v1:lk:<vaultId>:<nodeId>`.
+     * The proposal of vertrag-apps 7, confirmed with this first app that exports.
+     */
+    fun localKeyInfo(vaultId: String, nodeId: Long): String = "gcdrive-v1:lk:$vaultId:$nodeId"
+
+    /** The info of LK sealed to this phone's own device key (never leaves the phone): `gcdrive-v1:lk-device:<vaultId>:<nodeId>`. */
+    fun localDeviceInfo(vaultId: String, nodeId: Long): String = "gcdrive-v1:lk-device:$vaultId:$nodeId"
+
+    /** LK → `0x01 ‖ HPKE(recipient, info)` as base64url (81 bytes, the shape of a wrap); [info] from [localKeyInfo] or [localDeviceInfo]. */
+    fun sealLocalKey(lk: ByteArray, recipient: ByteArray, info: String, ephemeral: KeyPair? = null): String {
+        if (lk.size != KEY_BYTES) throw DriveVaultException("invalid", "key")
+        return b64u(byteArrayOf(VERSION) + hpkeSeal(recipient, utf8(info), ByteArray(0), lk, ephemeral))
+    }
+
+    /** A sealed LK → LK (32 bytes) with the recovery key's or the device's key pair. */
+    fun openLocalKey(sealed: String, recipient: KeyPair, info: String): ByteArray {
+        val b = unb64u(sealed)
+        if (b.size != WRAP_BYTES || b[0] != VERSION) throw DriveVaultException("invalid", "wrap")
+        val lk = hpkeOpen(recipient, utf8(info), ByteArray(0), b.copyOfRange(1, b.size))
+        if (lk.size != KEY_BYTES) {
+            lk.fill(0)
+            throw DriveVaultException("decrypt")
+        }
+        return lk
+    }
+
     // ── names ───────────────────────────────────────────────
 
     private fun pad(bytes: ByteArray): ByteArray {

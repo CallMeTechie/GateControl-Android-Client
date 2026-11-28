@@ -170,10 +170,19 @@ class DriveApi @Inject constructor(
     suspend fun node(id: Long): DResult<DNode> = get("nodes/$id", parse = DriveJson::nodeAnswer)
 
     /** The folder [id]: its place (crumbs) and its content, folders first. */
-    suspend fun folder(id: Long, sort: String = "name", order: String = "asc", offset: Int = 0, limit: Int = 500): DResult<DFolder> {
-        val head = call(request = { pluginGet(DRIVE_PLUGIN, "nodes/$id", lang()) }, parse = { it })
+    suspend fun folder(
+        id: Long,
+        sort: String = "name",
+        order: String = "asc",
+        offset: Int = 0,
+        limit: Int = 500,
+        /** Drive 1.32: this phone's vault device — a placeholder then says whether the copy is here (`thisDevice`). */
+        vaultDevice: String? = null,
+    ): DResult<DFolder> {
+        val device = vaultDevice?.let(DriveJson::vaultId)?.let { mapOf("deviceId" to it) }.orEmpty()
+        val head = call(request = { pluginGet(DRIVE_PLUGIN, "nodes/$id", device + lang()) }, parse = { it })
         if (head !is DResult.Ok) return head.notOk()
-        val q = mapOf("sort" to sort, "order" to order, "offset" to offset.toString(), "limit" to limit.toString())
+        val q = mapOf("sort" to sort, "order" to order, "offset" to offset.toString(), "limit" to limit.toString()) + device
         // Drive 1.11: a vault folder is opened from the menu only, never from a list (an older Drive still lists them)
         return get("nodes/$id/children", q) { DriveJson.folder(head.value, it)?.let(DriveLogic::withoutVaults) }
     }
@@ -676,6 +685,57 @@ class DriveApi @Inject constructor(
         val path = (vaultPath(id) ?: return bad()) + "/recovery"
         return call(request = { pluginPut(DRIVE_PLUGIN, path, body, lang()) }, parse = DriveJson::vaultAnswer)
     }
+
+    // ─── Drive 1.32: "Nur auf diesem Gerät" (feature `vaultLocal`) ─────
+
+    private fun localPath(vaultId: String, nodeId: Long? = null, tail: String = ""): String? =
+        vaultPath(vaultId)?.let { p -> "$p/local" + (nodeId?.let { "/$it" } ?: "") + tail }
+
+    private fun deviceQuery(deviceId: String): Map<String, String>? = DriveJson.vaultId(deviceId)?.let { mapOf("deviceId" to it) }
+
+    /** The placeholders of the vault (`thisDevice` for [deviceId]). */
+    suspend fun vaultLocals(vaultId: String, deviceId: String): DResult<List<DVaultLocal>> =
+        get(localPath(vaultId) ?: return bad(), deviceQuery(deviceId) ?: return bad(), DriveJson::vaultLocals)
+
+    /** One placeholder (also after an answer that got lost); `not_found` when it is none (any more). */
+    suspend fun vaultLocal(vaultId: String, nodeId: Long, deviceId: String): DResult<DVaultLocalState> =
+        get(localPath(vaultId, nodeId) ?: return bad(), deviceQuery(deviceId) ?: return bad(), DriveJson::vaultLocalAnswer)
+
+    /** A challenge sealed to this device's key (60 s, once): opened, it is the proof of commit, return and forget. */
+    suspend fun vaultLocalChallenge(vaultId: String, deviceId: String): DResult<String> =
+        post(localPath(vaultId, tail = "/challenge") ?: return bad(), DriveJson.deviceIdBody(deviceId), DriveJson::vaultLocalChallenge)
+
+    /** The move of folder [nodeId] begins (or goes on): the manifest, the numbers, a lease of 30 minutes. */
+    suspend fun vaultLocalStart(vaultId: String, nodeId: Long, deviceId: String): DResult<DVaultLocalStart> =
+        post(localPath(vaultId) ?: return bad(), DriveJson.vaultLocalStartBody(nodeId, deviceId), DriveJson::vaultLocalStart)
+
+    /** 30 more minutes for a move or a return (every 5 minutes while it runs). */
+    suspend fun vaultLocalLease(vaultId: String, nodeId: Long, deviceId: String): DResult<DVaultLocalState> =
+        post(localPath(vaultId, nodeId, "/lease") ?: return bad(), DriveJson.deviceIdBody(deviceId), DriveJson::vaultLocalAnswer)
+
+    /** The move called off (nothing was deleted). */
+    suspend fun vaultLocalCancel(vaultId: String, nodeId: Long, deviceId: String): DResult<DVaultLocalState> =
+        del(localPath(vaultId, nodeId) ?: return bad(), DriveJson::vaultLocalAnswer, deviceQuery(deviceId) ?: return bad())
+
+    /** The end of a move: the content leaves the server (hidden 24 h, then for good). 409 `conflict { reason: changed }`. */
+    suspend fun vaultLocalCommit(vaultId: String, nodeId: Long, deviceId: String, proof: String, manifest: List<DVaultLocalItem>): DResult<DVaultLocalState> =
+        post(localPath(vaultId, nodeId, "/commit") ?: return bad(), DriveJson.vaultLocalCommitBody(deviceId, proof, manifest), DriveJson::vaultLocalAnswer)
+
+    /** "Rückgängig" within the 24 hours: the content as it was on the server. */
+    suspend fun vaultLocalUndo(vaultId: String, nodeId: Long, deviceId: String): DResult<DVaultLocalState> =
+        post(localPath(vaultId, nodeId, "/undo") ?: return bad(), DriveJson.deviceIdBody(deviceId), DriveJson::vaultLocalAnswer)
+
+    /** The way back begins: only this app (its device token) may upload into the placeholder now. */
+    suspend fun vaultLocalReturn(vaultId: String, nodeId: Long, deviceId: String): DResult<DVaultLocalState> =
+        post(localPath(vaultId, nodeId, "/return") ?: return bad(), DriveJson.deviceIdBody(deviceId), DriveJson::vaultLocalAnswer)
+
+    /** Back on the server: [count] the files uploaded below the folder (409 `conflict { reason: count, files }`). */
+    suspend fun vaultLocalReturnCommit(vaultId: String, nodeId: Long, deviceId: String, proof: String, count: Int): DResult<DVaultLocalState> =
+        post(localPath(vaultId, nodeId, "/return/commit") ?: return bad(), DriveJson.vaultLocalReturnBody(deviceId, proof, count), DriveJson::vaultLocalAnswer)
+
+    /** "Platzhalter entfernen": by the device with the copy ([proof]) or another device of mine (none, after 24 h). */
+    suspend fun vaultLocalForget(vaultId: String, nodeId: Long, deviceId: String, proof: String?): DResult<Unit> =
+        post(localPath(vaultId, nodeId, "/forget") ?: return bad(), DriveJson.vaultLocalForgetBody(deviceId, proof), unit)
 
     /** A vault node's new encrypted name. */
     suspend fun renameVault(id: Long, nameCipher: String): DResult<DNode> = patch("nodes/$id", DriveJson.nameCipherPatchBody(nameCipher), DriveJson::nodeAnswer)

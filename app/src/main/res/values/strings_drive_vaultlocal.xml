@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Drive vaults: "Only on this device" (Drive 1.32) – a folder whose content lies only on this phone. -->
+<resources>
+    <string name="drive_vault_local_channel">Vault: only on this phone</string>
+    <string name="drive_vault_local_notify_move">Folder is being moved to this phone</string>
+    <string name="drive_vault_local_notify_back">Folder is going back to the server</string>
+    <plurals name="drive_vault_local_notify_fetch">
+        <item quantity="one">Downloading · %1$d of %2$d file</item>
+        <item quantity="other">Downloading · %1$d of %2$d files</item>
+    </plurals>
+    <plurals name="drive_vault_local_notify_check">
+        <item quantity="one">Checking · %1$d of %2$d file</item>
+        <item quantity="other">Checking · %1$d of %2$d files</item>
+    </plurals>
+    <string name="drive_vault_local_step_finish">Removing from the server</string>
+    <string name="drive_vault_local_step_finish_back">Finishing on the server</string>
+</resources>
