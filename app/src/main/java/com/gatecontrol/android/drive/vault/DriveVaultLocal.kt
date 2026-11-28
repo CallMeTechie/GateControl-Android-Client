@@ -43,6 +43,25 @@ data class DriveVaultLocalItem(
 )
 
 /**
+ * Something deleted in a folder kept only on this phone: the local trash (30 days, [DriveVaultLocalLogic.TRASH_DAYS]).
+ * [items] are the deleted entry ([id], the first) and everything that was below it, as they were — names and content
+ * stay encrypted with LK, the files stay where they were; only the index says they are in the trash.
+ */
+data class DriveVaultLocalTrashEntry(
+    /** The deleted entry's id (also the id of the first of [items]). */
+    val id: Long,
+    /** Where it was ([DriveVaultLocalFolder.nodeId]: the top) — a restore goes back there, if that folder is still there. */
+    val parentId: Long,
+    /** When it was deleted (ms): gone for good [DriveVaultLocalLogic.TRASH_MS] later. */
+    val deletedAt: Long,
+    val items: List<DriveVaultLocalItem>,
+) {
+    val top: DriveVaultLocalItem? get() = items.firstOrNull { it.id == id }
+    val files: Int get() = items.count { !it.isDir }
+    val bytes: Long get() = items.filter { !it.isDir }.sumOf { it.size }
+}
+
+/**
  * A folder of a vault that lies only on this phone, as the index file keeps it: whose it is ([server], [vaultId], the
  * vault device [deviceId]), where its placeholder is ([nodeId], [parentId], its encrypted name [nameCipher] — the
  * vault's key, as the server keeps it) and what is in it ([items]).
@@ -69,6 +88,8 @@ data class DriveVaultLocalFolder(
     val revoked: Boolean = false,
     /** Asked once after the move: the reminder "Sicherung exportieren" (ms of the last reminder). */
     val remindedAt: Long? = null,
+    /** The local trash: what was deleted here, for 30 days (not part of [items], an export or the way back). */
+    val trash: List<DriveVaultLocalTrashEntry> = emptyList(),
 ) {
     enum class State { MOVING, LOCAL, RETURNING }
 
@@ -76,6 +97,15 @@ data class DriveVaultLocalFolder(
 
     /** Bytes of plaintext of every file. */
     val bytes: Long get() = items.filter { !it.isDir }.sumOf { it.size }
+
+    /** Bytes of plaintext in the trash (on the phone as well until it is emptied). */
+    val trashBytes: Long get() = trash.sumOf { it.bytes }
+
+    /** Everything this folder holds on the phone: its files and its trash. */
+    val allBytes: Long get() = bytes + trashBytes
+
+    /** Every id taken here (entries and the trash): a new entry never takes one of them. */
+    val ids: Set<Long> get() = HashSet<Long>().also { out -> items.forEach { out += it.id }; trash.forEach { t -> t.items.forEach { out += it.id } } }
 }
 
 /** The rules of the folders kept only on this phone (pure, unit-tested). */
@@ -202,6 +232,52 @@ object DriveVaultLocalLogic {
     fun remindNow(folder: DriveVaultLocalFolder, now: Long): Boolean =
         needsBackup(folder, now) && now - (folder.remindedAt ?: folder.since) >= REMIND_EVERY_MS
 
+    // ── the local trash ─────────────────────────────────────────────
+
+    /** Deleted entries stay this long in the trash of a folder kept here (like Drive's trash). */
+    const val TRASH_DAYS = 30
+
+    const val TRASH_MS = TRASH_DAYS * 24L * 60 * 60_000L
+
+    /** When [e] goes for good (ms). */
+    fun purgeAt(e: DriveVaultLocalTrashEntry): Long = e.deletedAt + TRASH_MS
+
+    /** The trash, the newest first. */
+    fun trashSorted(folder: DriveVaultLocalFolder): List<DriveVaultLocalTrashEntry> = folder.trash.sortedByDescending { it.deletedAt }
+
+    /**
+     * [itemId] and everything below it go from [folder]'s entries into its trash, deleted [now]. Nothing changes when
+     * it is not an entry (an entry of the trash, the top).
+     */
+    fun toTrash(folder: DriveVaultLocalFolder, itemId: Long, now: Long): DriveVaultLocalFolder {
+        val top = folder.items.firstOrNull { it.id == itemId } ?: return folder
+        val gone = subtree(folder, itemId)
+        val moved = listOf(top) + folder.items.filter { it.id in gone && it.id != itemId }
+        val entry = DriveVaultLocalTrashEntry(id = itemId, parentId = top.parentId, deletedAt = now, items = moved)
+        return folder.copy(items = folder.items.filter { it.id !in gone }, trash = folder.trash + entry, changedAt = now)
+    }
+
+    /**
+     * Where a restore of [e] goes: the folder it was in, if it is still there (not deleted, not in the trash itself),
+     * else the top of the folder kept here.
+     */
+    fun restoreParent(folder: DriveVaultLocalFolder, e: DriveVaultLocalTrashEntry): Long =
+        if (e.parentId == folder.nodeId || folder.items.any { it.id == e.parentId && it.isDir }) e.parentId else folder.nodeId
+
+    /**
+     * The trash entry [entryId] back into [folder]: under [restoreParent], its top entry with the name cipher
+     * [topName] (a free name when the old one is taken there — "Name (2)", as Drive does). Null: no such entry.
+     */
+    fun restore(folder: DriveVaultLocalFolder, entryId: Long, topName: String?, now: Long): DriveVaultLocalFolder? {
+        val e = folder.trash.firstOrNull { it.id == entryId } ?: return null
+        val parent = restoreParent(folder, e)
+        val back = e.items.map { if (it.id == e.id) it.copy(parentId = parent, name = topName ?: it.name) else it }
+        return folder.copy(items = folder.items + back, trash = folder.trash.filter { it.id != entryId }, changedAt = now)
+    }
+
+    /** The entries of the trash whose 30 days are over at [now]. */
+    fun expired(folder: DriveVaultLocalFolder, now: Long): List<DriveVaultLocalTrashEntry> = folder.trash.filter { purgeAt(it) <= now }
+
     // ── an entry as a node of the vault page ────────────────────────
 
     /** An entry as the vault's lists show a node: its opaque name, kv 0 (the name and content open with LK). */
@@ -244,39 +320,63 @@ object DriveVaultLocalLogic {
         addProperty("changedAt", f.changedAt)
         if (f.revoked) addProperty("revoked", true)
         f.remindedAt?.let { addProperty("remindedAt", it) }
-        add("items", JsonArray().apply {
-            f.items.forEach { i ->
+        add("items", itemsJson(f.items))
+        if (f.trash.isNotEmpty()) add("trash", JsonArray().apply {
+            f.trash.forEach { t ->
                 add(JsonObject().apply {
-                    addProperty("id", i.id)
-                    addProperty("parentId", i.parentId)
-                    if (i.isDir) addProperty("dir", true)
-                    addProperty("name", i.name)
-                    if (!i.isDir) addProperty("size", i.size)
-                    addProperty("mtime", i.mtime)
-                    i.srcRev?.let { addProperty("srcRev", it) }
-                    i.srcSha256?.let { addProperty("srcSha256", it) }
-                    i.up?.let { addProperty("up", it) }
+                    addProperty("id", t.id)
+                    addProperty("parentId", t.parentId)
+                    addProperty("deletedAt", t.deletedAt)
+                    add("items", itemsJson(t.items))
                 })
             }
         })
     }.toString()
 
+    private fun itemsJson(items: List<DriveVaultLocalItem>): JsonArray = JsonArray().apply {
+        items.forEach { i ->
+            add(JsonObject().apply {
+                addProperty("id", i.id)
+                addProperty("parentId", i.parentId)
+                if (i.isDir) addProperty("dir", true)
+                addProperty("name", i.name)
+                if (!i.isDir) addProperty("size", i.size)
+                addProperty("mtime", i.mtime)
+                i.srcRev?.let { addProperty("srcRev", it) }
+                i.srcSha256?.let { addProperty("srcSha256", it) }
+                i.up?.let { addProperty("up", it) }
+            })
+        }
+    }
+
+    private fun itemsFrom(a: JsonArray?): List<DriveVaultLocalItem> = a?.mapNotNull { e ->
+        val x = e as? JsonObject ?: return@mapNotNull null
+        DriveVaultLocalItem(
+            id = x.get("id")?.asLong ?: return@mapNotNull null,
+            parentId = x.get("parentId")?.asLong ?: return@mapNotNull null,
+            isDir = x.get("dir")?.asBoolean == true,
+            name = x.get("name")?.asString ?: return@mapNotNull null,
+            size = x.get("size")?.asLong ?: 0,
+            mtime = x.get("mtime")?.asLong ?: 0,
+            srcRev = x.get("srcRev")?.asInt,
+            srcSha256 = x.get("srcSha256")?.asString,
+            up = x.get("up")?.asLong,
+        )
+    }.orEmpty()
+
     /** The index → the folder; null when it cannot be read (it is kept on disk: nothing of a folder only here is thrown away). */
     fun fromJson(text: String): DriveVaultLocalFolder? = runCatching {
         val o = JsonParser.parseString(text).asJsonObject
         if (o.get("v")?.asInt != 1) return null
-        val items = o.getAsJsonArray("items")?.mapNotNull { e ->
+        val items = itemsFrom(o.getAsJsonArray("items"))
+        val trash = o.getAsJsonArray("trash")?.mapNotNull { e ->
             val x = e as? JsonObject ?: return@mapNotNull null
-            DriveVaultLocalItem(
-                id = x.get("id")?.asLong ?: return@mapNotNull null,
+            val id = x.get("id")?.asLong ?: return@mapNotNull null
+            DriveVaultLocalTrashEntry(
+                id = id,
                 parentId = x.get("parentId")?.asLong ?: return@mapNotNull null,
-                isDir = x.get("dir")?.asBoolean == true,
-                name = x.get("name")?.asString ?: return@mapNotNull null,
-                size = x.get("size")?.asLong ?: 0,
-                mtime = x.get("mtime")?.asLong ?: 0,
-                srcRev = x.get("srcRev")?.asInt,
-                srcSha256 = x.get("srcSha256")?.asString,
-                up = x.get("up")?.asLong,
+                deletedAt = x.get("deletedAt")?.asLong ?: return@mapNotNull null,
+                items = itemsFrom(x.getAsJsonArray("items")).takeIf { l -> l.any { it.id == id } } ?: return@mapNotNull null,
             )
         }.orEmpty()
         DriveVaultLocalFolder(
@@ -299,6 +399,7 @@ object DriveVaultLocalLogic {
             items = items,
             revoked = o.get("revoked")?.asBoolean == true,
             remindedAt = o.get("remindedAt")?.asLong,
+            trash = trash,
         )
     }.getOrNull()
 
@@ -363,7 +464,7 @@ class DriveVaultLocalStore internal constructor(private val dataRoot: File, priv
     fun ofVault(vaultId: String): List<DriveVaultLocalFolder> = load().values.filter { it.vaultId == vaultId }
 
     /** The folder the entry [itemId] lies in (a local entry's id is unique over all folders here). */
-    fun folderOfItem(itemId: Long): DriveVaultLocalFolder? = load().values.firstOrNull { f -> f.items.any { it.id == itemId } }
+    fun folderOfItem(itemId: Long): DriveVaultLocalFolder? = load().values.firstOrNull { f -> f.items.any { it.id == itemId } || f.trash.any { t -> t.items.any { it.id == itemId } } }
 
     private fun dirOf(vaultId: String, nodeId: Long): File? = DriveJson.vaultId(vaultId)?.let { File(File(dataRoot, it), nodeId.toString()) }
 
@@ -425,6 +526,36 @@ class DriveVaultLocalStore internal constructor(private val dataRoot: File, priv
         ofVault(vaultId).filter { it.revoked != revoked }.forEach { f -> runCatching { put(f.copy(revoked = revoked)) } }
     }
 
+    /**
+     * The trash entries of [nodeId] whose 30 days are over ([now]) go for good: their files and their index entries.
+     * Needs no key (nothing is decrypted). Returns how many went.
+     */
+    @Synchronized
+    fun purgeExpired(nodeId: Long, now: Long): Int {
+        val f = get(nodeId) ?: return 0
+        val due = DriveVaultLocalLogic.expired(f, now)
+        if (due.isEmpty()) return 0
+        dropTrash(nodeId, due.mapTo(HashSet()) { it.id })
+        return due.size
+    }
+
+    /**
+     * The trash entries [entryIds] of [nodeId] go for good: first out of the index, then their files (only theirs —
+     * never what is being written right now). Returns the folder as it is then.
+     */
+    @Synchronized
+    fun dropTrash(nodeId: Long, entryIds: Set<Long>): DriveVaultLocalFolder? {
+        val f = get(nodeId) ?: return null
+        val gone = f.trash.filter { it.id in entryIds }
+        if (gone.isEmpty()) return f
+        val next = update(nodeId) { x -> x.copy(trash = x.trash.filter { it.id !in entryIds }) } ?: return null
+        gone.flatMap { it.items }.filter { !it.isDir }.forEach { i -> runCatching { fileOf(next, i.id)?.delete() } }
+        return next
+    }
+
+    /** [purgeExpired] for every folder kept here (opening a vault, the daily look). */
+    fun purgeExpiredAll(now: Long): Int = load().keys.sumOf { runCatching { purgeExpired(it, now) }.getOrDefault(0) }
+
     /** Removes the folder from this phone: its files, its index and its key (only the person's own choice comes here). */
     @Synchronized
     fun remove(nodeId: Long) {
@@ -439,7 +570,8 @@ class DriveVaultLocalStore internal constructor(private val dataRoot: File, priv
     fun tidy(folder: DriveVaultLocalFolder) {
         val dir = dirOf(folder.vaultId, folder.nodeId) ?: return
         runCatching { File(dir, TMP).deleteRecursively() }
-        val ids = folder.items.filter { !it.isDir }.mapTo(HashSet()) { "${it.id}.gcdv" }
+        // the files of the trash stay as well (until it is emptied or their 30 days are over)
+        val ids = (folder.items + folder.trash.flatMap { it.items }).filter { !it.isDir }.mapTo(HashSet()) { "${it.id}.gcdv" }
         File(dir, FILES).listFiles()?.forEach { if (it.name !in ids) it.delete() }
     }
 

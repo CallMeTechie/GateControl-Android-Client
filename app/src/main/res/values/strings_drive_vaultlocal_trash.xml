@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Drive vaults: the local trash of a folder "Only on this device" (30 days, encrypted, on the phone only). -->
+<resources>
+    <string name="drive_vault_local_trash_ask_title">Delete “%1$s”?</string>
+    <string name="drive_vault_local_trash_ask_text">It goes into this folder’s trash for 30 days. After that it is gone for good – there is no copy on the server.</string>
+    <string name="drive_vault_local_trash_ask_go">Move to trash</string>
+    <plurals name="drive_vault_local_trash_line">
+        <item quantity="one">Trash: %1$d item · %2$s</item>
+        <item quantity="other">Trash: %1$d items · %2$s</item>
+    </plurals>
+    <string name="drive_vault_local_trash_info">Deleted items stay here for %1$d days – encrypted and on this phone only – then they are gone for good.</string>
+    <string name="drive_vault_local_trash_until">deleted on %1$s</string>
+    <string name="drive_vault_local_trash_empty_go">Empty trash</string>
+    <string name="drive_vault_local_trash_empty_title">Empty the trash?</string>
+    <plurals name="drive_vault_local_trash_empty_text">
+        <item quantity="one">%1$d item (%2$s) is deleted for good. There is no copy on the server.</item>
+        <item quantity="other">%1$d items (%2$s) are deleted for good. There is no copy on the server.</item>
+    </plurals>
+    <string name="drive_vault_local_trash_purge_text">Delete “%1$s” for good? There is no copy on the server – this cannot be undone.</string>
+    <string name="drive_vault_local_msg_trashed">Now in this folder’s trash.</string>
+    <string name="drive_vault_local_msg_restored_renamed">Restored – with a new name, the old one is taken there.</string>
+    <string name="drive_vault_local_msg_trash_emptied">Trash emptied.</string>
+    <plurals name="drive_vault_local_back_trash">
+        <item quantity="one">%1$d item in this folder’s trash does not go to the server and is deleted. Restore first what should go along.</item>
+        <item quantity="other">%1$d items in this folder’s trash do not go to the server and are deleted. Restore first what should go along.</item>
+    </plurals>
+    <string name="drive_vault_local_trash_export_note">The backup does not include the trash.</string>
+</resources>

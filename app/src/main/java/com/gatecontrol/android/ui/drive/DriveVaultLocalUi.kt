@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
@@ -60,6 +61,8 @@ import com.gatecontrol.android.drive.DVaultLocalStart
 import com.gatecontrol.android.drive.DriveLogic
 import com.gatecontrol.android.drive.vault.DriveVaultLocalFolder
 import com.gatecontrol.android.drive.vault.DriveVaultLocalJobs
+import com.gatecontrol.android.drive.vault.DriveVaultLocalLogic
+import com.gatecontrol.android.drive.vault.DriveVaultLocalTrashEntry
 import com.gatecontrol.android.ui.components.GcBanner
 import com.gatecontrol.android.ui.components.GcCard
 import com.gatecontrol.android.ui.components.GcIconSquare
@@ -461,6 +464,9 @@ internal fun vaultLocalText(context: Context, code: String): String? = when (cod
     "local_undone", "local_back_done" -> context.getString(R.string.drive_vault_local_msg_back)
     "local_forgotten" -> context.getString(R.string.drive_vault_local_msg_forgotten)
     "local_deleted" -> context.getString(R.string.drive_vault_local_msg_deleted)
+    "local_trashed" -> context.getString(R.string.drive_vault_local_msg_trashed)
+    "local_restored_renamed" -> context.getString(R.string.drive_vault_local_msg_restored_renamed)
+    "local_trash_emptied" -> context.getString(R.string.drive_vault_local_msg_trash_emptied)
     "changed_here" -> context.getString(R.string.drive_vault_local_msg_changed_here)
     "local_locked" -> context.getString(R.string.drive_vault_local_msg_locked)
     "local_exported" -> context.getString(R.string.drive_vault_local_msg_exported)
@@ -479,7 +485,7 @@ internal fun vaultLocalText(context: Context, code: String): String? = when (cod
  * run "Rückgängig". A folder of a device removed from the vault says it is locked.
  */
 @Composable
-internal fun VaultLocalCard(folder: DriveVaultLocalFolder, undoUntil: Long?, onBack: (() -> Unit)?, onUndo: (() -> Unit)?, extra: @Composable () -> Unit = {}) {
+internal fun VaultLocalCard(folder: DriveVaultLocalFolder, undoUntil: Long?, onBack: (() -> Unit)?, onUndo: (() -> Unit)?, onTrash: (() -> Unit)? = null, extra: @Composable () -> Unit = {}) {
     val x = GateControlTheme.extraColors
     val context = LocalContext.current
     val files = folder.files
@@ -489,6 +495,18 @@ internal fun VaultLocalCard(folder: DriveVaultLocalFolder, undoUntil: Long?, onB
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text(stringResource(R.string.drive_vault_local_card_title), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
                 Text(pluralStringResource(R.plurals.drive_vault_local_card_line, files.size, files.size, DriveLogic.size(folder.bytes)), style = MaterialTheme.typography.bodySmall, color = x.muted)
+                // the local trash (30 days): how much it holds — it takes room on the phone as well
+                if (folder.trash.isNotEmpty()) {
+                    val line = pluralStringResource(R.plurals.drive_vault_local_trash_line, folder.trash.size, folder.trash.size, DriveLogic.size(folder.trashBytes))
+                    if (onTrash == null) {
+                        Text(line, style = MaterialTheme.typography.bodySmall, color = x.muted)
+                    } else {
+                        TextButton(onClick = onTrash, contentPadding = PaddingValues(0.dp), modifier = Modifier.heightIn(min = 32.dp)) {
+                            Icon(GcIcons.Trash, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Text(line, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(start = 6.dp))
+                        }
+                    }
+                }
                 undoUntil?.let { Text(stringResource(R.string.drive_vault_local_undo_until, android.text.format.DateUtils.formatDateTime(context, it, android.text.format.DateUtils.FORMAT_SHOW_DATE or android.text.format.DateUtils.FORMAT_SHOW_TIME or android.text.format.DateUtils.FORMAT_ABBREV_MONTH)), style = MaterialTheme.typography.bodySmall, color = x.muted) }
             }
         }
@@ -560,7 +578,7 @@ internal fun VaultPlaceholderInfo(title: String, local: DVaultLocal, onForget: (
 
 /** "Zurück auf den Server" (A8), with "Kopie auf diesem Handy behalten" ([keep] first as chosen in the menu). */
 @Composable
-internal fun VaultLocalBackDialog(name: String, keep: Boolean, onConfirm: (Boolean) -> Unit, onDismiss: () -> Unit) {
+internal fun VaultLocalBackDialog(name: String, keep: Boolean, onConfirm: (Boolean) -> Unit, onDismiss: () -> Unit, trash: Int = 0) {
     var keepCopy by remember { mutableStateOf(keep) }
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -569,6 +587,8 @@ internal fun VaultLocalBackDialog(name: String, keep: Boolean, onConfirm: (Boole
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text(stringResource(R.string.drive_vault_local_back_text))
+                // the trash stays behind (deleted here, never on the server) and goes with the folder kept here
+                if (trash > 0) Text(pluralStringResource(R.plurals.drive_vault_local_back_trash, trash, trash), color = GateControlTheme.extraColors.warn)
                 Row(Modifier.fillMaxWidth().toggleable(value = keepCopy, role = Role.Checkbox, onValueChange = { keepCopy = it }), verticalAlignment = Alignment.CenterVertically) {
                     Checkbox(checked = keepCopy, onCheckedChange = null)
                     Text(stringResource(R.string.drive_vault_local_back_keep), modifier = Modifier.padding(start = 10.dp))
@@ -590,6 +610,110 @@ internal fun VaultLocalDeleteDialog(name: String, onConfirm: () -> Unit, onDismi
         confirmButton = { TextButton(onClick = onConfirm) { Text(stringResource(R.string.drive_vault_local_delete_go), color = MaterialTheme.colorScheme.error) } },
         dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.drive_cancel)) } },
     )
+}
+
+/** Deleting inside a folder kept here: into the folder's own trash for 30 days. */
+@Composable
+internal fun VaultLocalTrashDialog(name: String, onConfirm: () -> Unit, onDismiss: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.drive_vault_local_trash_ask_title, name)) },
+        text = { Text(stringResource(R.string.drive_vault_local_trash_ask_text)) },
+        confirmButton = { TextButton(onClick = onConfirm) { Text(stringResource(R.string.drive_vault_local_trash_ask_go), color = MaterialTheme.colorScheme.error) } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.drive_cancel)) } },
+    )
+}
+
+/** A row of the local trash: the entry, its node (for the icon), its name and where it came from. */
+internal data class VaultLocalTrashRow(val entry: DriveVaultLocalTrashEntry, val node: DNode, val name: String, val from: String?)
+
+/**
+ * The trash of a folder kept only here (in the style of Drive's trash): what was deleted, until when it stays ("wird am
+ * … gelöscht"), "Wiederherstellen", "Endgültig löschen" and "Papierkorb leeren". [canRestore]: the folder may be
+ * changed (not locked).
+ */
+@Composable
+internal fun VaultLocalTrashScreen(
+    folder: DriveVaultLocalFolder,
+    rows: List<VaultLocalTrashRow>,
+    canRestore: Boolean,
+    onBack: () -> Unit,
+    onRestore: (Long) -> Unit,
+    onPurge: (Long) -> Unit,
+    onEmpty: () -> Unit,
+) {
+    val x = GateControlTheme.extraColors
+    val context = LocalContext.current
+    var purging by remember { mutableStateOf<VaultLocalTrashRow?>(null) }
+    var emptying by remember { mutableStateOf(false) }
+    androidx.activity.compose.BackHandler(onBack = onBack)
+    Column(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
+        com.gatecontrol.android.ui.components.GcSubpageBar(stringResource(R.string.drive_trash), onBack = onBack, backDescription = stringResource(R.string.drive_back))
+        Column(
+            Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(horizontal = 4.dp)) {
+                Icon(GcIcons.Smartphone, contentDescription = null, tint = x.muted, modifier = Modifier.padding(top = 2.dp).size(14.dp))
+                Text(
+                    stringResource(R.string.drive_vault_local_trash_info, DriveVaultLocalLogic.TRASH_DAYS) + " " + stringResource(R.string.drive_vault_local_trash_export_note),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = x.muted,
+                )
+            }
+            if (rows.isEmpty()) {
+                Text(stringResource(R.string.drive_trash_empty), color = x.muted, modifier = Modifier.padding(4.dp))
+            } else {
+                GcCard(contentPadding = PaddingValues(vertical = 4.dp), verticalArrangement = Arrangement.spacedBy(0.dp)) {
+                    rows.forEachIndexed { i, r ->
+                        if (i > 0) GcRowDivider()
+                        val until = stringResource(R.string.drive_vault_local_trash_until, localDate(context, DriveVaultLocalLogic.purgeAt(r.entry)))
+                        val line = listOfNotNull(
+                            if (r.node.isDir) pluralStringResource(R.plurals.drive_vault_local_row_line, r.entry.files, r.entry.files, DriveLogic.size(r.entry.bytes)) else DriveLogic.size(r.node.size),
+                            r.from?.let { stringResource(R.string.drive_trash_from, it) },
+                            until,
+                        ).joinToString(" · ")
+                        NodeRow(
+                            node = r.node,
+                            title = r.name,
+                            onClick = null,
+                            description = line,
+                            trailing = {
+                                Row {
+                                    // icons only: the rows of a phone are narrow, the name and "wird am …" need the room
+                                    if (canRestore) com.gatecontrol.android.ui.components.GcIconButton(GcIcons.History, contentDescription = stringResource(R.string.drive_trash_restore), onClick = { onRestore(r.entry.id) }, size = 40.dp, iconSize = 18.dp, tint = MaterialTheme.colorScheme.primary)
+                                    com.gatecontrol.android.ui.components.GcIconButton(GcIcons.Trash, contentDescription = stringResource(R.string.drive_trash_purge), onClick = { purging = r }, size = 40.dp, iconSize = 18.dp)
+                                }
+                            },
+                        )
+                    }
+                }
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                    TextButton(onClick = { emptying = true }) {
+                        Icon(GcIcons.Trash, contentDescription = null, modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.error)
+                        Text(stringResource(R.string.drive_vault_local_trash_empty_go), color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(start = 6.dp))
+                    }
+                }
+            }
+        }
+    }
+    purging?.let { r ->
+        AlertDialog(
+            onDismissRequest = { purging = null },
+            text = { Text(stringResource(R.string.drive_vault_local_trash_purge_text, r.name)) },
+            confirmButton = { TextButton(onClick = { purging = null; onPurge(r.entry.id) }) { Text(stringResource(R.string.drive_trash_purge), color = MaterialTheme.colorScheme.error) } },
+            dismissButton = { TextButton(onClick = { purging = null }) { Text(stringResource(R.string.drive_cancel)) } },
+        )
+    }
+    if (emptying) {
+        AlertDialog(
+            onDismissRequest = { emptying = false },
+            title = { Text(stringResource(R.string.drive_vault_local_trash_empty_title)) },
+            text = { Text(pluralStringResource(R.plurals.drive_vault_local_trash_empty_text, folder.trash.size, folder.trash.size, DriveLogic.size(folder.trashBytes))) },
+            confirmButton = { TextButton(onClick = { emptying = false; onEmpty() }) { Text(stringResource(R.string.drive_vault_local_trash_empty_go), color = MaterialTheme.colorScheme.error) } },
+            dismissButton = { TextButton(onClick = { emptying = false }) { Text(stringResource(R.string.drive_cancel)) } },
+        )
+    }
 }
 
 /** "Platzhalter entfernen?" — the content of a lost device is gone for good then. */
@@ -665,7 +789,8 @@ internal fun VaultLocalImportDialog(onImport: (String) -> Unit, onDismiss: () ->
 @Composable
 internal fun localFolderLine(context: Context, f: DriveVaultLocalFolder): String {
     val saved = f.lastExport?.let { stringResource(R.string.drive_vault_local_saved_on, localDate(context, it)) } ?: stringResource(R.string.drive_vault_local_saved_never)
-    return DriveLogic.size(f.bytes) + " · " + saved
+    // the trash too: it lies only here as well
+    return DriveLogic.size(f.allBytes) + " · " + saved
 }
 
 /**
@@ -723,7 +848,7 @@ internal fun VaultLocalLeaveDialog(folders: List<DriveVaultLocalFolder>, onFirst
             Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text(
                     buildAnnotatedString {
-                        append(stringResource(R.string.drive_vault_local_leave_text, DriveLogic.size(folders.sumOf { it.bytes })))
+                        append(stringResource(R.string.drive_vault_local_leave_text, DriveLogic.size(folders.sumOf { it.allBytes })))
                         append(" ")
                         withStyle(SpanStyle(fontWeight = FontWeight.Bold)) { append(stringResource(R.string.drive_vault_local_leave_lost)) }
                     },

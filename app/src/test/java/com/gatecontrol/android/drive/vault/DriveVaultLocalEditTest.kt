@@ -66,6 +66,10 @@ class DriveVaultLocalEditTest {
         assertEquals("Belege 2025", name(store, store.get(10)!!.items.first { it.id == sub }.name))
         assertTrue(edit.delete(10, sub) is DResult.Ok)
         assertTrue(store.get(10)!!.items.isEmpty())
+        // into the folder's trash (30 days): the encrypted file stays until the trash is emptied
+        assertEquals(listOf(sub), store.get(10)!!.trash.map { it.id })
+        assertTrue(File(dir, "data").walkTopDown().any { it.name.endsWith(".gcdv") })
+        assertTrue(edit.emptyTrash(10) is DResult.Ok)
         assertFalse(File(dir, "data").walkTopDown().any { it.name.endsWith(".gcdv") })
     }
 

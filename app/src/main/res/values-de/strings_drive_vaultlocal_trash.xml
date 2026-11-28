@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Drive-Tresore: der lokale Papierkorb eines Ordners „Nur auf diesem Gerät“ (30 Tage, verschlüsselt, nur auf dem Handy). -->
+<resources>
+    <string name="drive_vault_local_trash_ask_title">„%1$s“ löschen?</string>
+    <string name="drive_vault_local_trash_ask_text">Kommt 30 Tage in den Papierkorb dieses Ordners. Danach ist es endgültig weg – auf dem Server gibt es keine Kopie.</string>
+    <string name="drive_vault_local_trash_ask_go">In den Papierkorb</string>
+    <plurals name="drive_vault_local_trash_line">
+        <item quantity="one">Papierkorb: %1$d Element · %2$s</item>
+        <item quantity="other">Papierkorb: %1$d Elemente · %2$s</item>
+    </plurals>
+    <string name="drive_vault_local_trash_info">Gelöschtes bleibt %1$d Tage hier – verschlüsselt und nur auf diesem Handy – und ist danach endgültig weg.</string>
+    <string name="drive_vault_local_trash_until">wird am %1$s gelöscht</string>
+    <string name="drive_vault_local_trash_empty_go">Papierkorb leeren</string>
+    <string name="drive_vault_local_trash_empty_title">Papierkorb leeren?</string>
+    <plurals name="drive_vault_local_trash_empty_text">
+        <item quantity="one">%1$d Element (%2$s) wird endgültig gelöscht. Auf dem Server gibt es keine Kopie.</item>
+        <item quantity="other">%1$d Elemente (%2$s) werden endgültig gelöscht. Auf dem Server gibt es keine Kopie.</item>
+    </plurals>
+    <string name="drive_vault_local_trash_purge_text">„%1$s“ endgültig löschen? Auf dem Server gibt es keine Kopie – das lässt sich nicht rückgängig machen.</string>
+    <string name="drive_vault_local_msg_trashed">Liegt jetzt im Papierkorb dieses Ordners.</string>
+    <string name="drive_vault_local_msg_restored_renamed">Wiederhergestellt – mit neuem Namen, weil der alte dort schon vergeben ist.</string>
+    <string name="drive_vault_local_msg_trash_emptied">Papierkorb geleert.</string>
+    <plurals name="drive_vault_local_back_trash">
+        <item quantity="one">%1$d Element im Papierkorb dieses Ordners kommt nicht mit auf den Server und wird gelöscht. Was mit soll, vorher wiederherstellen.</item>
+        <item quantity="other">%1$d Elemente im Papierkorb dieses Ordners kommen nicht mit auf den Server und werden gelöscht. Was mit soll, vorher wiederherstellen.</item>
+    </plurals>
+    <string name="drive_vault_local_trash_export_note">Die Sicherung enthält den Papierkorb nicht.</string>
+</resources>

@@ -18,8 +18,9 @@ import javax.inject.Singleton
 
 /**
  * Working in a folder kept only on this phone (concept 1.9): new files are encrypted here with the folder's key LK —
- * nothing goes to the server —, new folders, a new name, deleting. Every change is written to the index at once and
- * marks the folder changed (the reminder of a new export, no "Rückgängig" any more).
+ * nothing goes to the server —, new folders, a new name, deleting into the folder's own trash (30 days; restore,
+ * delete for good, empty it). Every change is written to the index at once and marks the folder changed (the reminder
+ * of a new export, no "Rückgängig" any more).
  */
 @Singleton
 class DriveVaultLocalEdit internal constructor(
@@ -44,7 +45,7 @@ class DriveVaultLocalEdit internal constructor(
         val f = writable(folderId) ?: return DResult.Failed("local_locked", 0)
         val lk = lkOf(f) ?: return DResult.Failed("locked", 0)
         val clean = name.trim().ifEmpty { return DResult.Failed("invalid", 0) }
-        val id = DriveVaultLocalLogic.newId(f.items.mapTo(HashSet()) { it.id })
+        val id = DriveVaultLocalLogic.newId(f.ids)
         val item = DriveVaultLocalItem(id, parentId, true, DriveVaultCrypto.encryptName(lk, f.vaultId, DriveVaultCrypto.LOCAL_KEY_VERSION, clean), mtime = now())
         store.update(folderId) { it.copy(items = it.items + item, changedAt = now()) }
         return DResult.Ok(id)
@@ -60,13 +61,53 @@ class DriveVaultLocalEdit internal constructor(
         return DResult.Ok(Unit)
     }
 
-    /** Deletes the entry [itemId] and everything below it, on this phone (there is no copy anywhere else). */
+    /**
+     * The entry [itemId] and everything below it go into the trash of the folder kept here (30 days, still encrypted
+     * with LK where they are — there is no copy anywhere else).
+     */
     fun delete(folderId: Long, itemId: Long): DResult<Unit> {
-        val f = writable(folderId) ?: return DResult.Failed("local_locked", 0)
-        val gone = DriveVaultLocalLogic.subtree(f, itemId)
-        val next = store.update(folderId) { x -> x.copy(items = x.items.filter { it.id !in gone }, changedAt = now()) } ?: return DResult.Failed("failed", 0)
-        store.tidy(next)
+        writable(folderId) ?: return DResult.Failed("local_locked", 0)
+        store.update(folderId) { x -> DriveVaultLocalLogic.toTrash(x, itemId, now()) } ?: return DResult.Failed("failed", 0)
         return DResult.Ok(Unit)
+    }
+
+    /**
+     * The trash entry [entryId] back where it was (or at the top, when that folder is gone); a name taken there by now
+     * gets a free one, "Name (2)" (as Drive's trash does). Returns the name it has now.
+     */
+    fun restore(folderId: Long, entryId: Long): DResult<String> {
+        val f = writable(folderId) ?: return DResult.Failed("local_locked", 0)
+        val lk = lkOf(f) ?: return DResult.Failed("locked", 0)
+        val e = f.trash.firstOrNull { it.id == entryId } ?: return DResult.Failed("not_found", 0)
+        val top = e.top ?: return DResult.Failed("not_found", 0)
+        val keys: (Int) -> ByteArray? = { v -> if (v == DriveVaultCrypto.LOCAL_KEY_VERSION) lk else null }
+        val name = runCatching { DriveVaultCrypto.decryptName(keys, f.vaultId, top.name) }.getOrNull() ?: return DResult.Failed(DriveVaultSession.CODE_VERIFY, 0)
+        var restored = name
+        val next = store.update(folderId) { x ->
+            val parent = DriveVaultLocalLogic.restoreParent(x, e)
+            val taken = DriveVaultLocalLogic.children(x, parent).mapNotNull { runCatching { DriveVaultCrypto.decryptName(keys, x.vaultId, it.name) }.getOrNull() }
+            restored = DriveLogic.freeName(name, taken)
+            val cipher = if (restored == name) null else DriveVaultCrypto.encryptName(lk, x.vaultId, DriveVaultCrypto.LOCAL_KEY_VERSION, restored)
+            DriveVaultLocalLogic.restore(x, entryId, cipher, now()) ?: x
+        } ?: return DResult.Failed("failed", 0)
+        if (next.trash.any { it.id == entryId }) return DResult.Failed("not_found", 0)
+        return DResult.Ok(restored)
+    }
+
+    /** The trash entry [entryId] gone for good: its files and its entries (a revoked folder may do this too). */
+    fun purge(folderId: Long, entryId: Long): DResult<Unit> {
+        val f = store.get(folderId)?.takeIf { it.state == DriveVaultLocalFolder.State.LOCAL } ?: return DResult.Failed("local_locked", 0)
+        if (f.trash.none { it.id == entryId }) return DResult.Failed("not_found", 0)
+        store.dropTrash(folderId, setOf(entryId)) ?: return DResult.Failed("failed", 0)
+        return DResult.Ok(Unit)
+    }
+
+    /** "Papierkorb leeren": everything in the trash of the folder kept here gone for good. */
+    fun emptyTrash(folderId: Long): DResult<Int> {
+        val f = store.get(folderId)?.takeIf { it.state == DriveVaultLocalFolder.State.LOCAL } ?: return DResult.Failed("local_locked", 0)
+        val all = f.trash.mapTo(HashSet()) { it.id }
+        store.dropTrash(folderId, all) ?: return DResult.Failed("failed", 0)
+        return DResult.Ok(all.size)
     }
 
     /**
@@ -104,7 +145,7 @@ class DriveVaultLocalEdit internal constructor(
             }
             if (back.sha256 != sha || back.size != size) return@withContext DResult.Failed(DriveVaultSession.CODE_VERIFY, 0)
             val cur = store.get(folderId) ?: return@withContext DResult.Failed("failed", 0)
-            val id = DriveVaultLocalLogic.newId(cur.items.mapTo(HashSet()) { it.id })
+            val id = DriveVaultLocalLogic.newId(cur.ids)
             store.place(cur, id, tmp)
             val item = DriveVaultLocalItem(id, parentId, false, DriveVaultCrypto.encryptName(lk, f.vaultId, DriveVaultCrypto.LOCAL_KEY_VERSION, clean), size = size, mtime = now())
             store.update(folderId) { it.copy(items = it.items + item, changedAt = now()) }

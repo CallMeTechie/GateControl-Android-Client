@@ -270,6 +270,7 @@ class DriveVaultViewModel @Inject constructor(
                 confirmed = false
                 _requests.value = null
                 _move.value = null
+                _localTrash.value = null
                 bulk.clear()
                 bulk.closeTarget()
                 _conflict.value?.let { resolve(it, null) }
@@ -316,6 +317,8 @@ class DriveVaultViewModel @Inject constructor(
             ?: localStore.folderOfItem(fid)?.takeIf { f -> f.items.any { it.id == fid && it.isDir } }
             ?: return null
         if (lf.vaultId != vaultId || lf.state == com.gatecontrol.android.drive.vault.DriveVaultLocalFolder.State.MOVING) return null
+        // opened: what lies longer than 30 days in its trash goes (the daily look does it too)
+        runCatching { localStore.purgeExpired(lf.nodeId, System.currentTimeMillis()) }
         val L = com.gatecontrol.android.drive.vault.DriveVaultLocalLogic
         val pageNode = if (fid == lf.nodeId) {
             DNode(
@@ -565,9 +568,58 @@ class DriveVaultViewModel @Inject constructor(
         act("done_rename") { localEdit.rename(lf.nodeId, node.id, name) }
     }
 
+    /** Into the trash of the folder kept here (30 days; nothing on the server). */
     fun deleteLocal(node: DNode) {
         val (lf, _) = localHere() ?: return
-        act("local_deleted") { localEdit.delete(lf.nodeId, node.id) }
+        act("local_trashed") { localEdit.delete(lf.nodeId, node.id) }
+    }
+
+    // ─── the trash of a folder kept here (30 days) ──────────────────
+
+    private val _localTrash = MutableStateFlow<Long?>(null)
+    /** The folder (its placeholder's id) whose trash is shown; null: closed. */
+    val localTrash: StateFlow<Long?> = _localTrash.asStateFlow()
+
+    fun openLocalTrash() {
+        val (lf, _) = localHere() ?: return
+        lock.touch()
+        runCatching { localStore.purgeExpired(lf.nodeId, System.currentTimeMillis()) }
+        _localTrash.value = lf.nodeId
+    }
+
+    fun closeLocalTrash() { _localTrash.value = null }
+
+    /** The rows of the trash of [folder]: names decrypted with LK in memory, where each came from. */
+    internal fun localTrashRows(folder: com.gatecontrol.android.drive.vault.DriveVaultLocalFolder, title: String): List<VaultLocalTrashRow> {
+        val L = com.gatecontrol.android.drive.vault.DriveVaultLocalLogic
+        val dirs = (folder.items + folder.trash.flatMap { it.items }).filter { it.isDir }.associateBy { it.id }
+        return L.trashSorted(folder).mapNotNull { e ->
+            val top = e.top ?: return@mapNotNull null
+            val node = L.asNode(folder, top)
+            val from = if (e.parentId == folder.nodeId) title else dirs[e.parentId]?.let { session.nameOf(L.asNode(folder, it)) }
+            VaultLocalTrashRow(e, node, session.nameOf(node) ?: "…", from)
+        }
+    }
+
+    fun restoreLocal(entryId: Long) {
+        val id = _localTrash.value ?: return
+        lock.touch()
+        viewModelScope.launch {
+            val before = localStore.get(id)?.trash?.firstOrNull { it.id == entryId }?.top?.name
+            val r = localEdit.restore(id, entryId)
+            val renamed = r is DResult.Ok && localStore.get(id)?.items?.firstOrNull { it.id == entryId }?.name != before
+            _message.value = r.errorCode() ?: if (renamed) "local_restored_renamed" else "done_restore"
+        }
+    }
+
+    fun purgeLocalTrash(entryId: Long) {
+        val id = _localTrash.value ?: return
+        act("done_purge") { localEdit.purge(id, entryId) }
+    }
+
+    fun emptyLocalTrash() {
+        val id = _localTrash.value ?: return
+        act("local_trash_emptied") { localEdit.emptyTrash(id) }
     }
 
     /** New files into a folder kept here: encrypted on this phone, never sent; the original goes once checked. */
@@ -1138,6 +1190,7 @@ fun DriveVaultScreen(onBack: () -> Unit, onFolder: (vaultId: String, folderId: L
     val localFolders by viewModel.localStore.folders.collectAsStateWithLifecycle()
     val localJobs by viewModel.localJobs.progress.collectAsStateWithLifecycle()
     val localAsk by viewModel.localAsk.collectAsStateWithLifecycle()
+    val localTrash by viewModel.localTrash.collectAsStateWithLifecycle()
     var placeholderFor by remember { mutableStateOf<Pair<DNode, String>?>(null) }
     var forgetFor by remember { mutableStateOf<Pair<DNode, String>?>(null) }
     var backFor by remember { mutableStateOf<Triple<Long, String, Boolean>?>(null) }
@@ -1333,6 +1386,7 @@ fun DriveVaultScreen(onBack: () -> Unit, onFolder: (vaultId: String, folderId: L
                             undoUntil = if (canUndo) lf.purgeAt else null,
                             onBack = if (top && !lf.revoked && !s.offline && localJobs[lf.nodeId]?.running != true) ({ backFor = Triple(lf.nodeId, s.title, true) }) else null,
                             onUndo = if (top && canUndo && !s.offline) ({ viewModel.undoLocal(lf.nodeId) }) else null,
+                            onTrash = { viewModel.openLocalTrash() },
                             extra = { if (top) VaultLocalExportButton { startExport(lf.nodeId, s.title) } },
                         )
                         if (top && com.gatecontrol.android.drive.vault.DriveVaultLocalLogic.needsBackup(lf, now)) {
@@ -1519,6 +1573,22 @@ fun DriveVaultScreen(onBack: () -> Unit, onFolder: (vaultId: String, folderId: L
             )
         }
         SnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(start = 16.dp, end = 16.dp, bottom = if (selecting) 88.dp else 84.dp))
+        // the trash of a folder kept here, over the page (30 days, on this phone only)
+        val trashOf = localTrash?.let { localFolders[it] }
+        if (trashOf != null && ready?.local != null) {
+            val trashTitle = viewModel.session.nameOf(
+                DNode(trashOf.nodeId, trashOf.areaId, trashOf.parentId, "", true, 0, null, null, 1, null, null, null, vaultId = trashOf.vaultId, nameCipher = trashOf.nameCipher),
+            ) ?: "…"
+            VaultLocalTrashScreen(
+                folder = trashOf,
+                rows = remember(trashOf) { viewModel.localTrashRows(trashOf, trashTitle) },
+                canRestore = !trashOf.revoked && trashOf.state == com.gatecontrol.android.drive.vault.DriveVaultLocalFolder.State.LOCAL,
+                onBack = viewModel::closeLocalTrash,
+                onRestore = viewModel::restoreLocal,
+                onPurge = viewModel::purgeLocalTrash,
+                onEmpty = viewModel::emptyLocalTrash,
+            )
+        }
         // the viewer of a file, over everything of the vault page (Drive plugin 1.22)
         viewer?.let { v ->
             DriveVaultViewerScreen(
@@ -1758,7 +1828,7 @@ fun DriveVaultScreen(onBack: () -> Unit, onFolder: (vaultId: String, folderId: L
         VaultForgetDialog(name, n.local?.let { localDeviceName(it) } ?: "", onConfirm = { forgetFor = null; viewModel.forgetPlaceholder(n) }, onDismiss = { forgetFor = null })
     }
     backFor?.let { (id, name, keep) ->
-        VaultLocalBackDialog(name, keep, onConfirm = { k -> backFor = null; confirmThen { viewModel.backToServer(id, name, k) } }, onDismiss = { backFor = null })
+        VaultLocalBackDialog(name, keep, onConfirm = { k -> backFor = null; confirmThen { viewModel.backToServer(id, name, k) } }, onDismiss = { backFor = null }, trash = localFolders[id]?.trash?.size ?: 0)
     }
     deleteLocalFolderFor?.let { (id, name) ->
         VaultLocalDeleteDialog(name, onConfirm = { deleteLocalFolderFor = null; confirmThen { viewModel.deleteLocalFolder(id) } }, onDismiss = { deleteLocalFolderFor = null })
@@ -1770,7 +1840,7 @@ fun DriveVaultScreen(onBack: () -> Unit, onFolder: (vaultId: String, folderId: L
         VaultLocalDeleteDialog(exportName, onConfirm = { dropLocalFor = null; viewModel.dropLocalHere(f.nodeId) }, onDismiss = { dropLocalFor = null })
     }
     deletingLocal?.let { (n, name) ->
-        VaultLocalDeleteDialog(name, onConfirm = { deletingLocal = null; viewModel.deleteLocal(n) }, onDismiss = { deletingLocal = null })
+        VaultLocalTrashDialog(name, onConfirm = { deletingLocal = null; viewModel.deleteLocal(n) }, onDismiss = { deletingLocal = null })
     }
     if (confirmRotate) {
         AlertDialog(

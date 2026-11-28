@@ -25,14 +25,16 @@ interface DriveVaultLocalReminderEntryPoint {
 }
 
 /**
- * The monthly reminder of a new export (concept 1.7, question 5): once a day it looks whether a folder kept only on
- * this phone has no export, one older than a month or one older than its last change — then, at most once a month, a
- * notification "Zeit für eine neue Sicherung". Never a folder's name (it is a vault's).
+ * The daily look at the folders kept only on this phone: what lies longer than 30 days in a folder's trash goes for
+ * good (no key needed, nothing is decrypted), and the monthly reminder of a new export (concept 1.7, question 5):
+ * whether a folder has no export, one older than a month or one older than its last change — then, at most once a
+ * month, a notification "Zeit für eine neue Sicherung". Never a folder's name (it is a vault's).
  */
 class DriveVaultLocalReminderWorker(appContext: Context, params: WorkerParameters) : CoroutineWorker(appContext, params) {
     override suspend fun doWork(): Result {
         val store = EntryPointAccessors.fromApplication(applicationContext, DriveVaultLocalReminderEntryPoint::class.java).store()
         val now = System.currentTimeMillis()
+        runCatching { store.purgeExpiredAll(now) }.onFailure { Timber.w("Drive vault local: trash not emptied (%s)", it.javaClass.simpleName) }
         val due = store.load().values.filter { DriveVaultLocalLogic.remindNow(it, now) }
         if (due.isNotEmpty()) {
             due.forEach { f -> runCatching { store.update(f.nodeId) { it.copy(remindedAt = now) } } }

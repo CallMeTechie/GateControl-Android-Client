@@ -21,6 +21,9 @@ import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.isDialog
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.onAllNodesWithContentDescription
+import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -32,6 +35,7 @@ import com.gatecontrol.android.drive.vault.DriveVaultCrypto
 import com.gatecontrol.android.drive.vault.DriveVaultLocalFolder
 import com.gatecontrol.android.drive.vault.DriveVaultLocalItem
 import com.gatecontrol.android.drive.vault.DriveVaultLocalJobs
+import com.gatecontrol.android.drive.vault.DriveVaultLocalTrashEntry
 import com.gatecontrol.android.ui.components.GcCard
 import com.gatecontrol.android.ui.components.GcRowDivider
 import com.gatecontrol.android.ui.theme.GateControlTheme
@@ -282,5 +286,82 @@ class DriveVaultLocalUiTest {
         rule.onNodeWithText("Sicherung exportieren").assertExists()
         rule.onNodeWithText("Löschen").assertExists()
         shot("gesperrt-entfernt")
+    }
+
+    // ─── the local trash (30 days) ──────────────────────────────────
+
+    private val trashed = DriveVaultLocalFolder(
+        "srv", vaultId, 10, 1, "mine:1", null, "dev", DriveVaultLocalFolder.State.LOCAL, since = 1000, changedAt = 2000,
+        items = listOf(DriveVaultLocalItem(21, 10, false, "n", size = 1_200_000)),
+        trash = listOf(
+            DriveVaultLocalTrashEntry(31, 10, 1_764_300_000_000, listOf(DriveVaultLocalItem(31, 10, false, "n", size = 2_800_000))),
+            DriveVaultLocalTrashEntry(32, 10, 1_764_200_000_000, listOf(DriveVaultLocalItem(32, 10, true, "d"), DriveVaultLocalItem(33, 32, false, "n", size = 400_000), DriveVaultLocalItem(34, 32, false, "n", size = 600_000))),
+        ),
+    )
+
+    private fun trashRows(f: DriveVaultLocalFolder) = listOf(
+        VaultLocalTrashRow(f.trash[0], node(31, false, 2_800_000).copy(keyVersion = DriveVaultCrypto.LOCAL_KEY_VERSION), "Reisepass.pdf", "Ausweise"),
+        VaultLocalTrashRow(f.trash[1], node(32, true).copy(keyVersion = DriveVaultCrypto.LOCAL_KEY_VERSION), "Alte Scans", "Ausweise"),
+    ).filter { r -> f.trash.any { it.id == r.entry.id } }
+
+    @Test
+    fun `deleting inside asks with the 30 days of the folder's trash`() {
+        var ok = false
+        page { VaultLocalTrashDialog("Reisepass.pdf", onConfirm = { ok = true }, onDismiss = {}) }
+        rule.onNodeWithText("Kommt 30 Tage in den Papierkorb dieses Ordners", substring = true).assertExists()
+        shot("T1-loeschen-rueckfrage", dialog = true)
+        rule.onNodeWithText("In den Papierkorb").performClick()
+        assertEquals(true, ok)
+    }
+
+    @Test
+    fun `the card counts the trash and opens it`() {
+        var opened = false
+        page { VaultLocalCard(trashed, undoUntil = null, onBack = {}, onUndo = null, onTrash = { opened = true }, extra = { VaultLocalExportButton {} }) }
+        rule.onNodeWithText("Papierkorb: 2 Elemente · ", substring = true).assertExists()
+        shot("T2-karte-papierkorb")
+        rule.onNodeWithText("Papierkorb: 2 Elemente · ", substring = true).performClick()
+        assertEquals(true, opened)
+        page { VaultLocalCard(folder(), undoUntil = null, onBack = {}, onUndo = null, onTrash = {}) }
+        rule.onNodeWithText("Papierkorb", substring = true).assertDoesNotExist()
+    }
+
+    @Test
+    fun `the trash shows until when, restores, deletes for good and empties`() {
+        val restored = ArrayList<Long>()
+        val purged = ArrayList<Long>()
+        var emptied = false
+        page {
+            VaultLocalTrashScreen(trashed, trashRows(trashed), canRestore = true, onBack = {}, onRestore = { restored += it }, onPurge = { purged += it }, onEmpty = { emptied = true })
+        }
+        rule.onNodeWithText("Reisepass.pdf").assertExists()
+        assertEquals(2, rule.onAllNodesWithText("wird am", substring = true).fetchSemanticsNodes().size)
+        assertEquals(2, rule.onAllNodesWithText("aus Ausweise", substring = true).fetchSemanticsNodes().size)
+        rule.onNodeWithText("Die Sicherung enthält den Papierkorb nicht.", substring = true).assertExists()
+        shot("T3-papierkorb")
+        rule.onAllNodesWithContentDescription("Wiederherstellen")[0].performClick()
+        assertEquals(listOf(31L), restored)
+        rule.onAllNodesWithContentDescription("Endgültig löschen")[1].performClick()
+        rule.onNodeWithText("„Alte Scans“ endgültig löschen?", substring = true).assertExists()
+        shot("T4-endgueltig", dialog = true)
+        rule.onNodeWithText("Endgültig löschen").performClick()
+        assertEquals(listOf(32L), purged)
+        rule.onNodeWithText("Papierkorb leeren").performClick()
+        rule.onNodeWithText("werden endgültig gelöscht", substring = true).assertExists()
+        shot("T5-leeren", dialog = true)
+        rule.onAllNodesWithText("Papierkorb leeren")[1].performClick()
+        assertEquals(true, emptied)
+        page { VaultLocalTrashScreen(trashed.copy(trash = emptyList()), emptyList(), canRestore = true, onBack = {}, onRestore = {}, onPurge = {}, onEmpty = {}) }
+        rule.onNodeWithText("Der Papierkorb ist leer.").assertExists()
+        rule.onNodeWithText("Papierkorb leeren").assertDoesNotExist()
+        page { VaultLocalTrashScreen(trashed, trashRows(trashed), canRestore = false, onBack = {}, onRestore = {}, onPurge = {}, onEmpty = {}) }
+        rule.onNodeWithContentDescription("Wiederherstellen").assertDoesNotExist()
+    }
+
+    @Test
+    fun `the way back says the trash stays behind`() {
+        page { VaultLocalBackDialog("Ausweise", keep = true, onConfirm = {}, onDismiss = {}, trash = 2) }
+        rule.onNodeWithText("2 Elemente im Papierkorb dieses Ordners kommen nicht mit auf den Server", substring = true).assertExists()
+        shot("T6-zurueck-papierkorb", dialog = true)
     }
 }
