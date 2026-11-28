@@ -112,6 +112,50 @@ class QuickActionRepositoryTest {
     }
 
     @Test
+    fun `pinned lock and unlock of a lock become its one switch, in place`() {
+        // Tür & Kamera 1.11: „Haustür zusperren“ / „aufsperren“ → the switch „Zugesperrt“
+        val lock = QuickActionItem("gatecontrol-door", "Tür & Kamera", "1:lock", "Haustür zusperren", deviceId = "lock:1")
+        val unlock = QuickActionItem("gatecontrol-door", "Tür & Kamera", "1:unlock", "Haustür aufsperren", deviceId = "lock:1")
+        val open = QuickActionItem("gatecontrol-door", "Tür & Kamera", "1:open", "Haustür öffnen", deviceId = "lock:1")
+        val light = QuickActionItem("smarthome", "Smart Home", "light:3", "Flur")
+        val switch = QuickActionItem("gatecontrol-door", "Tür & Kamera", "1:toggle", "Zugesperrt", toggle = true, state = "on", deviceId = "lock:1")
+        val items = listOf(switch, open)
+        // both pinned: the first takes the switch's place, the second goes
+        assertEquals(listOf(open, switch, light), QuickActionRepository.syncedPins(listOf(open, lock, light, unlock), items))
+        // only „aufsperren“ pinned: it becomes the switch, not nothing
+        assertEquals(listOf(switch), QuickActionRepository.syncedPins(listOf(unlock), items))
+        // the switch pinned already: the old buttons go, no second switch
+        assertEquals(listOf(switch), QuickActionRepository.syncedPins(listOf(switch, lock, unlock), items))
+        // another device's switch is never taken; without a device id the button simply goes
+        val other = switch.copy(id = "2:toggle", deviceId = "lock:2")
+        assertEquals(emptyList<QuickActionItem>(), QuickActionRepository.syncedPins(listOf(lock), listOf(other)))
+        assertEquals(emptyList<QuickActionItem>(), QuickActionRepository.syncedPins(listOf(lock.copy(deviceId = null)), items))
+    }
+
+    @Test
+    fun `a switch's confirmation names the command it runs (verbs), else the title`() {
+        val raw = QuickAction(
+            plugin = "gatecontrol-door", id = "1:toggle", title = "Zugesperrt", kind = "toggle", state = "on", confirm = true, confirmWhen = "off",
+            verbs = com.gatecontrol.android.network.QuickActionVerbs(on = "Zusperren", off = "Aufsperren"),
+        )
+        val locked = QuickActionRepository.sanitize(listOf(raw)).single()
+        assertEquals("Zusperren" to "Aufsperren", locked.verbOn to locked.verbOff)
+        assertTrue(locked.needsConfirm)
+        assertEquals("Aufsperren", locked.confirmLabel)
+        val unlocked = locked.copy(title = "Aufgesperrt", state = "off")
+        assertFalse(unlocked.needsConfirm, "zusperren asks nothing")
+        assertEquals("Zusperren", unlocked.confirmLabel)
+        // unknown state: a run switches on
+        assertEquals("Zusperren", locked.copy(state = null).confirmLabel)
+        // a button, a switch without verbs, verbs on a button or too long: the title
+        val button = QuickActionRepository.sanitize(listOf(raw.copy(kind = "button"))).single()
+        assertEquals(null to null, button.verbOn to button.verbOff)
+        assertEquals("Zugesperrt", button.confirmLabel)
+        val long = QuickActionRepository.sanitize(listOf(raw.copy(verbs = com.gatecontrol.android.network.QuickActionVerbs(on = "x".repeat(21), off = " ")))).single()
+        assertEquals("Zugesperrt", long.confirmLabel)
+    }
+
+    @Test
     fun `older server without quick actions is reported as unsupported`() = runTest {
         coEvery { api.getQuickActions(any()) } returns Response.error(404, "{}".toResponseBody(null))
         assertEquals(QuickActionsLoad.Unsupported, repo().refresh())

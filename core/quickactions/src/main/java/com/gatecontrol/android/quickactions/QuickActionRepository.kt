@@ -68,6 +68,12 @@ data class QuickActionItem(
      */
     val opensScreen: String? = null,
     val opensRef: String? = null,
+    /**
+     * Switches: the command that sets „on“ / „off“ (core 1.173+ `verbs`, e.g.
+     * „Zusperren“ / „Aufsperren“), null = none. Pins stored before have none.
+     */
+    val verbOn: String? = null,
+    val verbOff: String? = null,
 ) {
     val key: String get() = "$plugin/$id"
     val isOn: Boolean get() = toggle && state == "on"
@@ -80,6 +86,13 @@ data class QuickActionItem(
 
     /** Whether to ask before running: only towards [confirmWhen] when the plugin gives it, else [confirm]. */
     val needsConfirm: Boolean get() = if (toggle && confirmWhen != null) target == confirmWhen else confirm
+
+    /**
+     * What the confirmation names: for a switch the command of the state a
+     * run switches to („Aufsperren“ of a lock showing „Zugesperrt“), else
+     * the title.
+     */
+    val confirmLabel: String get() = (if (target == "off") verbOff else if (target == "on") verbOn else null) ?: title
 
     /** The look of the current state, null without one (or with the state unknown). */
     val currentLook: QuickActionLookStateItem? get() = if (toggle) look?.forState(state) else null
@@ -506,8 +519,13 @@ class QuickActionRepository @Inject constructor(
                 confirmWhen = if (toggle) a.confirmWhen?.takeIf { it == "on" || it == "off" } else null,
                 opensScreen = opens?.screen,
                 opensRef = opens?.ref?.let(::clean)?.takeIf { it.isNotEmpty() && it.length <= 80 },
+                verbOn = if (toggle) verb(a.verbs?.on) else null,
+                verbOff = if (toggle) verb(a.verbs?.off) else null,
             )
         }.distinctBy { it.key }
+
+        /** A verb of a switch: 1–20 characters, else null. */
+        private fun verb(raw: String?): String? = raw?.let(::clean)?.takeIf { it.isNotEmpty() && it.length <= 20 }
 
         private data class Device(val id: String, val title: String, val subtitle: String?, val icon: String?)
 
@@ -547,7 +565,23 @@ class QuickActionRepository @Inject constructor(
         internal fun syncedPins(pins: List<QuickActionItem>, items: List<QuickActionItem>): List<QuickActionItem> {
             val byKey = items.associateBy { it.key }
             val listing = items.map { it.plugin }.toSet()
-            return pins.mapNotNull { pin -> byKey[pin.key] ?: pin.takeIf { it.plugin !in listing } }
+            val taken = pins.mapNotNull { byKey[it.key]?.key }.toMutableSet()
+            return pins.mapNotNull { pin ->
+                byKey[pin.key] ?: pin.takeIf { it.plugin !in listing } ?: switchFor(pin, items, taken)
+            }
+        }
+
+        /**
+         * A dropped button of a device whose actions became one switch (Tür &
+         * Kamera 1.11: „zusperren“ and „aufsperren“ → the lock's switch): the
+         * device's switch takes its place when it is not pinned yet, else
+         * nothing (the button goes).
+         */
+        private fun switchFor(pin: QuickActionItem, items: List<QuickActionItem>, taken: MutableSet<String>): QuickActionItem? {
+            if (pin.toggle) return null
+            val device = pin.deviceId ?: return null
+            return items.firstOrNull { it.plugin == pin.plugin && it.deviceId == device && it.toggle && it.key !in taken }
+                ?.also { taken += it.key }
         }
 
         fun clean(s: String): String = s.filter { !it.isISOControl() }.trim()

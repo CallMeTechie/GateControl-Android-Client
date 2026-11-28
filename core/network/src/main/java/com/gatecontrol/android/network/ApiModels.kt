@@ -472,6 +472,8 @@ data class QuickAction(
     @SerializedName("look") val look: QuickActionLook? = null,
     /** Switches only (core 1.172+): ask first only before switching to this state ("on" | "off"). */
     @SerializedName("confirmWhen") val confirmWhen: String? = null,
+    /** Switches only (core 1.173+): the command that sets each state, e.g. „Zusperren“ / „Aufsperren“. */
+    @SerializedName("verbs") val verbs: QuickActionVerbs? = null,
     /** The ids the plugin replaced (core 1.186.2+): pins and widgets stored under one move to this plugin. */
     @SerializedName("formerly") val formerly: List<String>? = null,
     /**
@@ -492,6 +494,11 @@ data class QuickActionDevice(
     @SerializedName("title") val title: String? = null,
     @SerializedName("subtitle") val subtitle: String? = null,
     @SerializedName("icon") val icon: String? = null,
+)
+
+data class QuickActionVerbs(
+    @SerializedName("on") val on: String? = null,
+    @SerializedName("off") val off: String? = null,
 )
 
 data class QuickActionLook(
