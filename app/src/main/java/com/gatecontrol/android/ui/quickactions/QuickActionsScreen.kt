@@ -7,8 +7,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -22,8 +20,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.BasicText
-import androidx.compose.foundation.text.TextAutoSize
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
@@ -51,8 +47,6 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.Hyphens
-import androidx.compose.ui.text.style.LineBreak
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
@@ -343,7 +337,6 @@ fun QuickActionsEffects(
  * a long press on the tab sets it up; hidden without actions. A long press
  * on a tile opens its settings ([PinSheet]), on a door the door screen.
  */
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun StartTiles(
     modifier: Modifier = Modifier,
@@ -388,37 +381,56 @@ fun StartTiles(
             textAlign = TextAlign.Center,
             modifier = modifier.fillMaxWidth().padding(vertical = 4.dp),
         )
-        is QuickActionsRow.Tiles -> if (row.items.isNotEmpty() || contactsHere) BoxWithConstraints(modifier.fillMaxWidth()) {
-            // In whole pixels, rounded down: the row lays the gaps out in whole
-            // pixels, and a width rounded up pushes the last tile into the next row.
-            val density = LocalDensity.current
-            val tile = with(density) { ((constraints.maxWidth - TILE_GAP.roundToPx() * (TILES_PER_ROW - 1)) / TILES_PER_ROW).toDp() }
-            FlowRow(
-                horizontalArrangement = Arrangement.spacedBy(TILE_GAP),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-                maxItemsInEachRow = TILES_PER_ROW,
-            ) {
-                val byKey = row.items.associateBy { it.key }
-                tileEntries.forEach { entry ->
-                    if (entry is StartEntry.Contact) {
-                        contacts[entry.id]?.let { com.gatecontrol.android.ui.mail.start.ContactTile(it, tile) }
-                        return@forEach
+        is QuickActionsRow.Tiles -> if (row.items.isNotEmpty() || contactsHere) {
+            val byKey = row.items.associateBy { it.key }
+            // Only what is shown takes a place in the rows (a pin the server no longer has, a contact gone).
+            val cells: List<@Composable (Dp) -> Unit> = tileEntries.mapNotNull { entry ->
+                when (entry) {
+                    is StartEntry.Contact -> contacts[entry.id]?.let { pin -> @Composable { w: Dp -> com.gatecontrol.android.ui.mail.start.ContactTile(pin, w) } }
+                    is StartEntry.Tile -> byKey[entry.action]?.let { item ->
+                        @Composable { w: Dp ->
+                            val door = longPress(item, onOpenDoor)
+                            QuickActionTile(
+                                item = item,
+                                width = w,
+                                running = running == item.key,
+                                onClick = { viewModel.ask(item) },
+                                onLongPress = door ?: { viewModel.openSheet(PinSheetRequest(item.deviceKey, widget = false, action = item.key, page = page)) },
+                                longPressLabel = if (door != null) stringResource(R.string.door_open_screen) else settingsLabel,
+                            )
+                        }
                     }
-                    val item = byKey[(entry as StartEntry.Tile).action] ?: return@forEach
-                    val door = longPress(item, onOpenDoor)
-                    QuickActionTile(
-                        item = item,
-                        width = tile,
-                        running = running == item.key,
-                        onClick = { viewModel.ask(item) },
-                        onLongPress = door ?: { viewModel.openSheet(PinSheetRequest(item.deviceKey, widget = false, action = item.key, page = page)) },
-                        longPressLabel = if (door != null) stringResource(R.string.door_open_screen) else settingsLabel,
-                    )
+                    else -> null
+                }
+            }
+            StartTileRows(cells, modifier)
+        }
+    }
+}
+
+/**
+ * The start tab's buttons in rows: at least five in a row (StartTileGrid),
+ * the tile's width worked out from the space there is — a narrow phone
+ * makes them smaller instead of wrapping, a tablet fits more.
+ */
+@Composable
+internal fun StartTileRows(cells: List<@Composable (Dp) -> Unit>, modifier: Modifier = Modifier) {
+    BoxWithConstraints(modifier.fillMaxWidth().testTag(START_TILES_TAG)) {
+        val density = LocalDensity.current
+        val gapPx = with(density) { TILE_GAP.roundToPx() }
+        val columns = StartTileGrid.columns(constraints.maxWidth, gapPx, with(density) { TILE_MAX_WIDTH.roundToPx() })
+        val tile = with(density) { StartTileGrid.tileWidth(constraints.maxWidth, gapPx, columns).toDp() }
+        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            cells.chunked(columns).forEach { rowCells ->
+                Row(horizontalArrangement = Arrangement.spacedBy(TILE_GAP)) {
+                    rowCells.forEach { it(tile) }
                 }
             }
         }
     }
 }
+
+internal const val START_TILES_TAG = "start-tiles"
 
 /** "Tür & Kamera · Kameras ansehen" on Start for people without a door quick action (DoorEntry). */
 @Composable
@@ -535,8 +547,10 @@ sealed interface QuickActionsRow {
     }
 }
 
-private const val TILES_PER_ROW = 5
 private val TILE_GAP = 10.dp
+
+/** The widest a start tab button grows before a row takes one more (never fewer than five). */
+private val TILE_MAX_WIDTH = 84.dp
 private val WIDGET_GAP = 12.dp
 private val TileShape = RoundedCornerShape(18.dp)
 
@@ -614,25 +628,9 @@ internal fun QuickActionTile(
             }
             QuickActionBadgeView.of(item)?.let { TileBadge(it, Modifier.align(Alignment.TopEnd).padding(3.dp)) }
         }
-        // Two lines, long words hyphenated, the size stepping down before
-        // anything is cut: „Haustür öffnen“, „Scheibenheizung“ fit a fifth of a row.
-        val labelStyle = MaterialTheme.typography.labelSmall
-        val labelColor = toned?.first ?: if (on) extra.accentText else scheme.onSurface
-        BasicText(
-            item.title,
-            style = labelStyle.copy(
-                color = labelColor,
-                textAlign = TextAlign.Center,
-                hyphens = Hyphens.Auto,
-                lineBreak = LineBreak.Paragraph,
-                lineHeight = labelStyle.fontSize * 1.15f,
-            ),
-            maxLines = 2,
-            minLines = 2,
-            overflow = TextOverflow.Ellipsis,
-            autoSize = TextAutoSize.StepBased(minFontSize = 9.sp, maxFontSize = labelStyle.fontSize, stepSize = 0.5.sp),
-            modifier = Modifier.fillMaxWidth(),
-        )
+        // Two lines, broken only between words; the size steps down until each
+        // word fits whole: „Haustür öffnen“, „Aufgesperrt“ fit a fifth of a row.
+        TileLabel(item.title, color = toned?.first ?: if (on) extra.accentText else scheme.onSurface)
     }
 }
 

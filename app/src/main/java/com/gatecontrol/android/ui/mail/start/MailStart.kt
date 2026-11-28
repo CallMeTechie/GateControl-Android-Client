@@ -28,8 +28,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.BasicText
-import androidx.compose.foundation.text.TextAutoSize
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -58,9 +56,6 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.Hyphens
-import androidx.compose.ui.text.style.LineBreak
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -76,6 +71,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.repeatOnLifecycle
 import androidx.lifecycle.viewModelScope
 import com.gatecontrol.android.R
+import com.gatecontrol.android.ui.quickactions.TileLabel
 import com.gatecontrol.android.layout.StartArrangement
 import com.gatecontrol.android.mail.AgendaView
 import com.gatecontrol.android.mail.CallStep
@@ -295,22 +291,7 @@ fun ContactTile(pin: StartContactPin, width: Dp) {
                 }
             }
         }
-        val labelStyle = MaterialTheme.typography.labelSmall
-        BasicText(
-            pin.name.ifBlank { "–" },
-            style = labelStyle.copy(
-                color = MaterialTheme.colorScheme.onSurface,
-                textAlign = TextAlign.Center,
-                hyphens = Hyphens.Auto,
-                lineBreak = LineBreak.Paragraph,
-                lineHeight = labelStyle.fontSize * 1.15f,
-            ),
-            maxLines = 2,
-            minLines = 2,
-            overflow = TextOverflow.Ellipsis,
-            autoSize = TextAutoSize.StepBased(minFontSize = 9.sp, maxFontSize = labelStyle.fontSize, stepSize = 0.5.sp),
-            modifier = Modifier.fillMaxWidth(),
-        )
+        TileLabel(pin.name.ifBlank { "–" }, color = MaterialTheme.colorScheme.onSurface)
     }
 }
 
